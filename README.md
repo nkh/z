@@ -1,33 +1,54 @@
-# Gtk3 SourceView Editor Modules
+# Gtk3 SourceEditor
 
-A modular, reusable set of Perl modules for embedding a fully functional, Vim-bound, theme-aware text editor into any Gtk3 application.
+A modular, reusable set of Perl modules for embedding a fully functional, Vim-bound, theme-aware text editor into any Gtk3 application. Version 0.04.
 
 ## Architecture
 
-*   **`SourceEditor.pm`**: The main widget factory. Generates the `Gtk3::Box` containing the scrolling text area and the bottom status/command bar. Handles fonts, wrapping, and file loading.
-*   **`ThemeManager.pm`**: Handles parsing XML theme files, dynamically injecting missing properties (like the caret/cursor color), and generating the necessary CSS to force the bottom UI widgets to match the theme (bypassing default GTK system themes).
-*   **`VimBindings.pm`**: A standalone key-press interceptor that attaches Vim-like modal states (Normal, Insert, Command) to a `Gtk3::SourceView::View`.
+*   **`SourceEditor.pm`**: The main widget factory. Generates the `Gtk3::Box` containing the scrolling text area and the bottom status/command bar. Handles fonts, wrapping, file loading, and optional Vim mode toggle (`vim_mode => 0` for native GTK editing).
+*   **`ThemeManager.pm`**: Handles parsing XML theme files, dynamically injecting missing properties (like the caret/cursor color), and generating the necessary CSS to force the bottom UI widgets to match the theme.
+*   **`VimBindings.pm`**: A standalone key-press interceptor that attaches Vim-like modal states (Normal, Insert, Replace, Visual character/line/block, Command) to a `Gtk3::SourceView::View`. All editing logic operates through the `VimBuffer` abstract interface for GUI decoupling and headless testing.
+
+## Features (v0.04)
+
+- **6 editing modes**: Normal, Insert, Replace, Visual (character/line/block), Command
+- **Complete motion set**: h/j/k/l, w/b/e, gg/G, Page Up/Down, f/F/t/T, ;/,, %
+- **Ctrl-key navigation**: Ctrl-u/d/f/b/y/e/r (scroll, paging, redo)
+- **Editing commands**: x, dd, cc, cw, C, J, r, >>, <<, U
+- **Yank/paste**: yy, yw, p, P, xp (swap word)
+- **Visual mode**: character/line/block selection with y/d/c/indent/case toggle/I/A/o/gq/gv
+- **Search**: /, ?, n, N with forward/backward
+- **Marks**: m{a-z}, `{a-z}, '{a-z}
+- **Ex-commands**: :w, :q, :wq, :e, :r, :s, :%s, :bindings, :{number}
+- **vim_mode toggle**: Set `vim_mode => 0` for native Gtk3::SourceView keybindings
+- **Headless testing**: 210+ subtests across 11 test files, no GTK dependency
 
 ## Usage Example
 
 ```perl
 use Gtk3 -init;
-use SourceEditor;
+use Gtk3::SourceEditor;
 
 my $window = Gtk3::Window->new('toplevel');
 $window->signal_connect(delete_event => sub { Gtk3->main_quit(); });
 
-my $editor = SourceEditor->new(
+# With Vim bindings (default)
+my $editor = Gtk3::SourceEditor->new(
     file       => 'my_script.pl',
     theme_file => 'themes/theme_dark.xml',
     font_size  => 14,
-    wrap       => 0,          # Disable word wrap (horizontal scroll)
-    read_only  => 1,          # Open in read-only mode
-    window     => $window,    # Required if using on_close callback
+    wrap       => 0,
+    read_only  => 0,
+    window     => $window,
     on_close   => sub {
         my $text = shift;
-        print "User closed window. Final text was: $text";
-    }
+        print "Final text: $text";
+    },
+);
+
+# Without Vim bindings (native GTK editing)
+my $editor_native = Gtk3::SourceEditor->new(
+    file     => 'notes.txt',
+    vim_mode => 0,    # Ctrl+C/V/X/Z/A, arrow keys, Tab
 );
 
 $window->add($editor->get_widget());
@@ -37,50 +58,69 @@ Gtk3->main();
 
 ## API Reference
 
-### `SourceEditor->new(%opts)`
-
-Constructs and returns a new SourceEditor object.
+### `Gtk3::SourceEditor->new(%opts)`
 
 **Parameters:**
-*   `file` (string): Path to the file to load. If it doesn't exist, creates an empty buffer.
-*   `theme_file` (string): Path to the `GtkSourceView` XML theme file.
-*   `font_size` (int): Font size in points. Defaults to system default.
-*   `wrap` (boolean): `1` for word-wrap, `0` for horizontal scrolling. Defaults to `1`.
-*   `read_only` (boolean): Disables insert mode and file saving. Defaults to `0`.
-*   `window` (Gtk3::Window): Reference to the parent window. Required if you want to use the `on_close` callback.
-*   `on_close` (coderef): Triggered when the provided `window` emits the `destroy` signal. Passes the final buffer text as the first argument.
 
-### `SourceEditor->get_widget()`
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `file` | string | — | Path to file to load. Creates empty buffer if missing. |
+| `theme_file` | string | — | Path to GtkSourceView XML theme file. |
+| `font_size` | int | 0 (system) | Font size in points. |
+| `wrap` | bool | 1 | 1 = word-wrap, 0 = horizontal scroll. |
+| `read_only` | bool | 0 | Disables insert mode and file saving. |
+| `vim_mode` | bool | 1 | 0 = native GTK keybindings (no Vim modal editing). |
+| `keymap` | hashref | — | Custom keymap overrides (see `doc/bindings.md`). |
+| `window` | Gtk3::Window | — | Parent window (required for `on_close`). |
+| `on_close` | coderef | — | Callback receiving final buffer text on destroy. |
 
-Returns the main `Gtk3::Widget` (a `Gtk3::Box`) to be packed into your application window.
+### Accessors
 
-### `SourceEditor->get_text()`
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `get_widget()` | Gtk3::Widget | Main box widget to pack into your application. |
+| `get_text()` | string | Current buffer contents. |
+| `get_buffer()` | Gtk3::SourceBuffer | Underlying buffer for advanced manipulation. |
 
-Returns the raw string contents of the text buffer at the moment it is called.
+## Documentation
 
-### `SourceEditor->get_buffer()`
-
-Returns the underlying `Gtk3::SourceView::Buffer` object for advanced manipulation.
+| Document | Description |
+|----------|-------------|
+| [doc/architecture.md](doc/architecture.md) | Component diagram, dispatch flow, module inventory, context object reference |
+| [doc/bindings.md](doc/bindings.md) | Complete Vim bindings reference with all keymaps and custom binding examples |
+| [doc/improvement-suggestions.md](doc/improvement-suggestions.md) | 20-item improvement roadmap with status tracking (7/20 done) |
 
 ## Theming
 
-The editor uses standard `GtkSourceView` XML themes. To set the cursor color correctly, ensure your XML has a cursor style node:
+Uses standard GtkSourceView XML themes. The `ThemeManager` auto-injects a cursor style if missing:
 
 ```xml
 <style-scheme id="my_theme" version="1.0">
   <style name="text" foreground="#D3D7CF" background="#1E1E1E"/>
-  <style name="cursor" foreground="#FFFFFF"/> <!-- Required for visible dark mode cursor -->
+  <style name="cursor" foreground="#FFFFFF"/>
   <style name="selection" foreground="#FFFFFF" background="#4A90D9"/>
-  <!-- ... syntax styles ... -->
 </style-scheme>
 ```
 
-*Note: If you omit `<style name="cursor">`, `ThemeManager` will automatically inject one using the text foreground color.*
+Four themes are included: `default.xml`, `theme_dark.xml`, `theme_light.xml`, `theme_solarized.xml`.
 
-## CLI Arguments (main.pl)
+## Testing
 
-The included `main.pl` demonstrates how to map command-line arguments to the module:
-*   `--theme <name>`: Loads `themes/theme_<name>.xml`
-*   `--font-size <int>`: Sets monospace font size
-*   `--wrap` / `--no-wrap`: Toggles line wrapping
-*   `--read-only`: Blocks modifications
+```bash
+perl -Ilib -It/lib t/vim_dispatch.t    # Core dispatch logic
+perl -Ilib -It/lib t/vim_visual.t      # Visual mode operations
+perl -Ilib -It/lib t/vim_ctrl_keys.t   # Ctrl-key scroll/paging
+prove -Ilib -It/lib t/                  # Run all 11 test files
+```
+
+All tests run without GTK using mock objects and `VimBuffer::Test`.
+
+## Dependencies
+
+- `Gtk3`, `Gtk3::SourceView`, `Glib`, `Pango` — GTK3 widget toolkit
+- `File::Slurper` — File reading
+- `Test::More`, `Test::Exception` — Testing
+
+## License
+
+Artistic License 2.0.

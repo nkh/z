@@ -1,4 +1,4 @@
-package ThemeManager;
+package Gtk3::SourceEditor::ThemeManager;
 use strict;
 use warnings;
 use Gtk3::SourceView;
@@ -6,6 +6,8 @@ use File::Slurper 'read_text';
 use File::Temp qw(tempfile);
 use File::Basename qw(dirname);
 use Encode qw(encode);
+
+our $VERSION = '0.04';
 
 sub load {
     my (%opts) = @_;
@@ -18,19 +20,16 @@ sub load {
     my ($scheme_id) = $xml_file =~ /([^\/\\]+)\.xml$/;
     die "Error: Invalid theme filename format.\n" unless $scheme_id;
 
-    # 1. Parse XML to extract text colors
     my $xml_content = read_text($xml_file);
     my ($fg) = $xml_content =~ /<style name="text" [^>]*foreground="([^"]+)"/;
     my ($bg) = $xml_content =~ /<style name="text" [^>]*background="([^"]+)"/;
     $fg //= "#000000";
     $bg //= "#FFFFFF";
 
-    # 2. Inject cursor color into XML (GtkSourceView ignores CSS caret-color)
     unless ($xml_content =~ /<style name="cursor"/) {
         $xml_content =~ s{(<style name="text" [^>]*\/>)}{$1\n  <style name="cursor" foreground="$fg"/>};
     }
 
-    # 3. Write to a temporary file so we don't modify the original XML on disk
     my ($xml_fh, $tmp_file) = tempfile(SUFFIX => '.xml', UNLINK => 1);
     print $xml_fh $xml_content;
     close $xml_fh;
@@ -41,10 +40,6 @@ sub load {
     my $scheme = $manager->get_scheme($scheme_id);
     die "Error: Could not load scheme '$scheme_id'\n" unless $scheme;
 
-    # 4. Generate CSS for UI widgets. 
-    # Note: GtkBox is windowless in GTK3 and ignores backgrounds. We must apply 
-    # the background directly to the Label and Entry, and explicitly kill 
-    # Adwaita's default background-image gradients.
     my $ui_css = qq{
         GtkLabel#mode_label {
             color: $fg;
@@ -76,3 +71,15 @@ sub load {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+Gtk3::SourceEditor::ThemeManager - GtkSourceView XML theme loader and UI style generator
+
+=head1 LICENSE
+
+Artistic License 2.0.
+
+=cut
