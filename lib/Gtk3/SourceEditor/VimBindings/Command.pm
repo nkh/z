@@ -1,6 +1,7 @@
 package Gtk3::SourceEditor::VimBindings::Command;
 use strict;
 use warnings;
+use Glib qw(TRUE FALSE);
 
 our $VERSION = '0.04';
 
@@ -10,7 +11,7 @@ sub register {
     # --- Show bindings help ---
     $ACTIONS->{cmd_show_bindings} = sub {
         my ($ctx) = @_;
-        eval { _show_bindings_help($ctx) };
+        eval { _show_bindings_dialog($ctx) };
         warn "bindings help error: $@" if $@;
     };
 
@@ -286,77 +287,246 @@ sub _parse_substitute {
     return undef;
 }
 
-sub _show_bindings_help {
+sub _show_bindings_dialog {
     my ($ctx) = @_;
     my $tv = $ctx->{gtk_view} or return;
+    my $text = generate_bindings_text($ctx);
 
-    my %display = (
-        dollar       => '$',   caret       => '^',
-        colon        => ':',   slash       => '/',
-        question     => '?',   greatergreater => '>>',
-        lessless     => '<<',  asciicircum => '^',
-        V            => 'V',
+    my $parent = eval { $tv->get_toplevel } // undef;
+    my $window = Gtk3::Window->new('toplevel');
+    $window->set_title('Bindings');
+    $window->set_transient_for($parent) if $parent;
+    $window->set_default_size(900, 520);
+    $window->set_modal(TRUE);
+
+    my $scroll = Gtk3::ScrolledWindow->new();
+    $scroll->set_policy('automatic', 'automatic');
+    $scroll->set_border_width(6);
+
+    my $textview = Gtk3::TextView->new();
+    $textview->set_editable(FALSE);
+    $textview->set_wrap_mode('none');
+    $textview->set_cursor_visible(FALSE);
+    $textview->set_left_margin(8);
+    $textview->set_right_margin(8);
+    $textview->set_top_margin(6);
+    $textview->set_bottom_margin(6);
+
+    eval {
+        my $font = Pango::FontDescription->from_string('Monospace 10');
+        $textview->modify_font($font);
+    };
+
+    my $buf = $textview->get_buffer;
+    $buf->set_text($text);
+
+    $scroll->add($textview);
+
+    my $button_box = Gtk3::ButtonBox->new('horizontal');
+    $button_box->set_layout('end');
+    $button_box->set_spacing(6);
+    $button_box->set_border_width(6);
+    my $close_btn = Gtk3::Button->new('Close');
+    $close_btn->signal_connect(clicked => sub { $window->destroy });
+    $button_box->pack_start($close_btn, FALSE, FALSE, 0);
+
+    my $vbox = Gtk3::Box->new('vertical', 0);
+    $vbox->pack_start($scroll, TRUE, TRUE, 0);
+    $vbox->pack_start($button_box, FALSE, FALSE, 0);
+    $window->add($vbox);
+
+    $window->show_all;
+}
+
+# ----------------------------------------------------------------
+# Generate bindings help text (testable without GTK display)
+# ----------------------------------------------------------------
+
+sub generate_bindings_text {
+    my ($ctx) = @_;
+
+    # --- Human-readable key names (GDK internal -> user-friendly) ---
+    my %key_name = (
+        dollar         => '$',   caret         => '^',
+        colon          => ':',   slash         => '/',
+        question       => '?',   greatergreater=> '>>',
+        lessless       => '<<',  asciicircum   => '^',
+        asciitilde     => '~',   percent       => '%',
+        semicolon      => ';',   comma         => ',',
+        d_dollar       => 'd$',  grave         => '`',
+        apostrophe     => "'",   BackSpace     => '<BS>',
+        Delete         => '<Del>',Page_Up      => '<PgUp>',
+        Page_Down      => '<PgDn>',Escape      => '<Esc>',
+        Tab            => '<Tab>',Home         => '<Home>',
+        End            => '<End>',Return       => '<CR>',
     );
 
-    my @entries;
-    my $km = $ctx->{resolved_keymap}{normal};
-    for my $key (sort grep { !/^_/ } keys %$km) {
-        my $action = $km->{$key};
-        next unless defined $action;
-        push @entries, [ ($display{$key} // $key), $action ];
-    }
+    # --- Human-readable action descriptions ---
+    my %desc = (
+        move_left         => 'move left',            move_right    => 'move right',
+        move_up           => 'move up',              move_down     => 'move down',
+        word_forward      => 'next word start',      word_backward => 'prev word start',
+        word_end          => 'next word end',
+        line_start        => 'start of line',        line_end      => 'end of line',
+        first_nonblank    => 'first non-blank',
+        file_start        => 'first line',           file_end      => 'last line',
+        page_up           => 'page up',              page_down     => 'page down',
+        scroll_half_up    => 'half page up',         scroll_half_down => 'half page down',
+        scroll_line_up    => 'scroll line up',       scroll_line_down => 'scroll line down',
+        delete_char       => 'delete char',          backspace     => 'backspace',
+        delete_line       => 'delete line (dd)',     delete_word   => 'delete word (dw)',
+        delete_to_eol     => 'delete to EOL (d$)',
+        change_line       => 'change line (cc)',     change_word   => 'change word (cw)',
+        change_to_eol     => 'change to EOL (C)',
+        replace_char      => 'replace char (r{c})',
+        join_lines        => 'join lines',
+        enter_insert      => 'insert mode',          enter_insert_after => 'insert after cursor',
+        enter_insert_eol  => 'insert at EOL (A)',    enter_insert_bol   => 'insert at BOL (I)',
+        open_below        => 'open line below (o)',  open_above      => 'open line above (O)',
+        enter_replace_mode=> 'replace mode (R)',     do_replace_char => 'replace single char',
+        replace_backspace => 'replace backspace',
+        insert_tab        => 'insert tab',
+        exit_to_normal    => 'back to normal',       exit_replace_to_normal => 'back to normal',
+        yank_line         => 'yank line (yy)',       yank_word     => 'yank word (yw)',
+        yank_inner_word   => 'yank inner word (yiw)',
+        paste             => 'paste after (p)',      paste_before  => 'paste before (P)',
+        undo              => 'undo',                 redo          => 'redo',
+        line_undo         => 'undo line (U)',
+        indent_right      => 'indent right (>>)',    indent_left   => 'indent left (<<)',
+        search_next       => 'next search match',    search_prev   => 'prev search match',
+        enter_search      => 'search forward',       enter_search_backward => 'search backward',
+        set_mark          => 'set mark (m{a-z})',
+        jump_mark         => 'jump to mark (`{a-z})',
+        jump_mark_line    => 'jump to mark line',
+        find_char_forward => 'find char forward (f{c})',
+        find_char_backward=> 'find char backward (F{c})',
+        till_char_forward => 'till char forward (t{c})',
+        till_char_backward=> 'till char backward (T{c})',
+        find_repeat       => 'repeat find (;)',      find_repeat_reverse => 'repeat find rev (,)',
+        percent_motion    => 'match bracket (%)',
+        enter_visual      => 'visual mode',          enter_visual_line => 'visual line (V)',
+        reselect_visual   => 'reselect visual (gv)',
+        enter_command     => 'command mode',
+        visual_exit       => 'exit visual',          visual_delete => 'delete selection',
+        visual_yank       => 'yank selection',       visual_change => 'change selection',
+        visual_toggle_case=> 'swap case (~)',        visual_uppercase => 'uppercase selection (U)',
+        visual_lowercase  => 'lowercase selection (u)',
+        visual_join       => 'join selected lines',
+        visual_swap_ends  => 'swap cursor/anchor (o)',
+        visual_format     => 'format selection (gq)',
+        visual_indent_right => 'indent right (>>)',  visual_indent_left  => 'indent left (<<)',
+        visual_block_insert_start => 'block insert start (I)',
+        visual_block_insert_end   => 'block insert end (A)',
+        cmd_quit          => 'quit',                 cmd_force_quit=> 'force quit',
+        cmd_save          => 'save file',            cmd_save_quit => 'save and quit',
+        cmd_edit          => 'open file',            cmd_read      => 'insert file',
+        cmd_substitute    => 'substitute',           cmd_set       => 'set option',
+        cmd_show_bindings => 'show this help',       cmd_browse    => 'file browser',
+        goto_line         => 'goto line N',
+    );
 
-    # Insert mode
-    push @entries, ['Esc', 'exit_to_normal'];
+    # --- Helpers ---
+    my $display_key = sub { $key_name{$_[0]} // $_[0] };
+    my $get_desc    = sub { $desc{$_[0]} // $_[0] };
 
-    # Visual mode (skip duplicates already in normal)
-    my $vk = $ctx->{resolved_keymap}{visual};
-    my %seen;
-    $seen{$_} = 1 for map { $_->[0] } @entries;
-    for my $key (sort grep { !/^_/ } keys %$vk) {
-        my $action = $vk->{$key};
-        next unless defined $action && !$seen{$key};
-        my $d = $display{$key} // $key;
-        push @entries, [$d, $action];
-        $seen{$d} = 1;
-    }
-
-    # Ex commands
-    for my $cmd (sort keys %{$ctx->{ex_cmds}}) {
-        push @entries, [":$cmd", ''];
-    }
-    push @entries, [':q!', ''], [':N', 'goto_line'];
-    push @entries, [':%s/p/r/g', 'substitute'];
-
-    # Format into columns: 3 columns of "KEY  ACTION"
-    my $col_w = 28;
-    my $cols  = 3;
-    my @lines;
-    my $row;
-    for (my $i = 0; $i < @entries; $i++) {
-        if ($i % $cols == 0) {
-            push @lines, '' if defined $row;
-            $row = '';
+    my $build_from_keys = sub {
+        my ($km) = @_;
+        my @out; my %seen;
+        for my $key (sort grep { !/^_/ } keys %$km) {
+            my $action = $km->{$key};
+            next unless defined $action;
+            my $dk = $display_key->($key);
+            next if $seen{$dk}++;
+            push @out, [$dk, $get_desc->($action)];
         }
-        my ($k, $a) = @{$entries[$i]};
-        my $cell = sprintf("%-8s %s", $k, $a);
-        $row .= sprintf("%-*s", $col_w, $cell);
+        return @out;
+    };
+
+    my $build_ctrl = sub {
+        my ($km) = @_;
+        my @out;
+        return @out unless $km->{_ctrl};
+        for my $key (sort keys %{$km->{_ctrl}}) {
+            my $action = $km->{_ctrl}{$key};
+            next unless defined $action;
+            push @out, ["Ctrl-$key", $get_desc->($action)];
+        }
+        return @out;
+    };
+
+    my $build_char_actions = sub {
+        my ($km) = @_;
+        my @out;
+        return @out unless $km->{_char_actions};
+        for my $key (sort grep { !/^_/ } keys %{$km->{_char_actions}}) {
+            my $action = $km->{_char_actions}{$key};
+            next unless defined $action;
+            push @out, [$display_key->($key), $get_desc->($action)];
+        }
+        return @out;
+    };
+
+    # --- Collect entries per mode ---
+    my $rk = $ctx->{resolved_keymap};
+
+    my @normal = ($build_from_keys->($rk->{normal}));
+    push @normal, $build_ctrl->($rk->{normal});
+    push @normal, $build_char_actions->($rk->{normal});
+
+    my @insert  = $build_from_keys->($rk->{insert});
+    my @replace = $build_from_keys->($rk->{replace});
+
+    my @visual_raw = ($build_from_keys->($rk->{visual}));
+    push @visual_raw, $build_ctrl->($rk->{visual});
+    push @visual_raw, $build_char_actions->($rk->{visual});
+    my %normal_keys;
+    $normal_keys{$_->[0]} = 1 for @normal;
+    my @visual = grep { !$normal_keys{$_->[0]} } @visual_raw;
+
+    my @command = $build_from_keys->($rk->{command});
+
+    my @ex_cmds;
+    my $ec = $ctx->{ex_cmds};
+    for my $cmd (sort keys %$ec) {
+        my $action = $ec->{$cmd};
+        my $d = $get_desc->($action);
+        push @ex_cmds, [":$cmd", $d];
     }
-    push @lines, $row if defined $row;
+    push @ex_cmds, [':q!', 'force quit'];
+    push @ex_cmds, [':N', 'goto line N'];
+    push @ex_cmds, [':%s/p/r/g', 'substitute all'];
 
-    my $text = join("\n", @lines);
+    # --- Format into 3-column layout ---
+    my $key_w  = 10;
+    my $desc_w = 20;
+    my $cols   = 3;
+    my @lines;
 
-    # Use Gtk3::MessageDialog (proven reliable across GTK3 versions).
-    # The text is selectable so the user can scroll if needed.
-    my $d = Gtk3::MessageDialog->new(
-        $tv->get_toplevel, 'destroy-with-parent', 'info', 'ok', $text,
-    );
-    $d->set_title("Bindings");
-    $d->set_default_size(720, 480);
-    my ($msg_label) = $d->get_message_area()->get_children();
-    $msg_label->set_selectable(1) if $msg_label;
-    $d->run();
-    $d->destroy();
+    for my $section (
+        ['-- NORMAL MODE --',  \@normal],
+        ['-- INSERT MODE --',  \@insert],
+        ['-- REPLACE MODE --', \@replace],
+        ['-- VISUAL MODE --',  \@visual],
+        ['-- COMMAND MODE --', \@command],
+        ['-- EX COMMANDS --',  \@ex_cmds],
+    ) {
+        my ($heading, $entries) = @$section;
+        next unless @$entries;
+        push @lines, $heading;
+        push @lines, '-' x length($heading);
+        for (my $i = 0; $i < @$entries; $i += $cols) {
+            my $row = '';
+            for my $c (0 .. $cols - 1) {
+                last if $i + $c >= @$entries;
+                my ($k, $d) = @{$entries->[$i + $c]};
+                $row .= sprintf("%-${key_w}s %-${desc_w}s", $k, $d);
+            }
+            push @lines, $row;
+        }
+        push @lines, '';
+    }
+
+    return join("\n", @lines);
 }
 
 sub _cmd_save {
