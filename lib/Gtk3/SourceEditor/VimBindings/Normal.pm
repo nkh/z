@@ -162,6 +162,10 @@ sub register {
     $ACTIONS->{redo} = sub {
         my ($ctx, $count) = @_;
         $count ||= 1;
+        # _dispatch wraps every action in begin/end_user_action.
+        # For redo we must close the group FIRST, otherwise the redo
+        # call is absorbed into the group and has no net effect.
+        $ctx->{vb}->end_user_action if $ctx->{vb}->can('end_user_action');
         $ctx->{vb}->redo() for 1 .. $count;
     };
 
@@ -938,6 +942,10 @@ sub register {
     $ACTIONS->{undo} = sub {
         my ($ctx, $count) = @_;
         $count ||= 1;
+        # _dispatch wraps every action in begin/end_user_action.
+        # For undo we must close the group FIRST, otherwise the undo
+        # call is absorbed into the group and has no net effect.
+        $ctx->{vb}->end_user_action if $ctx->{vb}->can('end_user_action');
         $ctx->{vb}->undo() for 1 .. $count;
     };
 
