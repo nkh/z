@@ -194,6 +194,7 @@ sub add_vim_bindings {
         tab_string    => $opts{tab_string} // "\t",
         use_clipboard => $opts{use_clipboard} // 0,
         pos_label     => $opts{pos_label},
+        theme         => $opts{theme},
     };
 
     _init_utilities($ctx);

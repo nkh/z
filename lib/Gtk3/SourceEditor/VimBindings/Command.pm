@@ -290,63 +290,218 @@ sub _parse_substitute {
 sub _show_bindings_dialog {
     my ($ctx) = @_;
     my $tv = $ctx->{gtk_view} or return;
-    my $text = generate_bindings_text($ctx);
-
     my $parent = eval { $tv->get_toplevel } // undef;
+
     my $window = Gtk3::Window->new('toplevel');
-    $window->set_title('Bindings');
+    $window->set_title('Key Bindings');
     $window->set_transient_for($parent) if $parent;
-    $window->set_default_size(900, 520);
+    $window->set_default_size(700, 500);
     $window->set_modal(TRUE);
+
+    # TreeStore: Mode | Key | Action
+    my $store = Gtk3::TreeStore->new('Glib::String', 'Glib::String', 'Glib::String');
+
+    my $sections = generate_bindings_list($ctx);
+    for my $section (@$sections) {
+        my $mode_iter = $store->append(undef);
+        $store->set($mode_iter, 0, $section->{mode}, 1, '', 2, '');
+        for my $b (@{$section->{bindings}}) {
+            my $child_iter = $store->append($mode_iter);
+            $store->set($child_iter, 0, '', 1, $b->{key}, 2, $b->{action});
+        }
+    }
+
+    # --- TreeModelFilter for search/filter ---
+    my $filter_text = '';
+
+    my $filter_visible_func = sub {
+        my ($model, $iter) = @_;
+        return TRUE unless length $filter_text;  # no filter -> show all
+        # Parent rows (mode sections): visible if any child is visible
+        if (!$model->iter_has_child($iter)) {
+            # Leaf row: match against Key and Action columns
+            my $key    = $model->get_value($iter, 1) // '';
+            my $action = $model->get_value($iter, 2) // '';
+            return (lc($key) =~ /\Q$filter_text\E/ || lc($action) =~ /\Q$filter_text\E/) ? TRUE : FALSE;
+        }
+        # Parent row: visible if at least one child is visible
+        my $child = $model->iter_children($iter);
+        while ($child) {
+            my $ck = $model->get_value($child, 1) // '';
+            my $ca = $model->get_value($child, 2) // '';
+            if (lc($ck) =~ /\Q$filter_text\E/ || lc($ca) =~ /\Q$filter_text\E/) {
+                return TRUE;
+            }
+            $child = $model->iter_next($child);
+        }
+        return FALSE;
+    };
+
+    my $filter = Gtk3::TreeModelFilter->new($store, undef);
+    $filter->set_visible_func($filter_visible_func);
+
+    my $treeview = Gtk3::TreeView->new_with_model($filter);
+    $treeview->set_headers_visible(TRUE);
+    $treeview->set_enable_search(TRUE);
+    $treeview->expand_all;
+
+    # Column 0: Mode (tree expander, bold)
+    my $renderer_mode = Gtk3::CellRendererText->new();
+    $renderer_mode->set('weight', 700);
+    my $col_mode = Gtk3::TreeViewColumn->new_with_attributes(
+        'Mode', $renderer_mode, text => 0
+    );
+
+    # Column 1: Key (monospace, sortable)
+    my $renderer_key = Gtk3::CellRendererText->new();
+    eval {
+        my $font_desc = Pango::FontDescription->from_string('Monospace 10');
+        $renderer_key->set('font-desc', $font_desc);
+    };
+    my $col_key = Gtk3::TreeViewColumn->new_with_attributes(
+        'Key', $renderer_key, text => 1
+    );
+    $col_key->set_sort_column_id(1);
+    $col_key->set_resizable(TRUE);
+    $col_key->set_min_width(120);
+
+    # Column 2: Action (proportional, sortable, expand to fill)
+    my $renderer_action = Gtk3::CellRendererText->new();
+    my $col_action = Gtk3::TreeViewColumn->new_with_attributes(
+        'Action', $renderer_action, text => 2
+    );
+    $col_action->set_sort_column_id(2);
+    $col_action->set_resizable(TRUE);
+    $col_action->set_expand(TRUE);
+
+    $treeview->append_column($col_mode);
+    $treeview->append_column($col_key);
+    $treeview->append_column($col_action);
+
+    # Apply editor theme colours if available
+    if (my $theme = $ctx->{theme}) {
+        eval {
+            require Encode;
+            my $css = Gtk3::CssProvider->new();
+            my $css_str = sprintf(
+                'GtkTreeView { background-color: %s; color: %s; }'
+              . ' GtkTreeView header button { background-color: %s; color: %s; }',
+                $theme->{bg}, $theme->{fg}, $theme->{bg}, $theme->{fg}
+            );
+            $css->load_from_data(Encode::encode('UTF-8', $css_str));
+            $treeview->get_style_context->add_provider($css, 600);
+        };
+        warn "bindings theme error: $@" if $@;
+    }
+
+    # --- Search bar ---
+    my $search_entry = Gtk3::SearchEntry->new();
+    my $search_label = Gtk3::Label->new('Filter:');
+    $search_label->set_margin_end(4);
+    my $search_box = Gtk3::Box->new('horizontal', 6);
+    $search_box->set_margin_start(8);
+    $search_box->set_margin_end(8);
+    $search_box->set_margin_top(6);
+    $search_box->set_margin_bottom(2);
+    $search_box->pack_start($search_label, FALSE, FALSE, 0);
+    $search_box->pack_start($search_entry, TRUE, TRUE, 0);
+
+    # Apply theme to search entry
+    if (my $theme = $ctx->{theme}) {
+        eval {
+            require Encode;
+            my $css = Gtk3::CssProvider->new();
+            my $css_str = sprintf(
+                'GtkSearchEntry { color: %s; background-color: %s; }'
+              . ' GtkSearchEntry image { color: %s; }',
+                $theme->{fg}, $theme->{bg}, $theme->{fg}
+            );
+            $css->load_from_data(Encode::encode('UTF-8', $css_str));
+            $search_entry->get_style_context->add_provider($css, 600);
+        };
+    }
+
+    # Re-filter and auto-expand matching sections on text change
+    my $refilter_and_expand = sub {
+        my $model = $treeview->get_model;  # the filter model
+        $model->refilter;
+        if (length $filter_text) {
+            # Collapse all, then expand only rows with visible children
+            $treeview->collapse_all;
+            my $root = $model->get_iter_first;
+            while ($root) {
+                if ($model->iter_has_child($root)) {
+                    # Check if this parent row itself passed the filter
+                    my $parent_visible = $filter_visible_func->($model, $root);
+                    if ($parent_visible) {
+                        $treeview->expand_row($model->get_path($root), FALSE);
+                    }
+                }
+                $root = $model->iter_next($root);
+            }
+        } else {
+            $treeview->expand_all;
+        }
+    };
+
+    $search_entry->signal_connect(search_changed => sub {
+        $filter_text = lc($search_entry->get_text // '');
+        $refilter_and_expand->();
+    });
+
+    # Focus search entry when the dialog is shown
+    $window->signal_connect(show => sub {
+        eval { $search_entry->grab_focus };
+    });
+
+    # --- Escape handling: clear filter first, close on second press ---
+    $window->signal_connect(key_press_event => sub {
+        my ($w, $event) = @_;
+        if ($event->keyval == Gtk3::Gdk::keyval_from_name('Escape')) {
+            if (length $search_entry->get_text) {
+                $search_entry->set_text('');
+                $filter_text = '';
+                $refilter_and_expand->();
+                return TRUE;
+            }
+            $w->destroy;
+            return TRUE;
+        }
+        return FALSE;
+    });
+
+    # --- Layout ---
+    my $vbox = Gtk3::Box->new('vertical', 0);
+    $vbox->pack_start($search_box, FALSE, FALSE, 0);
 
     my $scroll = Gtk3::ScrolledWindow->new();
     $scroll->set_policy('automatic', 'automatic');
     $scroll->set_border_width(6);
-
-    my $textview = Gtk3::TextView->new();
-    $textview->set_editable(FALSE);
-    $textview->set_wrap_mode('none');
-    $textview->set_cursor_visible(FALSE);
-    $textview->set_left_margin(8);
-    $textview->set_right_margin(8);
-    $textview->set_top_margin(6);
-    $textview->set_bottom_margin(6);
-
-    eval {
-        my $font = Pango::FontDescription->from_string('Monospace 10');
-        $textview->modify_font($font);
-    };
-
-    my $buf = $textview->get_buffer;
-    $buf->set_text($text);
-
-    $scroll->add($textview);
-
-    my $button_box = Gtk3::ButtonBox->new('horizontal');
-    $button_box->set_layout('end');
-    $button_box->set_spacing(6);
-    $button_box->set_border_width(6);
-    my $close_btn = Gtk3::Button->new('Close');
-    $close_btn->signal_connect(clicked => sub { $window->destroy });
-    $button_box->pack_start($close_btn, FALSE, FALSE, 0);
-
-    my $vbox = Gtk3::Box->new('vertical', 0);
+    $scroll->add($treeview);
     $vbox->pack_start($scroll, TRUE, TRUE, 0);
-    $vbox->pack_start($button_box, FALSE, FALSE, 0);
-    $window->add($vbox);
 
+    # Close button
+    my $close_btn = Gtk3::Button->new_with_label('Close');
+    $close_btn->signal_connect(clicked => sub { $window->destroy });
+    my $btn_box = Gtk3::ButtonBox->new('horizontal');
+    $btn_box->set_layout('end');
+    $btn_box->set_margin_top(4);
+    $btn_box->set_margin_bottom(6);
+    $btn_box->set_margin_start(8);
+    $btn_box->set_margin_end(8);
+    $btn_box->pack_start($close_btn, FALSE, FALSE, 0);
+    $vbox->pack_start($btn_box, FALSE, FALSE, 0);
+
+    $window->add($vbox);
     $window->show_all;
 }
 
 # ----------------------------------------------------------------
-# Generate bindings help text (testable without GTK display)
+# Shared data maps for key/display translation
 # ----------------------------------------------------------------
 
-sub generate_bindings_text {
-    my ($ctx) = @_;
-
-    # --- Human-readable key names (GDK internal -> user-friendly) ---
-    my %key_name = (
+sub _build_key_name_map {
+    return {
         dollar         => '$',   caret         => '^',
         colon          => ':',   slash         => '/',
         question       => '?',   greatergreater=> '>>',
@@ -359,10 +514,11 @@ sub generate_bindings_text {
         Page_Down      => '<PgDn>',Escape      => '<Esc>',
         Tab            => '<Tab>',Home         => '<Home>',
         End            => '<End>',Return       => '<CR>',
-    );
+    };
+}
 
-    # --- Human-readable action descriptions ---
-    my %desc = (
+sub _build_desc_map {
+    return {
         move_left         => 'move left',            move_right    => 'move right',
         move_up           => 'move up',              move_down     => 'move down',
         word_forward      => 'next word start',      word_backward => 'prev word start',
@@ -421,80 +577,119 @@ sub generate_bindings_text {
         cmd_save          => 'save file',            cmd_save_quit => 'save and quit',
         cmd_edit          => 'open file',            cmd_read      => 'insert file',
         cmd_substitute    => 'substitute',           cmd_set       => 'set option',
-        cmd_show_bindings => 'show this help',       cmd_browse    => 'file browser',
+        cmd_show_bindings => 'show key bindings',    cmd_browse    => 'file browser',
         goto_line         => 'goto line N',
-    );
-
-    # --- Helpers ---
-    my $display_key = sub { $key_name{$_[0]} // $_[0] };
-    my $get_desc    = sub { $desc{$_[0]} // $_[0] };
-
-    my $build_from_keys = sub {
-        my ($km) = @_;
-        my @out; my %seen;
-        for my $key (sort grep { !/^_/ } keys %$km) {
-            my $action = $km->{$key};
-            next unless defined $action;
-            my $dk = $display_key->($key);
-            next if $seen{$dk}++;
-            push @out, [$dk, $get_desc->($action)];
-        }
-        return @out;
     };
+}
 
-    my $build_ctrl = sub {
-        my ($km) = @_;
-        my @out;
-        return @out unless $km->{_ctrl};
-        for my $key (sort keys %{$km->{_ctrl}}) {
-            my $action = $km->{_ctrl}{$key};
-            next unless defined $action;
-            push @out, ["Ctrl-$key", $get_desc->($action)];
-        }
-        return @out;
-    };
+# ----------------------------------------------------------------
+# Shared helper builders for collecting bindings from a keymap
+# ----------------------------------------------------------------
 
-    my $build_char_actions = sub {
-        my ($km) = @_;
-        my @out;
-        return @out unless $km->{_char_actions};
-        for my $key (sort grep { !/^_/ } keys %{$km->{_char_actions}}) {
-            my $action = $km->{_char_actions}{$key};
-            next unless defined $action;
-            push @out, [$display_key->($key), $get_desc->($action)];
-        }
-        return @out;
-    };
+sub _build_from_keys {
+    my ($km, $display_key, $get_desc) = @_;
+    my @out; my %seen;
+    for my $key (sort grep { !/^_/ } keys %$km) {
+        my $action = $km->{$key};
+        next unless defined $action;
+        my $dk = $display_key->($key);
+        next if $seen{$dk}++;
+        push @out, { key => $dk, action => $get_desc->($action) };
+    }
+    return @out;
+}
 
-    # --- Collect entries per mode ---
+sub _build_ctrl {
+    my ($km, $get_desc) = @_;
+    my @out;
+    return @out unless $km->{_ctrl};
+    for my $key (sort keys %{$km->{_ctrl}}) {
+        my $action = $km->{_ctrl}{$key};
+        next unless defined $action;
+        push @out, { key => "Ctrl-$key", action => $get_desc->($action) };
+    }
+    return @out;
+}
+
+sub _build_char_actions {
+    my ($km, $display_key, $get_desc) = @_;
+    my @out;
+    return @out unless $km->{_char_actions};
+    for my $key (sort grep { !/^_/ } keys %{$km->{_char_actions}}) {
+        my $action = $km->{_char_actions}{$key};
+        next unless defined $action;
+        push @out, { key => $display_key->($key), action => $get_desc->($action) };
+    }
+    return @out;
+}
+
+# ----------------------------------------------------------------
+# Collect all bindings sections from context (shared by both
+# generate_bindings_text and generate_bindings_list)
+# ----------------------------------------------------------------
+
+sub _collect_bindings_sections {
+    my ($ctx) = @_;
+    my $key_name = _build_key_name_map();
+    my $desc     = _build_desc_map();
+    my $display_key = sub { $key_name->{$_[0]} // $_[0] };
+    my $get_desc    = sub { $desc->{$_[0]} // $_[0] };
+
     my $rk = $ctx->{resolved_keymap};
 
-    my @normal = ($build_from_keys->($rk->{normal}));
-    push @normal, $build_ctrl->($rk->{normal});
-    push @normal, $build_char_actions->($rk->{normal});
+    my @normal = (_build_from_keys($rk->{normal}, $display_key, $get_desc));
+    push @normal, _build_ctrl($rk->{normal}, $get_desc);
+    push @normal, _build_char_actions($rk->{normal}, $display_key, $get_desc);
 
-    my @insert  = $build_from_keys->($rk->{insert});
-    my @replace = $build_from_keys->($rk->{replace});
+    my @insert  = _build_from_keys($rk->{insert}, $display_key, $get_desc);
+    my @replace = _build_from_keys($rk->{replace}, $display_key, $get_desc);
 
-    my @visual_raw = ($build_from_keys->($rk->{visual}));
-    push @visual_raw, $build_ctrl->($rk->{visual});
-    push @visual_raw, $build_char_actions->($rk->{visual});
+    my @visual_raw = (_build_from_keys($rk->{visual}, $display_key, $get_desc));
+    push @visual_raw, _build_ctrl($rk->{visual}, $get_desc);
+    push @visual_raw, _build_char_actions($rk->{visual}, $display_key, $get_desc);
     my %normal_keys;
-    $normal_keys{$_->[0]} = 1 for @normal;
-    my @visual = grep { !$normal_keys{$_->[0]} } @visual_raw;
+    $normal_keys{$_->{key}} = 1 for @normal;
+    my @visual = grep { !$normal_keys{$_->{key}} } @visual_raw;
 
-    my @command = $build_from_keys->($rk->{command});
+    my @command = _build_from_keys($rk->{command}, $display_key, $get_desc);
 
     my @ex_cmds;
     my $ec = $ctx->{ex_cmds};
     for my $cmd (sort keys %$ec) {
         my $action = $ec->{$cmd};
-        my $d = $get_desc->($action);
-        push @ex_cmds, [":$cmd", $d];
+        push @ex_cmds, { key => ":$cmd", action => $get_desc->($action) };
     }
-    push @ex_cmds, [':q!', 'force quit'];
-    push @ex_cmds, [':N', 'goto line N'];
-    push @ex_cmds, [':%s/p/r/g', 'substitute all'];
+    push @ex_cmds, { key => ':q!',       action => 'force quit' };
+    push @ex_cmds, { key => ':N',        action => 'goto line N' };
+    push @ex_cmds, { key => ':%s/p/r/g', action => 'substitute all' };
+
+    return (
+        { mode => 'NORMAL MODE',  bindings => \@normal },
+        { mode => 'INSERT MODE',  bindings => \@insert },
+        { mode => 'REPLACE MODE', bindings => \@replace },
+        { mode => 'VISUAL MODE',  bindings => \@visual },
+        { mode => 'COMMAND MODE', bindings => \@command },
+        { mode => 'EX COMMANDS',  bindings => \@ex_cmds },
+    );
+}
+
+# ----------------------------------------------------------------
+# Generate bindings as structured list (for TreeView)
+# ----------------------------------------------------------------
+
+sub generate_bindings_list {
+    my ($ctx) = @_;
+    return [ _collect_bindings_sections($ctx) ];
+}
+
+# ----------------------------------------------------------------
+# Generate bindings help text (testable without GTK display)
+# ----------------------------------------------------------------
+
+sub generate_bindings_text {
+    my ($ctx) = @_;
+
+    my @sections = _collect_bindings_sections($ctx);
 
     # --- Format into 3-column layout ---
     my $key_w  = 10;
@@ -502,15 +697,9 @@ sub generate_bindings_text {
     my $cols   = 3;
     my @lines;
 
-    for my $section (
-        ['-- NORMAL MODE --',  \@normal],
-        ['-- INSERT MODE --',  \@insert],
-        ['-- REPLACE MODE --', \@replace],
-        ['-- VISUAL MODE --',  \@visual],
-        ['-- COMMAND MODE --', \@command],
-        ['-- EX COMMANDS --',  \@ex_cmds],
-    ) {
-        my ($heading, $entries) = @$section;
+    for my $section (@sections) {
+        my $heading = "-- $section->{mode} --";
+        my $entries = $section->{bindings};
         next unless @$entries;
         push @lines, $heading;
         push @lines, '-' x length($heading);
@@ -518,8 +707,8 @@ sub generate_bindings_text {
             my $row = '';
             for my $c (0 .. $cols - 1) {
                 last if $i + $c >= @$entries;
-                my ($k, $d) = @{$entries->[$i + $c]};
-                $row .= sprintf("%-${key_w}s %-${desc_w}s", $k, $d);
+                my $b = $entries->[$i + $c];
+                $row .= sprintf("%-${key_w}s %-${desc_w}s", $b->{key}, $b->{action});
             }
             push @lines, $row;
         }

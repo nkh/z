@@ -195,6 +195,7 @@ sub _build_ui {
             use_clipboard => $self->{use_clipboard},
             pos_label     => $self->{pos_label},
             on_ready      => $opts{on_ready},
+            theme         => { fg => $fg, bg => $bg },
         );
     } else {
         # Native Gtk3::SourceView mode -- no vim bindings, use standard GTK keybindings
