@@ -297,6 +297,7 @@ sub _show_bindings_dialog {
     $window->set_transient_for($parent) if $parent;
     $window->set_default_size(700, 500);
     $window->set_modal(TRUE);
+    $window->set_name('bindings_window');
 
     # TreeStore: Mode | Key | Action
     my $store = Gtk3::TreeStore->new('Glib::String', 'Glib::String', 'Glib::String');
@@ -368,32 +369,12 @@ sub _show_bindings_dialog {
     $treeview->append_column($col_key);
     $treeview->append_column($col_action);
 
-    # --- Theme CSS (inline provider on each themed widget) ---
-    if (my $theme = $ctx->{theme}) {
-        eval {
-            my $css = Gtk3::CssProvider->new();
-            # GTK3 CSS uses lowercase widget types; #name is the
-            # widget name set via set_name().
-            my $css_str = sprintf(
-                '#bindings_tree { background-color: %s; color: %s; }'
-              . '#bindings_tree header button { background-color: %s; color: %s; }',
-                $theme->{bg}, $theme->{fg}, $theme->{bg}, $theme->{fg}
-            );
-            # Pass the string directly — load_from_data handles encoding
-            # internally.  Do NOT Encode::encode() first: the byte-only
-            # scalar confuses the GI marshaller on Perl <= 5.36.
-            $css->load_from_data($css_str);
-            $treeview->get_style_context->add_provider($css, 600);
-        };
-        warn "bindings tree theme error: $@" if $@;
-    }
-
     # --- Search bar (Gtk3::Entry — available everywhere) ---
     my $search_entry = Gtk3::Entry->new();
     $search_entry->set_name('bindings_search');
     $search_entry->set_placeholder_text('Type to filter bindings\u2026');
     my $search_label = Gtk3::Label->new('Filter:');
-    $search_label->set_margin_end(4);
+    $search_label->set_name('bindings_label');
     my $search_box = Gtk3::Box->new('horizontal', 6);
     $search_box->set_margin_start(8);
     $search_box->set_margin_end(8);
@@ -401,19 +382,6 @@ sub _show_bindings_dialog {
     $search_box->set_margin_bottom(2);
     $search_box->pack_start($search_label, FALSE, FALSE, 0);
     $search_box->pack_start($search_entry, TRUE, TRUE, 0);
-
-    # Theme the search entry
-    if (my $theme = $ctx->{theme}) {
-        eval {
-            my $css = Gtk3::CssProvider->new();
-            my $css_str = sprintf(
-                '#bindings_search { color: %s; background-color: %s; }',
-                $theme->{fg}, $theme->{bg}
-            );
-            $css->load_from_data($css_str);
-            $search_entry->get_style_context->add_provider($css, 600);
-        };
-    }
 
     # Rebuild store and expand on every keystroke
     $search_entry->signal_connect(changed => sub {
@@ -450,22 +418,87 @@ sub _show_bindings_dialog {
 
     my $scroll = Gtk3::ScrolledWindow->new();
     $scroll->set_policy('automatic', 'automatic');
-    $scroll->set_border_width(6);
+    $scroll->set_shadow_type('none');
     $scroll->add($treeview);
     $vbox->pack_start($scroll, TRUE, TRUE, 0);
 
-    # Close button
-    my $close_btn = Gtk3::Button->new_with_label('Close');
-    $close_btn->signal_connect(clicked => sub { $window->destroy });
-    my $btn_box = Gtk3::Box->new('horizontal', 0);
-    $btn_box->set_margin_top(4);
-    $btn_box->set_margin_bottom(6);
-    $btn_box->set_margin_start(8);
-    $btn_box->set_margin_end(8);
-    $btn_box->pack_end($close_btn, FALSE, FALSE, 0);
-    $vbox->pack_start($btn_box, FALSE, FALSE, 0);
-
     $window->add($vbox);
+
+    # --- Theme CSS applied to the window (cascades to all children) ---
+    if (my $theme = $ctx->{theme}) {
+        eval {
+            my $css = Gtk3::CssProvider->new();
+            my $fg = $theme->{fg};
+            my $bg = $theme->{bg};
+            my $css_str = qq{
+                /* Window background */
+                #bindings_window {
+                    background-color: $bg;
+                    color: $fg;
+                }
+
+                /* Filter label */
+                #bindings_label {
+                    color: $fg;
+                    background-color: transparent;
+                }
+
+                /* Search entry */
+                #bindings_search {
+                    color: $fg;
+                    background-color: $bg;
+                    border: 1px solid $fg;
+                }
+
+                /* Treeview body */
+                #bindings_tree {
+                    background-color: $bg;
+                    color: $fg;
+                }
+
+                /* Treeview header buttons */
+                #bindings_tree header button {
+                    background-color: $bg;
+                    color: $fg;
+                    border-color: $fg;
+                }
+
+                /* Selected row */
+                #bindings_tree:selected {
+                    background-color: $fg;
+                    color: $bg;
+                }
+
+                /* Tree expanders (arrows) */
+                #bindings_tree expander {
+                    color: $fg;
+                }
+
+                /* Scrollbar trough (track) */
+                #bindings_tree scrollbar trough {
+                    background-color: $bg;
+                }
+
+                /* Scrollbar slider (thumb) */
+                #bindings_tree scrollbar slider {
+                    background-color: $fg;
+                    min-width: 8px;
+                    min-height: 8px;
+                }
+
+                /* Scrollbar steppers */
+                #bindings_tree scrollbar button {
+                    background-color: $bg;
+                    color: $fg;
+                    border-color: $fg;
+                }
+            };
+            $css->load_from_data($css_str);
+            $window->get_style_context->add_provider($css, 600);
+        };
+        warn "bindings theme error: $@" if $@;
+    }
+
     $window->show_all;
 }
 
