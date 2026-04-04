@@ -860,23 +860,39 @@ sub _setup_block_cursor {
         };
     };
 
-    # Read colours for block cursor directly from the widget's style
-    # context.  We use the text foreground as the cursor rectangle colour
-    # and the text background as the character colour -- creating an
-    # "inverted" effect that adapts to any theme (dark or light).
-    # This approach is reliable across all GTK3 versions and does not
-    # depend on GtkSourceView style scheme internals.
+    # Read colours for block cursor.  Prefer theme fg/bg (the actual rendered
+    # colours from the GtkSourceView style scheme) over the widget's style
+    # context, which often returns GTK theme defaults that don't match what
+    # GtkSourceView really draws.
     my (@rect_color, @text_color);
-    eval {
-        my $sc = $view->get_style_context;
-        my $st = 0;  # GTK_STATE_FLAG_NORMAL
-        my $fg_rgba = $sc->get_color($st);
-        my $bg_rgba = $sc->get_background_color($st);
-        # Rectangle: text foreground colour (e.g. white on dark theme)
-        @rect_color = ($fg_rgba->red, $fg_rgba->green, $fg_rgba->blue);
-        # Character on cursor: text background colour (e.g. dark on dark theme)
-        @text_color = ($bg_rgba->red, $bg_rgba->green, $bg_rgba->blue);
+
+    # Helper: convert "#RRGGBB" to (r, g, b) floats in 0..1
+    my $hex_to_rgb = sub {
+        my ($hex) = @_;
+        return () unless defined $hex && $hex =~ /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/;
+        return (hex($1)/255.0, hex($2)/255.0, hex($3)/255.0);
     };
+
+    if (my $theme = $ctx->{theme}) {
+        # Rectangle: theme foreground (the text colour) — e.g. white on dark
+        @rect_color = $hex_to_rgb->($theme->{fg});
+        # Character on cursor: theme background — e.g. dark on dark theme
+        @text_color = $hex_to_rgb->($theme->{bg});
+    }
+
+    # Fallback: read from widget style context
+    if (!@rect_color || !@text_color) {
+        eval {
+            my $sc = $view->get_style_context;
+            my $st = 0;  # GTK_STATE_FLAG_NORMAL
+            my $fg_rgba = $sc->get_color($st);
+            my $bg_rgba = $sc->get_background_color($st);
+            @rect_color = ($fg_rgba->red, $fg_rgba->green, $fg_rgba->blue)
+                unless @rect_color;
+            @text_color = ($bg_rgba->red, $bg_rgba->green, $bg_rgba->blue)
+                unless @text_color;
+        };
+    }
     # Absolute fallback (should never happen)
     @rect_color = (1,1,1) unless @rect_color;  # white
     @text_color = (0,0,0) unless @text_color;  # black

@@ -366,6 +366,41 @@ sub _show_bindings_dialog {
     $col_action->set_resizable(TRUE);
     $col_action->set_expand(TRUE);
 
+    # --- Apply theme to cell renderers (foreground) and column header buttons ---
+    # NOTE: Do NOT use set_cell_data_func — it overrides the text => N
+    # attribute mapping and requires manually re-setting text per row.
+    # Instead, set foreground properties directly on each renderer.
+    if (my $theme = $ctx->{theme}) {
+        my $fg = $theme->{fg};
+        my $bg = $theme->{bg};
+
+        for my $r ($renderer_mode, $renderer_key, $renderer_action) {
+            # Method 1: string foreground (works in many GTK3 Perl GI setups)
+            eval { $r->set('foreground', $fg) };
+            eval { $r->set('foreground-set', 1) };
+
+            # Method 2: GdkRGBA foreground (works when string doesn't)
+            eval {
+                my $rgba = Gtk3::Gdk::RGBA->new();
+                $rgba->parse($fg);
+                $r->set('foreground-rgba', $rgba);
+                $r->set('foreground-rgba-set', 1);
+            };
+        }
+
+        # Apply theme to column header buttons directly via their style contexts
+        my $header_css = Gtk3::CssProvider->new();
+        $header_css->load_from_data(
+            "* { background-color: $bg; color: $fg; border-color: $fg; }"
+        );
+        for my $col ($col_mode, $col_key, $col_action) {
+            my $btn = eval { $col->get_widget };
+            next unless $btn;
+            $btn->set_name('bindings_header_btn');
+            $btn->get_style_context->add_provider($header_css, 600);
+        }
+    }
+
     $treeview->append_column($col_mode);
     $treeview->append_column($col_key);
     $treeview->append_column($col_action);
@@ -415,6 +450,7 @@ sub _show_bindings_dialog {
 
     # --- Layout ---
     my $vbox = Gtk3::Box->new('vertical', 0);
+    $vbox->set_name('bindings_vbox');
     $vbox->pack_start($search_box, FALSE, FALSE, 0);
 
     my $scroll = Gtk3::ScrolledWindow->new();
@@ -439,6 +475,13 @@ sub _show_bindings_dialog {
             $window->get_style_context->add_provider($css, 600);
         };
 
+        # Vbox border (wraps both search and treeview)
+        eval {
+            my $css = Gtk3::CssProvider->new();
+            $css->load_from_data("#bindings_vbox { border: 1px solid $fg; }");
+            $vbox->get_style_context->add_provider($css, 600);
+        };
+
         # Filter label
         eval {
             my $css = Gtk3::CssProvider->new();
@@ -455,12 +498,11 @@ sub _show_bindings_dialog {
             $search_entry->get_style_context->add_provider($css, 600);
         };
 
-        # Treeview: body + header buttons + selected rows + expanders
+        # Treeview: body + selected rows + expanders + scrollbar
         eval {
             my $css = Gtk3::CssProvider->new();
             $css->load_from_data(qq{
                 #bindings_tree { background-color: $bg; color: $fg; }
-                #bindings_tree header button { background-color: $bg; color: $fg; border-color: $fg; }
                 #bindings_tree:selected { background-color: $fg; color: $bg; }
                 #bindings_tree expander { color: $fg; }
                 #bindings_tree scrollbar trough { background-color: $bg; }
