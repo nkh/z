@@ -301,46 +301,36 @@ sub _show_bindings_dialog {
     # TreeStore: Mode | Key | Action
     my $store = Gtk3::TreeStore->new('Glib::String', 'Glib::String', 'Glib::String');
 
-    my $sections = generate_bindings_list($ctx);
-    for my $section (@$sections) {
-        my $mode_iter = $store->append(undef);
-        $store->set($mode_iter, 0, $section->{mode}, 1, '', 2, '');
-        for my $b (@{$section->{bindings}}) {
-            my $child_iter = $store->append($mode_iter);
-            $store->set($child_iter, 0, '', 1, $b->{key}, 2, $b->{action});
-        }
-    }
-
-    # --- TreeModelFilter for search/filter ---
+    my $all_sections = generate_bindings_list($ctx);
     my $filter_text = '';
 
-    my $filter_visible_func = sub {
-        my ($model, $iter) = @_;
-        return TRUE unless length $filter_text;  # no filter -> show all
-        # Parent rows (mode sections): visible if any child is visible
-        if (!$model->iter_has_child($iter)) {
-            # Leaf row: match against Key and Action columns
-            my $key    = $model->get_value($iter, 1) // '';
-            my $action = $model->get_value($iter, 2) // '';
-            return (lc($key) =~ /\Q$filter_text\E/ || lc($action) =~ /\Q$filter_text\E/) ? TRUE : FALSE;
-        }
-        # Parent row: visible if at least one child is visible
-        my $child = $model->iter_children($iter);
-        while ($child) {
-            my $ck = $model->get_value($child, 1) // '';
-            my $ca = $model->get_value($child, 2) // '';
-            if (lc($ck) =~ /\Q$filter_text\E/ || lc($ca) =~ /\Q$filter_text\E/) {
-                return TRUE;
+    # Populate / re-populate the store.  Instead of a TreeModelFilter
+    # (whose set_visible_func callback breaks on Perl 5.36 GI), we
+    # rebuild the store on every keystroke.  With ~100 bindings this
+    # is instantaneous and avoids all callback-marshalling issues.
+    my $populate_store = sub {
+        $store->clear;
+        my $ft = $filter_text;
+        for my $section (@$all_sections) {
+            my @matching = grep {
+                !length($ft)
+                || lc($_->{key})    =~ /\Q$ft\E/
+                || lc($_->{action}) =~ /\Q$ft\E/
+            } @{$section->{bindings}};
+            next unless @matching;
+            my $mode_iter = $store->append(undef);
+            $store->set($mode_iter, 0, $section->{mode}, 1, '', 2, '');
+            for my $b (@matching) {
+                my $child_iter = $store->append($mode_iter);
+                $store->set($child_iter, 0, '', 1, $b->{key}, 2, $b->{action});
             }
-            $child = $model->iter_next($child);
         }
-        return FALSE;
     };
 
-    my $filter = Gtk3::TreeModelFilter->new($store, undef);
-    $filter->set_visible_func($filter_visible_func);
+    $populate_store->();
 
-    my $treeview = Gtk3::TreeView->new_with_model($filter);
+    my $treeview = Gtk3::TreeView->new_with_model($store);
+    $treeview->set_name('bindings_tree');
     $treeview->set_headers_visible(TRUE);
     $treeview->set_enable_search(TRUE);
     $treeview->expand_all;
@@ -378,24 +368,30 @@ sub _show_bindings_dialog {
     $treeview->append_column($col_key);
     $treeview->append_column($col_action);
 
-    # Apply editor theme colours if available
+    # --- Theme CSS (inline provider on each themed widget) ---
     if (my $theme = $ctx->{theme}) {
         eval {
-            require Encode;
             my $css = Gtk3::CssProvider->new();
+            # GTK3 CSS uses lowercase widget types; #name is the
+            # widget name set via set_name().
             my $css_str = sprintf(
-                'GtkTreeView { background-color: %s; color: %s; }'
-              . ' GtkTreeView header button { background-color: %s; color: %s; }',
+                '#bindings_tree { background-color: %s; color: %s; }'
+              . '#bindings_tree header button { background-color: %s; color: %s; }',
                 $theme->{bg}, $theme->{fg}, $theme->{bg}, $theme->{fg}
             );
-            $css->load_from_data(Encode::encode('UTF-8', $css_str));
+            # Pass the string directly — load_from_data handles encoding
+            # internally.  Do NOT Encode::encode() first: the byte-only
+            # scalar confuses the GI marshaller on Perl <= 5.36.
+            $css->load_from_data($css_str);
             $treeview->get_style_context->add_provider($css, 600);
         };
-        warn "bindings theme error: $@" if $@;
+        warn "bindings tree theme error: $@" if $@;
     }
 
-    # --- Search bar ---
-    my $search_entry = Gtk3::SearchEntry->new();
+    # --- Search bar (Gtk3::Entry — available everywhere) ---
+    my $search_entry = Gtk3::Entry->new();
+    $search_entry->set_name('bindings_search');
+    $search_entry->set_placeholder_text('Type to filter bindings\u2026');
     my $search_label = Gtk3::Label->new('Filter:');
     $search_label->set_margin_end(4);
     my $search_box = Gtk3::Box->new('horizontal', 6);
@@ -406,47 +402,24 @@ sub _show_bindings_dialog {
     $search_box->pack_start($search_label, FALSE, FALSE, 0);
     $search_box->pack_start($search_entry, TRUE, TRUE, 0);
 
-    # Apply theme to search entry
+    # Theme the search entry
     if (my $theme = $ctx->{theme}) {
         eval {
-            require Encode;
             my $css = Gtk3::CssProvider->new();
             my $css_str = sprintf(
-                'GtkSearchEntry { color: %s; background-color: %s; }'
-              . ' GtkSearchEntry image { color: %s; }',
-                $theme->{fg}, $theme->{bg}, $theme->{fg}
+                '#bindings_search { color: %s; background-color: %s; }',
+                $theme->{fg}, $theme->{bg}
             );
-            $css->load_from_data(Encode::encode('UTF-8', $css_str));
+            $css->load_from_data($css_str);
             $search_entry->get_style_context->add_provider($css, 600);
         };
     }
 
-    # Re-filter and auto-expand matching sections on text change
-    my $refilter_and_expand = sub {
-        my $model = $treeview->get_model;  # the filter model
-        $model->refilter;
-        if (length $filter_text) {
-            # Collapse all, then expand only rows with visible children
-            $treeview->collapse_all;
-            my $root = $model->get_iter_first;
-            while ($root) {
-                if ($model->iter_has_child($root)) {
-                    # Check if this parent row itself passed the filter
-                    my $parent_visible = $filter_visible_func->($model, $root);
-                    if ($parent_visible) {
-                        $treeview->expand_row($model->get_path($root), FALSE);
-                    }
-                }
-                $root = $model->iter_next($root);
-            }
-        } else {
-            $treeview->expand_all;
-        }
-    };
-
-    $search_entry->signal_connect(search_changed => sub {
+    # Rebuild store and expand on every keystroke
+    $search_entry->signal_connect(changed => sub {
         $filter_text = lc($search_entry->get_text // '');
-        $refilter_and_expand->();
+        $populate_store->();
+        $treeview->expand_all;
     });
 
     # Focus search entry when the dialog is shown
@@ -461,7 +434,8 @@ sub _show_bindings_dialog {
             if (length $search_entry->get_text) {
                 $search_entry->set_text('');
                 $filter_text = '';
-                $refilter_and_expand->();
+                $populate_store->();
+                $treeview->expand_all;
                 return TRUE;
             }
             $w->destroy;
@@ -483,13 +457,12 @@ sub _show_bindings_dialog {
     # Close button
     my $close_btn = Gtk3::Button->new_with_label('Close');
     $close_btn->signal_connect(clicked => sub { $window->destroy });
-    my $btn_box = Gtk3::ButtonBox->new('horizontal');
-    $btn_box->set_layout('end');
+    my $btn_box = Gtk3::Box->new('horizontal', 0);
     $btn_box->set_margin_top(4);
     $btn_box->set_margin_bottom(6);
     $btn_box->set_margin_start(8);
     $btn_box->set_margin_end(8);
-    $btn_box->pack_start($close_btn, FALSE, FALSE, 0);
+    $btn_box->pack_end($close_btn, FALSE, FALSE, 0);
     $vbox->pack_start($btn_box, FALSE, FALSE, 0);
 
     $window->add($vbox);
