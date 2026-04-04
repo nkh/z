@@ -297,6 +297,7 @@ sub _show_bindings_dialog {
     $window->set_transient_for($parent) if $parent;
     $window->set_default_size(700, 500);
     $window->set_modal(TRUE);
+    $window->set_decorated(FALSE);
     $window->set_name('bindings_window');
 
     # TreeStore: Mode | Key | Action
@@ -424,79 +425,50 @@ sub _show_bindings_dialog {
 
     $window->add($vbox);
 
-    # --- Theme CSS applied to the window (cascades to all children) ---
+    # --- Theme: per-widget CSS providers (more reliable than cascading
+    #     from the window, which fails to reach TreeView internals on
+    #     some GTK3 / Perl GI versions) ---
     if (my $theme = $ctx->{theme}) {
+        my $fg = $theme->{fg};
+        my $bg = $theme->{bg};
+
+        # Window background
         eval {
             my $css = Gtk3::CssProvider->new();
-            my $fg = $theme->{fg};
-            my $bg = $theme->{bg};
-            my $css_str = qq{
-                /* Window background */
-                #bindings_window {
-                    background-color: $bg;
-                    color: $fg;
-                }
-
-                /* Filter label */
-                #bindings_label {
-                    color: $fg;
-                    background-color: transparent;
-                }
-
-                /* Search entry */
-                #bindings_search {
-                    color: $fg;
-                    background-color: $bg;
-                    border: 1px solid $fg;
-                }
-
-                /* Treeview body */
-                #bindings_tree {
-                    background-color: $bg;
-                    color: $fg;
-                }
-
-                /* Treeview header buttons */
-                #bindings_tree header button {
-                    background-color: $bg;
-                    color: $fg;
-                    border-color: $fg;
-                }
-
-                /* Selected row */
-                #bindings_tree:selected {
-                    background-color: $fg;
-                    color: $bg;
-                }
-
-                /* Tree expanders (arrows) */
-                #bindings_tree expander {
-                    color: $fg;
-                }
-
-                /* Scrollbar trough (track) */
-                #bindings_tree scrollbar trough {
-                    background-color: $bg;
-                }
-
-                /* Scrollbar slider (thumb) */
-                #bindings_tree scrollbar slider {
-                    background-color: $fg;
-                    min-width: 8px;
-                    min-height: 8px;
-                }
-
-                /* Scrollbar steppers */
-                #bindings_tree scrollbar button {
-                    background-color: $bg;
-                    color: $fg;
-                    border-color: $fg;
-                }
-            };
-            $css->load_from_data($css_str);
+            $css->load_from_data("#bindings_window { background-color: $bg; color: $fg; }");
             $window->get_style_context->add_provider($css, 600);
         };
-        warn "bindings theme error: $@" if $@;
+
+        # Filter label
+        eval {
+            my $css = Gtk3::CssProvider->new();
+            $css->load_from_data("#bindings_label { color: $fg; background-color: transparent; }");
+            $search_label->get_style_context->add_provider($css, 600);
+        };
+
+        # Search entry
+        eval {
+            my $css = Gtk3::CssProvider->new();
+            $css->load_from_data(
+                "#bindings_search { color: $fg; background-color: $bg; border: 1px solid $fg; }"
+            );
+            $search_entry->get_style_context->add_provider($css, 600);
+        };
+
+        # Treeview: body + header buttons + selected rows + expanders
+        eval {
+            my $css = Gtk3::CssProvider->new();
+            $css->load_from_data(qq{
+                #bindings_tree { background-color: $bg; color: $fg; }
+                #bindings_tree header button { background-color: $bg; color: $fg; border-color: $fg; }
+                #bindings_tree:selected { background-color: $fg; color: $bg; }
+                #bindings_tree expander { color: $fg; }
+                #bindings_tree scrollbar trough { background-color: $bg; }
+                #bindings_tree scrollbar slider { background-color: $fg; min-width: 8px; min-height: 8px; }
+                #bindings_tree scrollbar button { background-color: $bg; color: $fg; border-color: $fg; }
+            });
+            $treeview->get_style_context->add_provider($css, 600);
+        };
     }
 
     $window->show_all;
