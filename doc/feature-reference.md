@@ -1,6 +1,6 @@
 # P5-Gtk3-SourceEditor Feature Reference
 
-**v0.05** — Embeddable Vim-like text editor for Gtk3/Perl
+**v0.04** — Embeddable Vim-like text editor for Gtk3/Perl
 
 ---
 
@@ -23,25 +23,33 @@ PluginLoader.pm (runtime plugin management).
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `file` | String | `undef` | File path to load |
+| `config_file` | String | `undef` | INI-style config file path |
 | `theme_file` | String | `'themes/default.xml'` | XML theme file |
+| `font_family` | String | `'Monospace'` | Pango font family name |
 | `font_size` | Int | `0` | Font pt size (0=system) |
 | `wrap` | Bool | `1` | Word wrap on/off |
 | `read_only` | Bool | `0` | Block editing |
+| `vim_mode` | Bool | `1` | 0=native GTK keys |
+| `show_line_numbers` | Bool | `1` | Show line gutter |
+| `highlight_current_line` | Bool | `1` | Highlight cursor line bg |
+| `auto_indent` | Bool | `undef` | Auto-indent new lines |
+| `tab_width` | Int | `undef` | Tab stop width (columns) |
+| `indent_width` | Int | `undef` | Auto-indent width (columns) |
+| `insert_spaces_instead_of_tabs` | Bool | `0` | Tab key inserts spaces |
+| `smart_home_end` | Bool | `undef` | Smart Home/End behavior |
+| `show_right_margin` | Bool | `undef` | Show right margin line |
+| `right_margin_position` | Int | `undef` | Right margin column |
+| `highlight_matching_brackets` | Bool | `1` | Highlight matching bracket |
+| `show_line_marks` | Bool | `undef` | Show line-marks gutter |
+| `block_cursor` | Bool | `0` | 0=ibeam, 1=block (Cairo) |
+| `force_language` | String | `undef` | Override syntax lang |
+| `use_clipboard` | Bool | `0` | Copy to system clipboard |
+| `tab_string` | String | `"\t"` | Tab insert text |
 | `window` | Widget | `undef` | Parent for on_close |
 | `on_close` | CodeRef | `undef` | Destroy callback |
 | `keymap` | HashRef | `undef` | Per-mode key overrides |
-| `vim_mode` | Bool | `1` | 0=native GTK keys |
-| `force_language` | String | `undef` | Override syntax lang |
-| `tab_string` | String | `"\t"` | Tab insert text |
-| `block_cursor` | Bool | `0` | 0=ibeam, 1=block (GTK) |
-| `use_clipboard` | Bool | `0` | Copy to clipboard |
-| `plugin_dirs` | ArrayRef | `undef` | Plugin scan dirs |
-| `plugin_files` | ArrayRef | `undef` | Plugin files to load |
-| `plugin_config` | HashRef | `undef` | Per-plugin config |
-| `plugin_warnings` | Bool | `1` | Collision warnings |
-| `scrolloff` | Int | `undef` | Scroll margin lines |
-| `page_size` | Int | auto | Lines per page |
-| `shiftwidth` | Int | `4` | Indent width |
+| `on_ready` | CodeRef | `undef` | Post-init callback(\$ctx) |
+| `key_handler` | CodeRef | `undef` | Pre-vim key interceptor |
 
 ---
 
@@ -172,7 +180,7 @@ Block I/A: type text, Escape replays on all block lines.
 | `:[range]s/p/r/g` | substitute | `:bindings` | show keys |
 | `:set cursor=block` | block cursor | `:set cursor=ibeam` | ibeam cursor |
 | `:browse` | GTK file picker | `/pat` | fwd search |
-| `?pat` | bwd search | | |
+| `?pat` | bwd search | |
 
 Substitute uses `qr//`. Range: `%` (all), `N,M` (lines).
 Single undo group.
@@ -219,9 +227,9 @@ Directories shown with `/`. Select dir + Tab/Enter navigates in.
 
 | Cmd | Description |
 |-----|-------------|
-| `:plugin list` | list loaded |
-| `:plugin unload <p>` | remove |
-| `:plugin reload <p>` | hot-reload |
+| `:plugin list` | list loaded *(planned)* |
+| `:plugin unload <p>` | remove *(planned)* |
+| `:plugin reload <p>` | hot-reload *(planned)* |
 
 Descriptor: `{ meta=>{name,namespace}, modes=>{normal=>{k=>a}}, ex_commands=>{cmd=>a} }`
 
@@ -262,8 +270,7 @@ Abstract interface. Gtk3 backend for production, Test for headless.
 ### Search & Undo
 
 `search_forward($p,$l,$c)`, `search_backward($p,$l,$c)`
-`can_undo()`, `undo()`, `can_redo()`, `redo()`,
-`begin_user_action()`, `end_user_action()`
+`undo()`, `redo()`, `begin_user_action()`, `end_user_action()`
 
 ### Selection (Gtk3 only)
 
@@ -291,7 +298,7 @@ Per-mode key→action overrides. Special: `_immediate`, `_prefixes`,
 ## 17. Accessors
 
 `get_widget()` → Gtk3::Box, `get_text()` → String,
-`get_buffer()` → SourceBuffer, `get_textview()` → SourceView
+`get_buffer()` → SourceBuffer
 
 ---
 
@@ -301,26 +308,26 @@ Per-mode key→action overrides. Special: `_immediate`, `_prefixes`,
 `source-dialog-editor` — editor in Gtk3::Dialog
 `source-editor-cursor-demo` — on_ready callback + block cursor demo
 
-Short options: `-t` theme, `-c` colors, `-r` read-only, `-f` font-size,
-`-w` wrap, `-n` no-line-numbers, `-b` no-border, `-B` no-buttons,
-`-m` minimal, `-h` help.
+Short options: `-C` config, `-r` read-only, `-f` font-size,
+`-w` wrap, `-n` no-line-numbers, `-b` cursor-block,
+`-H` highlight-current-line, `-h` help.  Long: `--config`, `--theme`, `--read-only`, `--font-size`, `--wrap`, `--no-line-numbers`, `--cursor-block`, `--highlight-current-line`, `--help`.
 
 ---
 
 ## 19. Dependencies
 
 **Runtime:** Perl 5.020+, Gtk3, Gtk3::SourceView, Glib, Pango,
-File::Slurper
+File::Slurper, Encode, Getopt::Long
 
 **Block cursor:** Cairo, Pango::Cairo (graceful degradation)
 
-**Plugins:** File::Find, File::Basename (core)
+**Plugins:** File::Find, File::Spec, File::Basename (core)
 
-**Testing:** Test::More, Test::Exception; mock stubs in `t/lib/`
+**Testing:** Test::More; mock stubs in `t/lib/`
 
 ---
 
 ## 20. Testing
 
-200+ tests across 11 files. `create_test_context(%opts)` builds
+~290 tests across 15 files. `create_test_context(%opts)` builds
 context; `simulate_keys($ctx, @keys)` feeds key sequences.

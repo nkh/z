@@ -17,6 +17,7 @@ my $build = Module::Build->new(
         'Pango'         => '0',
         'File::Slurper' => '0',
         'Encode'        => '0',
+        'Getopt::Long'  => '0',
     },
 
     build_requires => {
@@ -24,11 +25,11 @@ my $build = Module::Build->new(
         'Test::Exception' => '0',
     },
 
-    recommends => {
-        'Getopt::Long' => '0',
-    },
-
-    script_files => ['script/source-editor', 'script/source-dialog-editor'],
+    script_files => [
+        'script/source-editor',
+        'script/source-dialog-editor',
+        'script/source-editor-cursor-demo',
+    ],
 
     meta_merge => {
         resources => {

@@ -8,13 +8,15 @@
 
 **P5-Gtk3-SourceEditor** is a modular, embeddable Vim-like text editor widget for Gtk3 Perl applications. It is built on top of `Gtk3::SourceView` and provides full modal editing through a decoupled action-registry architecture that enables complete headless testing without a running GTK display server. The module is designed to be dropped into any Gtk3 application as a self-contained editor component, requiring only a single `new()` call and a `get_widget()` call to embed a fully functional editor with syntax highlighting, Vim keybindings, theming, and ex-command support.
 
-The design philosophy centers on three core principles that permeate every layer of the architecture:
+The design philosophy centers on four core principles that permeate every layer of the architecture:
 
 1. **GUI Decoupling** -- All editing logic operates exclusively through the `VimBuffer` abstract interface. No action coderef ever touches a GTK widget directly. This enables headless unit testing via `VimBuffer::Test` and potential reuse with other widget toolkits (Tk, Qt, etc.) by implementing a new adapter. The only modules that know about GTK widgets are `SourceEditor.pm` (widget factory), `VimBuffer::Gtk3` (adapter), and the signal connection code in `VimBindings.pm`.
 
 2. **Action Registry** -- Every editing operation (move cursor, delete line, search, change case) is registered as a named coderef in a module-level `%ACTIONS` hash inside `VimBindings.pm`. Mode-specific sub-modules (`Normal.pm`, `Insert.pm`, `Visual.pm`, `Command.pm`, `Search.pm`) populate this registry at compile time via their `register()` functions. Actions receive `($ctx, $count, @extra)` and operate entirely through `$ctx->{vb}` (the VimBuffer interface), never accessing GTK widgets.
 
 3. **Configurable Dispatch** -- Key events are routed through mode-specific dispatch tables that map GDK key names to action names. Each mode has a keymap hashref with regular key-to-action mappings plus four special metadata keys (`_immediate`, `_prefixes`, `_char_actions`, `_ctrl`). Users can pass a custom `keymap` option to override any binding without modifying core code -- setting a key's value to `undef` removes it from the defaults.
+
+4. **Configurable via Files and CLI** -- Editor behavior is configurable through a `key = value` config file (parsed by `Config.pm`) with CLI override precedence. All GtkSourceView properties (line numbers, tab width, indent, margin, bracket matching, etc.) are exposed as config keys. Config file values serve as defaults; explicit constructor options always take precedence.
 
 The current version is **0.04**. The module is distributed under the Artistic License 2.0 and authored by nkh.
 
@@ -38,8 +40,10 @@ The following diagram shows the complete component hierarchy and all relationshi
 |                      Gtk3::SourceEditor  [0.04]                    |
 |                    (Main Widget Factory / Orchestrator)              |
 |                                                                     |
-|   Constructor Options: file, theme_file, font_size, wrap,          |
-|   read_only, window, on_close, keymap, vim_mode, force_language    |
+|   Constructor Options: file, config_file, theme_file, font_family,  |
+|   font_size, wrap, read_only, window, on_close, keymap, vim_mode,  |
+|   force_language, show_line_numbers, highlight_current_line,        |
+|   block_cursor, plugin_dirs, plugin_files, on_ready, key_handler    |
 |                                                                     |
 |   +-------------------+    +-----------------------------------+     |
 |   |                   |    |  Gtk3::SourceEditor::ThemeManager |     |
@@ -54,10 +58,11 @@ The following diagram shows the complete component hierarchy and all relationshi
 |   | |                |    +-----------------------------------+     |
 |   | +- Gtk3::Box     |                                           |
 |   |    +- Gtk3::Entry | Loads:                                   |
-|   |    | (cmd_entry)  | * VimBindings (dispatch + actions)       |
+|   |    | (cmd_entry)  | * Config (key=value parser)             |
 |   |    +- Gtk3::EventBox                                          |
-|   |       +- Gtk3::Label| * VimBuffer::Gtk3 (prod. adapter)   |
-|   |          (mode_lbl) |                                          |
+|   |       +- Gtk3::Box (horizontal, status)                     |
+|   |          +- Gtk3::Label (mode_lbl, left)                     |
+|   |          +- Gtk3::Label (pos_lbl, right)                     |
 |   +-------------------+   Accessor Methods:                       |
 |                             get_widget(), get_text(), get_buffer()  |
 +-----------------------------------+--------------------------------+
@@ -202,7 +207,21 @@ The following diagram shows the complete component hierarchy and all relationshi
 | `Gtk3::SourceEditor` | `lib/Gtk3/SourceEditor.pm` | 0.04 | Main widget factory and entry point for the entire library. Accepts configuration options, builds the complete GTK widget tree (scrolled text view, command entry, mode label), loads themes, configures syntax highlighting, initializes the VimBuffer adapter, and wires up VimBindings if enabled. This is the only module an embedding application needs to `use`. | `new(%opts)`, `_build_ui(%opts)`, `get_widget()`, `get_text()`, `get_buffer()` |
 | `Gtk3::SourceEditor::ThemeManager` | `lib/Gtk3/SourceEditor/ThemeManager.pm` | 0.04 | Parses GtkSourceView XML theme files, extracts foreground and background colors from the `<style name="text">` element, injects a cursor color style if missing, writes a temporary XML file, registers it with the `StyleSchemeManager`, and generates CSS to style the `mode_label` and `cmd_entry` widgets. | `load(file => $path)` -> returns `{ scheme, css_provider, fg, bg }` |
 
-### 3.2 VimBindings System
+### 3.2 Configuration and Utilities
+
+| Module | File Path | VERSION | Purpose | Key Methods / API |
+|--------|-----------|---------|---------|-------------------|
+| `Gtk3::SourceEditor::Config` | `lib/Gtk3/SourceEditor/Config.pm` | 0.04 | Parses INI-style configuration files (key = value format). Supports comments (`#`), blank lines, boolean values (`true/false/1/0`), integers, and quoted strings. Used by `SourceEditor->new()` to load defaults from `config_file` before applying explicit constructor options. | `parse_editor_config($file_path)` -> returns hashref |
+
+### 3.3 Plugin System
+
+| Module | File Path | VERSION | Purpose | Key Methods / API |
+|--------|-----------|---------|---------|-------------------|
+| `Gtk3::SourceEditor::VimBindings::PluginLoader` | `lib/Gtk3/SourceEditor/VimBindings/PluginLoader.pm` | 0.05 | Standalone plugin discovery and lifecycle management. Scans directories for `.pm` files, extracts package names, calls `register($ACTIONS, $config)` on each plugin, merges returned keymaps and ex-commands into the dispatch system. Supports collision detection, namespaced actions, hooks, and hot-reload. Not yet wired into the SourceEditor constructor (plugins must be loaded manually via `on_ready`). | `load_plugins(\\%ACTIONS, %opts)`, `unload_plugin($pkg, \\%ACTIONS)`, `reload_plugin($pkg, \\%ACTIONS)`, `list_plugins()`, `get_plugin_hooks()` |
+| `Gtk3::SourceEditor::VimBindings::Completion` | `lib/Gtk3/SourceEditor/VimBindings/Completion.pm` | 0.01 | Path completion engine. Given a partial file path, returns matching candidates and the longest common prefix. Supports directory traversal, hidden file visibility toggle, and absolute/relative path resolution. | `new(%opts)`, `complete($partial_path)` -> returns `{ prefix, candidates }` |
+| `Gtk3::SourceEditor::VimBindings::CompletionUI` | `lib/Gtk3/SourceEditor/VimBindings/CompletionUI.pm` | 0.01 | Completion display widget for the command entry. Integrates with `Completion` to provide Tab-completion for `:e` and `:r` ex-commands. Shows candidates inline, cycles through them with Left/Right arrows, accepts on Enter, cancels on Escape. | `new($ctx, $completer)`, `handle_key($key)` |
+
+### 3.4 VimBindings System
 
 | Module | File Path | VERSION | Purpose | Key Methods / API |
 |--------|-----------|---------|---------|-------------------|
@@ -213,7 +232,7 @@ The following diagram shows the complete component hierarchy and all relationshi
 | `Gtk3::SourceEditor::VimBindings::Command` | `lib/Gtk3/SourceEditor/VimBindings/Command.pm` | 0.04 | Registers ex-command action handlers and provides the ex-command parser. Handles `:w` (save), `:q` (quit with modified check), `:q!` (force quit), `:wq` (save and quit), `:e` (open file), `:r` (read/insert file), `:s` (substitute with range support), `:bindings` (show help dialog), and bare line-number goto. The `parse_ex_command()` function parses raw command strings into structured hashes with `cmd`, `args`, `bang`, `range`, `line_number` fields. | `register(\%ACTIONS)`, `parse_ex_command($raw)` -> returns hashref |
 | `Gtk3::SourceEditor::VimBindings::Search` | `lib/Gtk3/SourceEditor/VimBindings/Search.pm` | 0.04 | Registers search actions: `search_next` (repeat last search in same direction, bound to `n`), `search_prev` (repeat in opposite direction, bound to `N`), and `search_set_pattern` (set new pattern and jump to first match, called from command entry after `/pattern` or `?pattern`). Returns an empty keymap hashref since `n` and `N` are added to the normal keymap directly in `VimBindings.pm`. | `register(\%ACTIONS)` -> returns empty hashref |
 
-### 3.3 VimBuffer Adapters
+### 3.5 VimBuffer Adapters
 
 | Module | File Path | VERSION | Purpose | Key Methods / API |
 |--------|-----------|---------|---------|-------------------|
@@ -232,15 +251,33 @@ The constructor `Gtk3::SourceEditor->new(%opts)` accepts the following options. 
 | Option | Type | Default | Required | Description |
 |--------|------|---------|----------|-------------|
 | `file` | `string` or `undef` | `undef` | No | Path to the file to load into the editor. If the file exists, its contents are read via `File::Slurper::read_text()` and displayed in the buffer. The filename is stored as a **scalar reference** (`\$self->{filename}`) so that ex-commands like `:w` (save) and `:e` (edit/open) can update it in place. The filename is also used by `Gtk3::SourceView::LanguageManager->guess_language()` to determine syntax highlighting when `force_language` is not set. If omitted or `undef`, the editor starts with an empty buffer and `guess_language()` will return `undef`, falling back to Perl highlighting. |
+| `config_file` | `string` or `undef` | `undef` | No | Path to an INI-style configuration file (key = value format, see `config/editor.conf`). Parsed by `Config.pm` and merged as defaults -- explicit constructor options always take precedence. Supports boolean (`true/false/1/0`), integer, and quoted string values. See `Config.pm` for the full list of recognized keys. |
 | `theme_file` | `string` | `'themes/default.xml'` | No | Path to a GtkSourceView XML theme file. The file is parsed by `ThemeManager::load()` which extracts foreground (`fg`) and background (`bg`) colors from the `<style name="text" ...>` element, injects a cursor color if the theme lacks a `<style name="cursor">` element, writes a temporary XML file, registers it with the `StyleSchemeManager`, and generates CSS for the mode_label and cmd_entry widgets. Four built-in themes are shipped in the `themes/` directory: `default.xml`, `theme_dark.xml`, `theme_light.xml`, and `theme_solarized.xml`. The ThemeManager will `die` if the specified file does not exist. |
-| `font_size` | `integer` | `0` | No | Font point size for the editor text. When set to `0` (the default), the system's default monospace font size is used -- the font string is simply `"Monospace"` with no size suffix. When set to a positive integer (e.g., `12`), the font is set to `"Monospace 12"` via `Pango::FontDescription->from_string()` and applied to the Gtk3::SourceView widget via `modify_font()`. |
+| `font_family` | `string` | `'Monospace'` | No | Pango font family name for the editor text. Default is `'Monospace'`. Use any installed Pango font family (e.g., `'DejaVu Sans Mono'`, `'Courier New'`). Applied via `Pango::FontDescription->from_string()` and `modify_font()`. |
+| `font_size` | `integer` | `0` | No | Font point size for the editor text. When set to `0` (the default), the system's default monospace font size is used -- the font string is simply the `font_family` with no size suffix. When set to a positive integer (e.g., `12`), the font is set to `"Monospace 12"` via `Pango::FontDescription->from_string()` and applied to the Gtk3::SourceView widget via `modify_font()`. |
 | `wrap` | `boolean` | `1` (true) | No | Controls line wrapping in the text view. When true (the default), lines that exceed the widget width wrap at word boundaries -- the wrap mode is set to `'word'`. When false, long lines scroll horizontally without wrapping -- the wrap mode is set to `'none'`. Note: the option is tested with `defined $opts{wrap}` to distinguish between explicitly passing `0` and not passing the option at all, so `wrap => 0` is correctly honored. |
 | `read_only` | `boolean` | `0` (false) | No | When set to a true value, the buffer is opened in read-only mode. The `is_readonly` flag is passed through to `VimBindings::add_vim_bindings()` which stores it in the context. When the user attempts to enter insert mode (via `i`, `a`, `I`, `A`, `o`, `O`) or replace mode (via `R`), the mode setter checks `is_readonly` and blocks the transition, displaying `"-- READ ONLY --"` in the mode label instead. The user can still navigate, search, and use ex-commands like `:q`. The modified flag is never set in read-only mode. |
-| `window` | `Gtk3::Window` or `Gtk3::Dialog` or `undef` | `undef` | No | A GTK window or dialog widget to which the editor belongs. When provided **together** with `on_close`, the window's `destroy` signal is connected to the `on_close` callback. This allows the embedding application to capture editor contents when the window is closed. The signal connection is: `$self->{window}->signal_connect('destroy' => sub { $self->{on_close}->($self->get_text) })`. Has no effect unless `on_close` is also specified. |
-| `on_close` | `coderef` or `undef` | `undef` | No | A callback invoked when the window (specified by `window`) is destroyed. Receives the **complete buffer text** as its only argument (a single string including all line breaks). This is useful for saving editor contents, updating application state, or cleaning up resources when the editor is closed. The callback is called from within the GTK `destroy` signal handler. **Has no effect unless `window` is also specified.** |
-| `keymap` | `hashref` or `undef` | `undef` | No | A hashref for customizing Vim keybindings. The hash is structured by mode name (keys like `normal`, `insert`, `visual`, etc.), with each mode containing key-to-action-name mappings. Keys prefixed with underscore have special meaning for the dispatch engine (see Section 5.5). Set a key's value to `undef` to **remove** it from the default keymap (e.g., `{ normal => { j => undef } }` removes the `j` binding). If omitted, the built-in default keymap is used unchanged. The keymap is passed to `VimBindings::add_vim_bindings()` which calls `_resolve_keymap()` to merge user overrides with defaults. |
-| `vim_mode` | `boolean` | `1` (true) | No | Controls whether Vim-like modal keybindings are loaded. When set to `1` (the default), the full Vim emulation layer is attached: Normal, Insert, Replace, Visual (char/line/block), and Command modes are all available with their complete keybinding sets. A `VimBuffer::Gtk3` adapter is created and passed to `add_vim_bindings()`. When set to `0`, no Vim bindings are attached; the `Gtk3::SourceView` widget uses its native GTK keybindings (Ctrl+C/V/X for copy/paste/cut, Ctrl+Z for undo, Ctrl+A for select all, arrow keys, Tab for indentation, etc.). The mode label text is set to empty string and the command entry is hidden. See Section 12 for full details. |
-| `force_language` | `string` or `undef` | `undef` | No | Overrides automatic language detection for syntax highlighting. Accepts any language ID recognized by the system's GtkSourceView `LanguageManager` (e.g., `'perl'`, `'python'`, `'c'`, `'javascript'`, `'xml'`, `'json'`, `'sql'`, `'sh'`, `'markdown'`, `'makefile'`, `'html'`, `'css'`, `'ruby'`, `'java'`, etc.). By default, GtkSourceView guesses the language from the filename extension and MIME type via `guess_language()`. This works well for files with standard extensions (`.pl`, `.py`, `.c`), but fails for extensionless files like `Makefile`, `Dockerfile`, `Vagrantfile`, or files with ambiguous extensions. Setting `force_language` bypasses the guess and directly calls `$lm->get_language($self->{force_language})`. **If the specified language ID is not found**, a warning is emitted (`"Gtk3::SourceEditor: unknown language '...', falling back to auto-detection"`) and the editor falls back to `guess_language()` -> Perl. Can be set to `undef` or omitted to use the default auto-detection behavior. |
+| `vim_mode` | `boolean` | `1` (true) | No | Controls whether Vim-like modal keybindings are loaded. When set to `1` (the default), the full Vim emulation layer is attached: Normal, Insert, Replace, Visual (char/line/block), and Command modes are all available with their complete keybinding sets. A `VimBuffer::Gtk3` adapter is created and passed to `add_vim_bindings()`. When set to `0`, no Vim bindings are attached; the `Gtk3::SourceView` widget uses its native GTK keybindings (Ctrl+C/V/X for copy/paste/cut, Ctrl+Z for undo, Ctrl+A for select all, arrow keys, Tab for indentation, etc.). The mode label text is set to empty string and the command entry is hidden. |
+| `show_line_numbers` | `boolean` | `1` (true) | No | Controls whether line numbers are displayed in the left gutter of the text view. Passed to `Gtk3::SourceView::View->set_show_line_numbers()`. |
+| `highlight_current_line` | `boolean` | `1` (true) | No | Controls whether the background of the line containing the cursor is highlighted. Passed to `set_highlight_current_line()`. |
+| `auto_indent` | `boolean` or `undef` | `undef` | No | When set, enables or disables automatic indentation of new lines to match the previous line's leading whitespace. Passed to `set_auto_indent()`. When `undef`, GTK's default behavior is used. |
+| `tab_width` | `integer` or `undef` | `undef` | No | Width of a tab stop in character columns. Passed to `set_tab_width()`. When `undef`, GTK's default (8) is used. |
+| `indent_width` | `integer` or `undef` | `undef` | No | Number of spaces per indent level for auto-indentation. Passed to `set_indent_width()`. |
+| `insert_spaces_instead_of_tabs` | `boolean` | `0` (false) | No | When true, the Tab key inserts spaces instead of a literal tab character. Passed to `set_insert_spaces_instead_of_tabs()`. |
+| `smart_home_end` | `boolean` or `undef` | `undef` | No | When enabled, Home/End first moves to the first/last non-whitespace character; a second press moves to the actual line start/end. Passed to `set_smart_home_end()`. |
+| `show_right_margin` | `boolean` or `undef` | `undef` | No | Controls whether a vertical guide line is shown at the right margin position. Passed to `set_show_right_margin()`. |
+| `right_margin_position` | `integer` or `undef` | `undef` | No | Column position of the right margin guide line. Only visible when `show_right_margin` is true. Passed to `set_right_margin_position()`. |
+| `highlight_matching_brackets` | `boolean` | `1` (true) | No | Controls whether the bracket matching the one under the cursor is highlighted. Passed to `set_highlight_matching_brackets()`. |
+| `show_line_marks` | `boolean` or `undef` | `undef` | No | Controls whether the line-marks gutter (for bookmarks, breakpoints, etc.) is displayed. Passed to `set_show_line_marks()`. |
+| `block_cursor` | `boolean` | `0` (false) | No | Enables a Cairo-drawn block cursor instead of the default i-beam. The block cursor is drawn via the `draw` signal handler on the text view, using inverted theme colors (character drawn in background color). Only available when `vim_mode` is enabled. Can be toggled at runtime via `:set cursor=block` / `:set cursor=ibeam`. |
+| `force_language` | `string` or `undef` | `undef` | No | Overrides automatic language detection for syntax highlighting. Accepts any language ID recognized by the system's GtkSourceView `LanguageManager` (e.g., `'perl'`, `'python'`, `'c'`, `'javascript'`, `'xml'`, `'json'`, `'sql'`, `'sh'`, `'markdown'`, `'makefile'`, `'html'`, `'css'`, `'ruby'`, `'java'`, etc.). If the specified language ID is not found, a warning is emitted and the editor falls back to auto-detection -> Perl. |
+| `use_clipboard` | `boolean` | `0` (false) | No | When true, yank (copy) operations also place text on the system clipboard via `Gtk3::Clipboard`. When false (default), yanked text is stored only in the internal register. |
+| `tab_string` | `string` | `"\t"` | No | The string inserted when the Tab key is pressed in insert mode. Default is a literal tab character. Can be set to spaces (e.g., `"    "` for 4 spaces). Passed through to the VimBindings layer. |
+| `window` | `Gtk3::Window` or `Gtk3::Dialog` or `undef` | `undef` | No | A GTK window or dialog widget to which the editor belongs. When provided **together** with `on_close`, the window's `destroy` signal is connected to the `on_close` callback. Has no effect unless `on_close` is also specified. |
+| `on_close` | `coderef` or `undef` | `undef` | No | A callback invoked when the window (specified by `window`) is destroyed. Receives the **complete buffer text** as its only argument. **Has no effect unless `window` is also specified.** |
+| `keymap` | `hashref` or `undef` | `undef` | No | A hashref for customizing Vim keybindings. Structured by mode name, with each mode containing key-to-action-name mappings. Set a key's value to `undef` to remove it from defaults. Merged with built-in defaults by `_resolve_keymap()`. |
+| `on_ready` | `coderef` or `undef` | `undef` | No | A callback invoked once after all VimBindings initialization is complete. Receives the context hash `$ctx` as its only argument, allowing embedding applications to query or modify editor state (e.g., load plugins, set custom marks). Errors are caught and warned. |
+| `key_handler` | `coderef` or `undef` | `undef` | No | A pre-vim key interceptor connected to the text view's `key-press-event` signal **before** the Vim bindings handler. Must return `TRUE` to consume the event (preventing Vim from seeing it) or `FALSE` to pass it through to Vim. Useful for intercepting keys like Alt+Arrow that Vim does not handle. |
 
 ### 4.2 Internal UI Construction (`_build_ui`)
 
@@ -254,20 +291,26 @@ The `_build_ui(%opts)` method constructs the complete widget tree in the followi
 
 4. **Text Buffer** -- Creates `Gtk3::SourceView::Buffer->new_with_language($lang)`. Enables syntax highlighting (`set_highlight_syntax(TRUE)`). If the file exists, reads its contents via `File::Slurper::read_text()` and sets the buffer text. Places the cursor at the start, clears the modified flag, and applies the style scheme.
 
-5. **Text View** -- Creates `Gtk3::SourceView::View->new()`. Configures it with: line numbers shown, current line highlighted, auto-indent enabled, word wrap mode (based on `wrap` option), and the Pango monospace font.
+5. **Text View** -- Creates `Gtk3::SourceView::View->new()`. Configures it with: line numbers (per `show_line_numbers`), current line highlighting (per `highlight_current_line`), auto-indent (per `auto_indent`), tab width (per `tab_width`), indent width (per `indent_width`), insert-spaces-instead-of-tabs (per `insert_spaces_instead_of_tabs`), smart home/end (per `smart_home_end`), right margin (per `show_right_margin` / `right_margin_position`), bracket matching (per `highlight_matching_brackets`), line marks (per `show_line_marks`), word wrap mode (based on `wrap` option), cursor visibility, and the Pango font (from `font_family` / `font_size`).
 
 6. **Scrolled Window** -- Creates `Gtk3::ScrolledWindow->new()` with automatic scroll policy. Adds the text view. Packs into the main box with `expand=TRUE, fill=TRUE`.
 
 7. **Bottom Bar** -- Creates a vertical `Gtk3::Box` containing (from top to bottom):
    - **Command Entry** (`Gtk3::Entry`) -- Hidden by default (`set_no_show_all(TRUE)`, `hide()`). Styled with theme fg/bg colors.
-   - **Mode Label** (wrapped in `Gtk3::EventBox` for background color) -- Shows `"-- NORMAL --"`. Styled with theme fg/bg colors.
+   - **Status Bar** (wrapped in `Gtk3::EventBox` for background color) -- A horizontal box containing:
+     - **Mode Label** (`Gtk3::Label`, left-aligned) -- Shows `"-- NORMAL --"`. Styled with theme fg/bg.
+     - **Position Label** (`Gtk3::Label`, right-aligned) -- Shows `"line:col"` (e.g. `"1:0"`). Updated via the buffer's `mark-set` signal on the `insert` mark.
 
-8. **VimBindings Wiring** -- If `vim_mode` is true:
+8. **Key Handler** -- If `key_handler` is provided, connects it to the text view's `key-press-event` signal **before** the Vim bindings handler. The handler must return `TRUE` to consume the event or `FALSE` to pass it through.
+
+9. **Position Tracking** -- Connects the buffer's `mark-set` signal to update the position label whenever the `insert` mark moves.
+
+10. **VimBindings Wiring** -- If `vim_mode` is true:
    - Creates a `VimBuffer::Gtk3` adapter wrapping the buffer and view.
-   - Calls `VimBindings::add_vim_bindings()` with the textview, mode_label, cmd_entry, filename ref, read_only flag, and optional keymap/vim_buffer.
+   - Calls `VimBindings::add_vim_bindings()` with the textview, mode_label, cmd_entry, pos_label, filename ref, read_only flag, tab_string, use_clipboard, theme colors, and optional keymap/on_ready.
    - Otherwise: hides the command entry and clears the mode label text.
 
-9. **Window Close Hook** -- If both `window` and `on_close` are provided, connects the window's `destroy` signal to invoke `on_close` with the current buffer text.
+11. **Window Close Hook** -- If both `window` and `on_close` are provided, connects the window's `destroy` signal to invoke `on_close` with the current buffer text.
 
 ### 4.3 Accessor Methods
 

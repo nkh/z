@@ -1,6 +1,7 @@
 package Gtk3::SourceEditor::ThemeManager;
 use strict;
 use warnings;
+use Gtk3;
 use Gtk3::SourceView;
 use File::Slurper 'read_text';
 use File::Temp qw(tempfile);
@@ -12,7 +13,7 @@ our $VERSION = '0.04';
 sub load {
     my (%opts) = @_;
     my $xml_file = $opts{file} // 'themes/default.xml';
-    
+
     unless (-f $xml_file) {
         die "Error: Theme file '$xml_file' not found!\n";
     }
@@ -34,10 +35,26 @@ sub load {
     print $xml_fh $xml_content;
     close $xml_fh;
 
+    # Safe-call helper: prevents crashes on older GtkSourceView versions.
+    my %_missing_warned;
+    my $_call = sub {
+        my ($obj, $method, @args) = @_;
+        return unless $obj && $method;
+        if ($obj->can($method)) {
+            return $obj->$method(@args);
+        }
+        unless ($_missing_warned{$method}) {
+            warn "Gtk3::SourceEditor::ThemeManager: method '$method' not "
+               . "available on " . ref($obj) . " (feature skipped)\n";
+            $_missing_warned{$method} = 1;
+        }
+        return;
+    };
+
     my $theme_dir = dirname($tmp_file);
     my $manager = Gtk3::SourceView::StyleSchemeManager->get_default();
-    $manager->prepend_search_path($theme_dir);
-    my $scheme = $manager->get_scheme($scheme_id);
+    $_call->($manager, 'prepend_search_path', $theme_dir);
+    my $scheme = $_call->($manager, 'get_scheme', $scheme_id);
     die "Error: Could not load scheme '$scheme_id'\n" unless $scheme;
 
     my $ui_css = qq{
@@ -59,8 +76,7 @@ sub load {
 
     my $ui_css_bytes = encode('UTF-8', $ui_css);
     my $ui_css_provider = Gtk3::CssProvider->new();
-    eval { $ui_css_provider->load_from_data($ui_css_bytes); };
-    warn "Failed to parse dynamic UI CSS: $@" if $@;
+    $_call->($ui_css_provider, 'load_from_data', $ui_css_bytes);
 
     return {
         scheme => $scheme,

@@ -80,6 +80,7 @@
 | ------- | ---------------------------------------------------------------------- |
 | `x`     | Delete the character under the cursor and place it in the yank buffer. |
 | `r{c}`  | Replace a single character under the cursor with `c`.                   |
+| `BackSp`| Delete the character before the cursor.                                |
 
 ## Edit Mode (Word Operations)
 
@@ -104,6 +105,7 @@
 | ------- | -------------------------------------------------------------------------- |
 | `yy`    | Yank (copy) the entire current line into the yank buffer.                  |
 | `yw`    | Yank (copy) the current word into the yank buffer.                        |
+| `yiw`   | Yank (copy) the inner word under the cursor into the yank buffer.         |
 | `p`     | Paste the contents of the yank buffer after the cursor.                    |
 | `P`     | Paste the contents of the yank buffer before the cursor.                   |
 
@@ -181,7 +183,6 @@ All normal-mode navigation keys (h, j, k, l, w, b, e, 0, $, ^, G, gg, f, t, ;, %
 | `:q`             | Quit if no modifications have been made, otherwise errors out.    |
 | `:q!`            | Force quit, discarding unsaved changes.                           |
 | `:wq`            | Save and quit.                                                    |
-| `:wq!`           | Force save and quit.                                              |
 | `:e <filename>`  | Open a file and replace the current buffer.                       |
 | `:r <filename>`  | Insert file contents below the current line.                      |
 | `:s/pat/repl/`   | Substitute first occurrence on current line.                      |
@@ -189,6 +190,10 @@ All normal-mode navigation keys (h, j, k, l, w, b, e, 0, $, ^, G, gg, f, t, ;, %
 | `:%s/pat/repl/g` | Substitute all occurrences in the entire file.                    |
 | `:{number}`      | Jump to line number.                                              |
 | `:bindings`      | Show current key bindings in a dialog.                             |
+| `:browse`        | Open a GTK file chooser dialog to select a file.                   |
+| `:set cursor=block` | Switch to block cursor.                                          |
+| `:set cursor=ibeam` | Switch to i-beam (default) cursor.                                |
+
 
 ---
 

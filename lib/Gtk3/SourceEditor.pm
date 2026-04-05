@@ -59,7 +59,7 @@ sub new {
             # theme_name → theme_file: if 'theme' is a known name, build the path
             if (exists $cfg->{theme} && !defined $opts{theme_file}) {
                 my $tn = $cfg->{theme};
-                if ($tn ne 'default' && $tn !~ m{[/.]}) {
+                if ($tn ne 'default' && $tn !~ m{[/\\.]}) {
                     $opts{theme_file} = "themes/theme_$tn.xml";
                 } elsif ($tn eq 'default') {
                     $opts{theme_file} = 'themes/default.xml';
@@ -92,9 +92,35 @@ sub new {
     return $self;
 }
 
+# ==========================================================================
+# _build_ui( %opts )
+#
+# All GTK method calls go through the $_call helper which checks
+# $obj->can($method) before dispatching.  This prevents crashes when
+# running against older GtkSourceView 3.x releases that lack certain
+# methods (e.g. set_indent_width was added in 3.16,
+# set_show_line_marks in 2.2, etc.).
+# ==========================================================================
+
 sub _build_ui {
     my ($self, %opts) = @_;
-    
+
+    # --- Safe-call helper: die never, warn once per missing method ---
+    my %_missing_warned;
+    my $_call = sub {
+        my ($obj, $method, @args) = @_;
+        return unless $obj && $method;
+        if ($obj->can($method)) {
+            return $obj->$method(@args);
+        }
+        unless ($_missing_warned{$method}) {
+            warn "Gtk3::SourceEditor: method '$method' not available on "
+               . ref($obj) . " (feature skipped)\n";
+            $_missing_warned{$method} = 1;
+        }
+        return;
+    };
+
     # Load Theme
     my $theme_data = Gtk3::SourceEditor::ThemeManager::load(file => $opts{theme_file});
     my $fg = $theme_data->{fg};
@@ -107,13 +133,13 @@ sub _build_ui {
         my $r = hex(substr($h, 0, 2)) / 255.0;
         my $g = hex(substr($h, 2, 2)) / 255.0;
         my $b = hex(substr($h, 4, 2)) / 255.0;
-        
+
         my $rgba = Gtk3::Gdk::RGBA->new();
         $rgba->red($r);
         $rgba->green($g);
         $rgba->blue($b);
         $rgba->alpha(1.0);
-        
+
         return $rgba;
     };
 
@@ -144,122 +170,136 @@ sub _build_ui {
              || $lm->get_language('perl');
     }
     $self->{buffer} = Gtk3::SourceView::Buffer->new_with_language($lang);
-    $self->{buffer}->set_highlight_syntax(TRUE);
+    $_call->($self->{buffer}, 'set_highlight_syntax', TRUE);
 
     if ($self->{filename} && -e $self->{filename}) {
         eval { $self->{buffer}->set_text(read_text($self->{filename})); };
         warn "Failed to read $self->{filename}: $@" if $@;
     }
-    $self->{buffer}->place_cursor($self->{buffer}->get_start_iter());
-    $self->{buffer}->set_modified(FALSE);
-    $self->{buffer}->set_style_scheme($theme_data->{scheme});
+    $_call->($self->{buffer}, 'place_cursor', $self->{buffer}->get_start_iter());
+    $_call->($self->{buffer}, 'set_modified', FALSE);
+    $_call->($self->{buffer}, 'set_style_scheme', $theme_data->{scheme});
 
     $self->{textview} = Gtk3::SourceView::View->new();
-    $self->{textview}->set_buffer($self->{buffer});
-    $self->{textview}->set_show_line_numbers($self->{show_line_numbers} ? TRUE : FALSE);
-    $self->{textview}->set_highlight_current_line($self->{highlight_current_line} ? TRUE : FALSE);
-    $self->{textview}->set_auto_indent($self->{auto_indent} ? TRUE : FALSE) if defined $self->{auto_indent};
-    $self->{textview}->set_wrap_mode($self->{wrap} ? 'word' : 'none');
+    $_call->($self->{textview}, 'set_buffer', $self->{buffer});
+    $_call->($self->{textview}, 'set_show_line_numbers',
+             $self->{show_line_numbers} ? TRUE : FALSE);
+    $_call->($self->{textview}, 'set_highlight_current_line',
+             $self->{highlight_current_line} ? TRUE : FALSE);
+    if (defined $self->{auto_indent}) {
+        $_call->($self->{textview}, 'set_auto_indent',
+                 $self->{auto_indent} ? TRUE : FALSE);
+    }
+    $_call->($self->{textview}, 'set_wrap_mode', $self->{wrap} ? 'word' : 'none');
 
     # Tab behaviour
-    my $isp = defined $self->{insert_spaces_instead_of_tabs} ? $self->{insert_spaces_instead_of_tabs} : 0;
-    $self->{textview}->set_insert_spaces_instead_of_tabs($isp ? TRUE : FALSE);
+    my $isp = defined $self->{insert_spaces_instead_of_tabs}
+            ? $self->{insert_spaces_instead_of_tabs} : 0;
+    $_call->($self->{textview}, 'set_insert_spaces_instead_of_tabs',
+             $isp ? TRUE : FALSE);
 
     # Tab width
     if (defined $opts{tab_width} && $opts{tab_width} > 0) {
-        $self->{textview}->set_tab_width($opts{tab_width});
+        $_call->($self->{textview}, 'set_tab_width', $opts{tab_width});
     }
 
-    # Indent width
+    # Indent width (available since GtkSourceView 3.16)
     if (defined $opts{indent_width} && $opts{indent_width} > 0) {
-        $self->{textview}->set_indent_width($opts{indent_width});
+        $_call->($self->{textview}, 'set_indent_width', $opts{indent_width});
     }
 
     # Right margin
     if (defined $opts{show_right_margin}) {
-        $self->{textview}->set_show_right_margin($opts{show_right_margin} ? TRUE : FALSE);
+        $_call->($self->{textview}, 'set_show_right_margin',
+                 $opts{show_right_margin} ? TRUE : FALSE);
     }
     if (defined $opts{right_margin_position} && $opts{right_margin_position} > 0) {
-        $self->{textview}->set_right_margin_position($opts{right_margin_position});
+        $_call->($self->{textview}, 'set_right_margin_position',
+                 $opts{right_margin_position});
     }
 
-    # Smart Home/End
+    # Smart Home/End (available since GtkSourceView 3.0)
     if (defined $opts{smart_home_end}) {
-        $self->{textview}->set_smart_home_end($opts{smart_home_end} ? 'after-line-start' : 'disabled');
+        $_call->($self->{textview}, 'set_smart_home_end',
+                 $opts{smart_home_end} ? 'after-line-start' : 'disabled');
     }
 
-    # Highlight matching brackets
+    # Highlight matching brackets (Buffer method, NOT View)
     if (defined $opts{highlight_matching_brackets}) {
-        $self->{textview}->set_highlight_matching_brackets($opts{highlight_matching_brackets} ? TRUE : FALSE);
+        $_call->($self->{buffer}, 'set_highlight_matching_brackets',
+                 $opts{highlight_matching_brackets} ? TRUE : FALSE);
     } else {
-        $self->{textview}->set_highlight_matching_brackets(TRUE);
+        $_call->($self->{buffer}, 'set_highlight_matching_brackets', TRUE);
     }
 
-    # Show line marks
+    # Show line marks (available since GtkSourceView 2.2)
     if (defined $opts{show_line_marks}) {
-        $self->{textview}->set_show_line_marks($opts{show_line_marks} ? TRUE : FALSE);
+        $_call->($self->{textview}, 'set_show_line_marks',
+                 $opts{show_line_marks} ? TRUE : FALSE);
     }
 
     # Cursor: always start with a visible native i-beam cursor.
     # Block cursor (Cairo-drawn) can be activated at runtime via
     # :set cursor=block  through the VimBindings layer.
-    $self->{textview}->set_cursor_visible(TRUE);
+    $_call->($self->{textview}, 'set_cursor_visible', TRUE);
 
     # Font
     my $pango_font = $self->{font_family} // 'Monospace';
     $pango_font .= " $self->{font_size}" if $self->{font_size} > 0;
-    $self->{textview}->modify_font(Pango::FontDescription->from_string($pango_font));
+    $_call->($self->{textview}, 'modify_font',
+             Pango::FontDescription->from_string($pango_font));
 
     # Scrolled Window
     my $scroll = Gtk3::ScrolledWindow->new();
-    $scroll->set_policy('automatic', 'automatic');
-    $scroll->add($self->{textview});
-    $self->{widget}->pack_start($scroll, TRUE, TRUE, 0);
+    $_call->($scroll, 'set_policy', 'automatic', 'automatic');
+    $_call->($scroll, 'add', $self->{textview});
+    $_call->($self->{widget}, 'pack_start', $scroll, TRUE, TRUE, 0);
 
     # Bottom Bar (Command Entry + Status Label + Position Label)
     my $bottom_box = Gtk3::Box->new('vertical', 0);
 
     $self->{cmd_entry} = Gtk3::Entry->new();
-    $self->{cmd_entry}->set_no_show_all(TRUE);
-    $self->{cmd_entry}->hide();
-    
-    $self->{cmd_entry}->override_color('normal', $fg_rgba);
-    $self->{cmd_entry}->override_background_color('normal', $bg_rgba);
+    $_call->($self->{cmd_entry}, 'set_no_show_all', TRUE);
+    $_call->($self->{cmd_entry}, 'hide');
+
+    $_call->($self->{cmd_entry}, 'override_color', 'normal', $fg_rgba);
+    $_call->($self->{cmd_entry}, 'override_background_color', 'normal', $bg_rgba);
 
     # Status bar: horizontal box with mode label (left) and position (right)
     my $status_box = Gtk3::EventBox->new();
-    $status_box->override_background_color('normal', $bg_rgba);
+    $_call->($status_box, 'override_background_color', 'normal', $bg_rgba);
     my $status_inner = Gtk3::Box->new('horizontal', 0);
 
     $self->{mode_label} = Gtk3::Label->new('-- NORMAL --');
-    $self->{mode_label}->override_color('normal', $fg_rgba);
-    $self->{mode_label}->set_xalign(0.0);
+    $_call->($self->{mode_label}, 'override_color', 'normal', $fg_rgba);
+    $_call->($self->{mode_label}, 'set_xalign', 0.0);
 
     $self->{pos_label} = Gtk3::Label->new('1:0');
-    $self->{pos_label}->override_color('normal', $fg_rgba);
-    $self->{pos_label}->set_xalign(1.0);
-    $self->{pos_label}->set_margin_end(6);
+    $_call->($self->{pos_label}, 'override_color', 'normal', $fg_rgba);
+    $_call->($self->{pos_label}, 'set_xalign', 1.0);
+    $_call->($self->{pos_label}, 'set_margin_end', 6);
 
-    $status_inner->pack_start($self->{mode_label}, TRUE, TRUE, 4);
-    $status_inner->pack_end($self->{pos_label}, FALSE, FALSE, 0);
-    $status_box->add($status_inner);
+    $_call->($status_inner, 'pack_start', $self->{mode_label}, TRUE, TRUE, 4);
+    $_call->($status_inner, 'pack_end', $self->{pos_label}, FALSE, FALSE, 0);
+    $_call->($status_box, 'add', $status_inner);
 
-    $bottom_box->pack_end($status_box, FALSE, FALSE, 0);
-    $bottom_box->pack_end($self->{cmd_entry}, FALSE, FALSE, 0);
-    $self->{widget}->pack_end($bottom_box, FALSE, FALSE, 0);
+    $_call->($bottom_box, 'pack_end', $status_box, FALSE, FALSE, 0);
+    $_call->($bottom_box, 'pack_end', $self->{cmd_entry}, FALSE, FALSE, 0);
+    $_call->($self->{widget}, 'pack_end', $bottom_box, FALSE, FALSE, 0);
 
     # Connect a pre-vim key handler if provided (runs before vim bindings
     # so it can intercept specific keys like Alt+Arrow).  Must return TRUE
     # to consume the event, FALSE to pass it to vim bindings.
     if ($opts{key_handler}) {
-        $self->{textview}->signal_connect('key-press-event' => $opts{key_handler});
+        $_call->($self->{textview}, 'signal_connect',
+                 'key-press-event' => $opts{key_handler});
     }
 
     # Track cursor position via mark-set signal (not the draw handler).
     # This is more efficient and avoids any interaction with the draw cycle
     # that could interfere with mode label updates.
     if ($self->{pos_label}) {
-        $self->{buffer}->signal_connect('mark-set' => sub {
+        $_call->($self->{buffer}, 'signal_connect', 'mark-set' => sub {
             my ($buf, $iter, $mark) = @_;
             return unless defined $mark->get_name && $mark->get_name eq 'insert';
             $self->{pos_label}->set_text(
@@ -291,13 +331,13 @@ sub _build_ui {
     } else {
         # Native Gtk3::SourceView mode -- no vim bindings, use standard GTK keybindings
         # (Ctrl+C/V/X/Z/A, arrow keys, Tab indent, etc.)
-        $self->{cmd_entry}->hide();
-        $self->{mode_label}->set_text('');
+        $_call->($self->{cmd_entry}, 'hide');
+        $_call->($self->{mode_label}, 'set_text', '');
     }
 
     # Hook into window close event to trigger callback
     if ($self->{window} && $self->{on_close}) {
-        $self->{window}->signal_connect('destroy' => sub {
+        $_call->($self->{window}, 'signal_connect', 'destroy' => sub {
             $self->{on_close}->($self->get_text);
         });
     }
@@ -310,7 +350,10 @@ sub get_widget {
 
 sub get_text {
     my ($self) = @_;
-    return $self->{buffer}->get_text($self->{buffer}->get_start_iter, $self->{buffer}->get_end_iter, TRUE);
+    return $self->{buffer}->get_text(
+        $self->{buffer}->get_start_iter,
+        $self->{buffer}->get_end_iter, TRUE
+    );
 }
 
 sub get_buffer {
@@ -370,6 +413,13 @@ loaded and the native Gtk3::SourceView keybindings are preserved. This gives
 the user standard GTK text editing: Ctrl+C/V/X (copy/paste/cut), Ctrl+Z
 (undo), Ctrl+A (select all), arrow keys, Tab indentation, etc. The mode label
 and command entry are hidden in this mode.
+
+All GtkSourceView method calls are dispatched through an internal safe-call
+helper that checks C<< $obj->can($method) >> before calling.  This means
+the widget degrades gracefully on older GtkSourceView 3.x releases that lack
+certain methods (e.g. C<set_indent_width> was added in 3.16,
+C<set_show_line_marks> in 2.2, etc.).  A one-time warning is emitted for any
+method that is not available, and the corresponding feature is silently skipped.
 
 =head1 CONSTRUCTOR
 

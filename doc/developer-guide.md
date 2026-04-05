@@ -59,11 +59,16 @@ GTK key-press-event signal
 | `lib/Gtk3/SourceEditor/VimBindings/Normal.pm` | Normal-mode action coderefs and default keymap. Largest sub-module. |
 | `lib/Gtk3/SourceEditor/VimBindings/Insert.pm` | Insert-mode actions, replace-mode keymap, replace-mode actions. |
 | `lib/Gtk3/SourceEditor/VimBindings/Visual.pm` | Visual-mode actions (yank/delete/change/indent/toggle) and navigation keys. |
-| `lib/Gtk3/SourceEditor/VimBindings/Command.pm` | Ex-command parser and handlers (`:w`, `:q`, `:e`, `:r`, `:s`, `:bindings`, goto line). |
+| `lib/Gtk3/SourceEditor/VimBindings/Command.pm` | Ex-command parser and handlers (`:w`, `:q`, `:e`, `:r`, `:s`, `:bindings`, `:browse`, `:set cursor=`, goto line). |
 | `lib/Gtk3/SourceEditor/VimBindings/Search.pm` | Search actions (`search_next`, `search_prev`, `search_set_pattern`). |
+| `lib/Gtk3/SourceEditor/VimBindings/PluginLoader.pm` | Plugin discovery, loading, unloading, reloading. Standalone (not auto-wired). |
+| `lib/Gtk3/SourceEditor/VimBindings/Completion.pm` | Path completion engine for `:e` and `:r` commands. |
+| `lib/Gtk3/SourceEditor/VimBindings/CompletionUI.pm` | Completion display widget for the command entry. |
+| `lib/Gtk3/SourceEditor/Config.pm` | INI-style config file parser. Used by `SourceEditor->new()`. |
 | `lib/Gtk3/SourceEditor/VimBuffer.pm` | Abstract interface: 27 methods that die on the base class. |
 | `lib/Gtk3/SourceEditor/VimBuffer/Gtk3.pm` | Production backend: wraps Gtk3::SourceBuffer/View. |
 | `lib/Gtk3/SourceEditor/VimBuffer/Test.pm` | Test backend: pure-Perl, no GTK dependency. |
+| `bindings/AlignText.pm` | Example plugin demonstrating the plugin system (gal, gar, :align, :alignr). |
 
 ---
 

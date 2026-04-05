@@ -33,7 +33,7 @@
 
 ## Executive Summary
 
-**P5-Gtk3-SourceEditor** is a Perl module that provides a Vim-like modal editing layer on top of Gtk3::SourceView. After a thorough review of the entire codebase (~5,400 lines across 16 source files and 3 test suites), this document originally presented 20 actionable improvement suggestions organized into three categories. **Seven of those items have been completed** and removed from this document (see the [Completed Items](#completed-items) section at the bottom for details), leaving 13 remaining recommendations.
+**P5-Gtk3-SourceEditor** is a Perl module that provides a Vim-like modal editing layer on top of Gtk3::SourceView. After a thorough review of the entire codebase (~5,400 lines across 16 source files, 4 support modules, and 15 test files), this document originally presented 20 actionable improvement suggestions organized into three categories. **Seven of those items have been completed** and removed from this document (see the [Completed Items](#completed-items) section at the bottom for details), leaving 13 remaining recommendations.
 
 The codebase demonstrates several strong design decisions, most notably the VimBuffer abstract interface that enables complete headless testing, and the action registry dispatch pattern that keeps mode-specific logic cleanly separated. However, there are meaningful opportunities for improvement in how the module handles state, error reporting, undo/redo semantics, and user-facing features. Each suggestion below includes a rationale, implementation approach, and expected impact on the module.
 
@@ -485,7 +485,7 @@ The following items from the original 20 recommendations have been implemented a
 | Original # | Suggestion | Category | Commit | Description |
 |---|---|---|---|---|
 | B1 | Fix the Control-Mask Bug | Code Quality | `96270c2` | Fixed `['control-mask']` array ref bug in VimBindings.pm that caused unreliable Ctrl-key handling. |
-| B3 | Comprehensive Test Coverage Expansion | Code Quality | `1036c4b` | Expanded test suite from 109 to 210+ subtests across 11 test files, covering visual mode, search, replace, editing, marks, and buffer abstract interface. |
+| B3 | Comprehensive Test Coverage Expansion | Code Quality | `1036c4b` | Expanded test suite from 109 to ~290 subtests across 15 test files, covering visual mode, search, replace, editing, marks, buffer abstract interface, completion, ctrl keys, plugin loading, find-character motions, dispatch, and ex-commands. |
 | B5 | Fix Module Naming and Version Synchronization | Code Quality | `96270c2` | Fixed Build.PL module name mismatch (`Gtk3::SourceViewEditor` -> `Gtk3::SourceEditor`) and centralized `$VERSION` across all sub-modules. |
 | C2 | Find-Character Motions (f/F/t/T) | Functionality | `5bc5011` | Implemented `f`, `F`, `t`, `T` character-find motions plus `;` and `,` repeat motions via the existing `_char_actions` infrastructure. |
 | C3 | Virtual Column Tracking | Functionality | `5bc5011` | Added `$ctx->{desired_col}` tracking so vertical navigation (`j`/`k`) preserves the intended horizontal position across lines of varying length. |
