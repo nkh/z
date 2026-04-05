@@ -884,9 +884,8 @@ sub _setup_block_cursor {
     if (!@rect_color || !@text_color) {
         eval {
             my $sc = $view->get_style_context;
-            my $st = 0;  # GTK_STATE_FLAG_NORMAL
-            my $fg_rgba = $sc->get_color($st);
-            my $bg_rgba = $sc->get_background_color($st);
+            my $fg_rgba = $sc->get_color('normal');
+            my $bg_rgba = $sc->get_background_color('normal');
             @rect_color = ($fg_rgba->red, $fg_rgba->green, $fg_rgba->blue)
                 unless @rect_color;
             @text_color = ($bg_rgba->red, $bg_rgba->green, $bg_rgba->blue)
@@ -934,13 +933,14 @@ sub _setup_block_cursor {
                 width => $rw, height => $rh,
             };
 
-            # 1. Draw filled rectangle in the selection/foreground colour
+            # --- 1. Draw filled rectangle (the block cursor background) ---
+            $cr->save;
             $cr->set_source_rgb(@$rc);
             $cr->rectangle($wx, $wy, $rw, $rh);
-            $cr->fill();
+            $cr->fill;
+            $cr->restore;   # clears path + source state
 
-            # 2. Draw the character at the cursor in the text/background colour.
-            #    Skip newlines and null chars.
+            # --- 2. Draw the character at the cursor in inverted colour ---
             my $char = $iter->get_char;
             if (defined $char && length($char) && $char ne "\n" && $char ne "\0") {
                 my $layout = $widget->create_pango_layout($char);
@@ -950,14 +950,32 @@ sub _setup_block_cursor {
                     my $fd = $pctx->get_font_description;
                     $layout->set_font_description($fd) if $fd;
                 }
-                # Position at cell origin.  The layout draws from its
-                # logical origin, which is the top-left of the line box,
-                # matching the text view's own positioning.
-                $cr->set_source_rgb(@$tc);
-                $cr->move_to($wx, $wy);
-                $cr->show_pango_layout($layout);
+                # Get the layout's pixel extents for precise positioning.
+                # The logical rect tells us the full cell the layout wants.
+                my (undef, $logical) = eval { $layout->get_pixel_extents };
+                my $lw = ($logical && $logical->{width})  ? $logical->{width}  : $rw;
+                my $lh = ($logical && $logical->{height}) ? $logical->{height} : $rh;
+
+                # Center the character glyph within the cell rectangle
+                my $cx = $wx + ($rw - $lw) / 2;
+                my $cy = $wy + ($rh - $lh) / 2;
+
+                # Use the inverted theme background colour for the character.
+                # GtkSourceView 3.x has no API to query the resolved syntax
+                # colour at a position (get_style_at_iter is 4.x only), so
+                # we use theme bg which gives correct contrast against the
+                # theme-fg coloured block rectangle.
+                my $char_rgb = $tc;
+
+                $cr->save;
+                $cr->set_source_rgb(@$char_rgb);
+                $cr->new_path;
+                $cr->move_to($cx, $cy);
+                Pango::Cairo::show_layout($cr, $layout);
+                $cr->restore;
             }
         };
+        warn "block-cursor draw: $@" if $@;
 
         return FALSE;
     });

@@ -9,6 +9,7 @@ use File::Slurper 'read_text';
 
 use Gtk3::SourceEditor::VimBindings;
 use Gtk3::SourceEditor::ThemeManager;
+use Gtk3::SourceEditor::Config qw(parse_editor_config);
 use Gtk3::SourceEditor::VimBuffer::Gtk3;
 
 our $VERSION = '0.04';
@@ -17,8 +18,63 @@ sub new {
     my ($class, %opts) = @_;
     my $self = bless {}, $class;
 
+    # --- Load config file (if specified) and merge into %opts ---
+    # Config file values act as defaults; explicit constructor options win.
+    if ($opts{config_file} && -f $opts{config_file}) {
+        my $cfg = eval { parse_editor_config($opts{config_file}) };
+        if ($@) { warn "Gtk3::SourceEditor: $@" }
+        if ($cfg && ref $cfg eq 'HASH') {
+            # Map config keys to constructor option names.
+            # Only set values that weren't explicitly passed.
+            my %map = (
+                theme           => 'theme',
+                theme_file      => 'theme_file',
+                font_family     => 'font_family',
+                font_size       => 'font_size',
+                wrap            => 'wrap',
+                read_only       => 'read_only',
+                vim_mode        => 'vim_mode',
+                show_line_numbers        => 'show_line_numbers',
+                highlight_current_line  => 'highlight_current_line',
+                auto_indent              => 'auto_indent',
+                tab_width                => 'tab_width',
+                indent_width             => 'indent_width',
+                insert_spaces_instead_of_tabs => 'insert_spaces_instead_of_tabs',
+                smart_home_end           => 'smart_home_end',
+                show_right_margin        => 'show_right_margin',
+                right_margin_position   => 'right_margin_position',
+                highlight_matching_brackets => 'highlight_matching_brackets',
+                show_line_marks          => 'show_line_marks',
+                block_cursor             => 'block_cursor',
+                force_language           => 'force_language',
+                use_clipboard            => 'use_clipboard',
+                tab_string               => 'tab_string',
+            );
+            for my $ck (keys %$cfg) {
+                my $opt_key = $map{$ck};
+                next unless defined $opt_key;
+                next if defined $opts{$opt_key};  # explicit option wins
+                $opts{$opt_key} = $cfg->{$ck};
+            }
+            # theme_name → theme_file: if 'theme' is a known name, build the path
+            if (exists $cfg->{theme} && !defined $opts{theme_file}) {
+                my $tn = $cfg->{theme};
+                if ($tn ne 'default' && $tn !~ m{[/.]}) {
+                    $opts{theme_file} = "themes/theme_$tn.xml";
+                } elsif ($tn eq 'default') {
+                    $opts{theme_file} = 'themes/default.xml';
+                }
+            }
+            # theme_file from config takes precedence over theme name
+            if (exists $cfg->{theme_file} && length $cfg->{theme_file}) {
+                $opts{theme_file} = $cfg->{theme_file};
+            }
+        }
+    }
+
     $self->{filename}      = $opts{file};
     $self->{font_size}     = $opts{font_size} // 0;
+    $self->{font_family}   = $opts{font_family} // 'Monospace';
     $self->{wrap}          = defined $opts{wrap} ? $opts{wrap} : 1;
     $self->{read_only}     = $opts{read_only} // 0;
     $self->{on_close}      = $opts{on_close};
@@ -28,6 +84,7 @@ sub new {
     $self->{force_language} = $opts{force_language};
     $self->{tab_string}    = defined $opts{tab_string} ? $opts{tab_string} : "\t";
     $self->{block_cursor}      = defined $opts{block_cursor} ? $opts{block_cursor} : 0;
+    $self->{highlight_current_line} = defined $opts{highlight_current_line} ? $opts{highlight_current_line} : 1;
     $self->{use_clipboard}     = $opts{use_clipboard} // 0;
     $self->{show_line_numbers} = defined $opts{show_line_numbers} ? $opts{show_line_numbers} : 1;
 
@@ -100,14 +157,48 @@ sub _build_ui {
     $self->{textview} = Gtk3::SourceView::View->new();
     $self->{textview}->set_buffer($self->{buffer});
     $self->{textview}->set_show_line_numbers($self->{show_line_numbers} ? TRUE : FALSE);
-    $self->{textview}->set_highlight_current_line(TRUE);
-    $self->{textview}->set_auto_indent(TRUE);
+    $self->{textview}->set_highlight_current_line($self->{highlight_current_line} ? TRUE : FALSE);
+    $self->{textview}->set_auto_indent($self->{auto_indent} ? TRUE : FALSE) if defined $self->{auto_indent};
     $self->{textview}->set_wrap_mode($self->{wrap} ? 'word' : 'none');
 
-    # Tab behaviour: always insert literal tab characters (or the
-    # user-configured tab_string).  Vim bindings intercept Tab in
-    # insert mode; disabling the GTK default prevents double-insertion.
-    $self->{textview}->set_insert_spaces_instead_of_tabs(FALSE);
+    # Tab behaviour
+    my $isp = defined $self->{insert_spaces_instead_of_tabs} ? $self->{insert_spaces_instead_of_tabs} : 0;
+    $self->{textview}->set_insert_spaces_instead_of_tabs($isp ? TRUE : FALSE);
+
+    # Tab width
+    if (defined $opts{tab_width} && $opts{tab_width} > 0) {
+        $self->{textview}->set_tab_width($opts{tab_width});
+    }
+
+    # Indent width
+    if (defined $opts{indent_width} && $opts{indent_width} > 0) {
+        $self->{textview}->set_indent_width($opts{indent_width});
+    }
+
+    # Right margin
+    if (defined $opts{show_right_margin}) {
+        $self->{textview}->set_show_right_margin($opts{show_right_margin} ? TRUE : FALSE);
+    }
+    if (defined $opts{right_margin_position} && $opts{right_margin_position} > 0) {
+        $self->{textview}->set_right_margin_position($opts{right_margin_position});
+    }
+
+    # Smart Home/End
+    if (defined $opts{smart_home_end}) {
+        $self->{textview}->set_smart_home_end($opts{smart_home_end} ? 'after-line-start' : 'disabled');
+    }
+
+    # Highlight matching brackets
+    if (defined $opts{highlight_matching_brackets}) {
+        $self->{textview}->set_highlight_matching_brackets($opts{highlight_matching_brackets} ? TRUE : FALSE);
+    } else {
+        $self->{textview}->set_highlight_matching_brackets(TRUE);
+    }
+
+    # Show line marks
+    if (defined $opts{show_line_marks}) {
+        $self->{textview}->set_show_line_marks($opts{show_line_marks} ? TRUE : FALSE);
+    }
 
     # Cursor: always start with a visible native i-beam cursor.
     # Block cursor (Cairo-drawn) can be activated at runtime via
@@ -115,7 +206,7 @@ sub _build_ui {
     $self->{textview}->set_cursor_visible(TRUE);
 
     # Font
-    my $pango_font = "Monospace";
+    my $pango_font = $self->{font_family} // 'Monospace';
     $pango_font .= " $self->{font_size}" if $self->{font_size} > 0;
     $self->{textview}->modify_font(Pango::FontDescription->from_string($pango_font));
 
