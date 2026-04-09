@@ -195,6 +195,10 @@ sub add_vim_bindings {
         use_clipboard => $opts{use_clipboard} // 0,
         pos_label     => $opts{pos_label},
         theme         => $opts{theme},
+        # Scroll mode: 'edge' (default), 'center', or 'scroll_lock' (runtime toggle)
+        _scroll_mode        => $opts{scroll_mode} // 'edge',
+        _scroll_lock_active => 0,
+        _scroll_lock_prev   => undef,
     };
 
     _init_utilities($ctx);
@@ -204,11 +208,28 @@ sub add_vim_bindings {
     # Starts disabled (native i-beam).  Activated by :set cursor=block.
     _setup_block_cursor($ctx);
 
-    # Determine page size from GTK view if available
+    # Determine page size from GTK view if available.
+    # Use the actual line height from the font metrics rather than a
+    # hardcoded pixel guess so page-up/down move a full viewport.
     if ($textview && !$ctx->{page_size}) {
         eval {
             my $vr = $textview->get_visible_rect();
-            $ctx->{page_size} = int($vr->{height} / 20) || 20;
+            my $line_height = 20;  # fallback
+            my $pango_ctx = $textview->get_pango_context();
+            if ($pango_ctx) {
+                my $metrics = $pango_ctx->get_metrics(
+                    $textview->get_pango_context()->get_font_description(),
+                    undef
+                );
+                if ($metrics && $metrics->get_height > 0) {
+                    # Pango metrics are in Pango units (1/1024 of a device unit);
+                    # get_height includes ascent + descent.
+                    $line_height = int($metrics->get_height() / 1024 + 0.5) || 20;
+                }
+            }
+            $ctx->{page_size} = int($vr->{height} / $line_height) || 20;
+            # Store line height for use by Ctrl-E / Ctrl-Y
+            $ctx->{_line_height} = $line_height;
         };
         $ctx->{page_size} //= 20;
     }
@@ -485,6 +506,11 @@ sub _dispatch {
 # ==========================================================================
 sub handle_normal_mode {
     my ($ctx, $k) = @_;
+    # Arrow keys use the same code path as vim motion keys (j/k/h/l)
+    $k = 'j' if $k eq 'Down';
+    $k = 'k' if $k eq 'Up';
+    $k = 'h' if $k eq 'Left';
+    $k = 'l' if $k eq 'Right';
     # Clear any pending status message on keypress in normal mode
     if ($ctx->{_showing_status} && $ctx->{clear_status}) {
         $ctx->{clear_status}->($ctx);
@@ -506,6 +532,11 @@ sub handle_insert_mode {
 
 sub handle_visual_mode {
     my ($ctx, $k) = @_;
+    # Arrow keys use the same code path as vim motion keys (j/k/h/l)
+    $k = 'j' if $k eq 'Down';
+    $k = 'k' if $k eq 'Up';
+    $k = 'h' if $k eq 'Left';
+    $k = 'l' if $k eq 'Right';
     return _dispatch($ctx, $ctx->{visual_dispatch}, $ctx->{visual_prefixes},
                      $ctx->{visual_char_actions}, $k);
 }
@@ -609,6 +640,22 @@ sub _init_utilities {
 
     $ctx->{move_vert} = sub {
         my ($count) = @_;
+
+        # Mode 3 (scroll-lock): scroll the buffer without moving the cursor
+        if ($ctx->{_scroll_lock_active} && $ctx->{gtk_view}) {
+            eval {
+                my $step = $ctx->{_line_height};
+                if (!$step) {
+                    my $vadj = $ctx->{gtk_view}->get_vadjustment();
+                    $step = $vadj->get_step_increment() || 20;
+                }
+                my $vadj = $ctx->{gtk_view}->get_vadjustment();
+                my $val = $vadj->get_value();
+                $vadj->set_value($val + ($step * $count));
+            };
+            return;
+        }
+
         my $line = $vb->cursor_line;
         # Use desired_col for vertical movement, fall back to current col
         my $col  = $ctx->{desired_col} // $vb->cursor_col;
@@ -617,7 +664,14 @@ sub _init_utilities {
         $line = $vb->line_count - 1 if $line >= $vb->line_count;
         my $max = $vb->line_length($line);
         $col = $max > 0 ? $max - 1 : 0 if $col >= $max;
-        $vb->set_cursor($line, $col);
+        # In visual modes, use move_cursor to preserve the GTK selection.
+        # set_cursor calls place_cursor which clears selection_bound.
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $col);
+        } else {
+            $vb->set_cursor($line, $col);
+        }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -633,29 +687,58 @@ sub _init_utilities {
             if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
                 my $vs = $ctx->{visual_start};
                 if ($vs) {
-                    my $anchor_iter = $buf->get_iter_at_line_offset($vs->{line}, $vs->{col});
                     my $cursor_iter = $buf->get_iter_at_mark($buf->get_insert);
-                    $buf->select_range($cursor_iter, $anchor_iter);
+                    if ($mode eq 'visual_line') {
+                        # Line mode: extend selection to full line boundaries.
+                        # Anchor at start of visual_start line, cursor at end
+                        # of current line (including the newline).
+                        my $cur_line = $cursor_iter->get_line;
+                        my ($lo, $hi) = $vs->{line} <= $cur_line
+                            ? ($vs->{line}, $cur_line)
+                            : ($cur_line, $vs->{line});
+                        my $anchor_iter = $buf->get_iter_at_line($lo);
+                        my $end_iter = $buf->get_iter_at_line($hi);
+                        $end_iter->forward_to_line_end;
+                        $buf->select_range($end_iter, $anchor_iter);
+                        # Restore cursor to its actual column (select_range
+                        # moved the insert mark to end_iter).  Save the line
+                        # first because select_range may have invalidated iters.
+                        my $actual_col = $cursor_iter->get_line_offset;
+                        my $actual_line = $cur_line;
+                        $buf->move_mark_by_name('insert',
+                            $buf->get_iter_at_line_offset($actual_line, $actual_col));
+                    } else {
+                        my $anchor_iter = $buf->get_iter_at_line_offset(
+                            $vs->{line}, $vs->{col});
+                        $buf->select_range($cursor_iter, $anchor_iter);
+                    }
                 }
             }
 
+            # --- Scrolling mode logic ---
+            # Three scroll modes govern how the viewport follows the cursor:
+            #   Mode 1 (edge, default): cursor moves freely within the
+            #     viewport; scrolling only starts when the cursor reaches the
+            #     top or bottom edge.  This matches standard GTK text widget
+            #     behavior.  Implemented by NOT calling scroll_to_mark at
+            #     all -- GTK's built-in "ensure visible" logic handles it.
+            #   Mode 2 (center): cursor stays vertically centered.  Near
+            #     the beginning/end of the buffer, GTK relaxes centering
+            #     automatically so the cursor can reach the last lines.
+            #     Configured via scroll_mode = center.
+            #   Mode 3 (scroll_lock): cursor is frozen in place on screen;
+            #     vertical motions scroll the buffer instead.  Toggled at
+            #     runtime via the toggle_scroll_lock action (zx).
+            #     When deactivated, the previous scroll mode is restored.
+            #
+            # The legacy 'scrolloff' option takes precedence when set to a
+            # positive integer (keep N lines of margin).  scrolloff = 0 or
+            # undef falls through to the new scroll_mode logic.
+
             my $scrolloff = $ctx->{scrolloff};
-            if (!defined $scrolloff) {
-                # Default: center cursor (backwards-compatible behaviour)
-                $view->scroll_to_mark($buf->get_insert(), 0.1, TRUE, 0, 0.5);
-            }
-            elsif ($scrolloff == 0) {
-                # Natural scrolling: cursor goes to the top edge of the
-                # viewport before the text starts scrolling.
-                $view->scroll_to_mark($buf->get_insert(), 0.0, TRUE, 0, 0.0);
-            }
-            elsif ($scrolloff =~ /^center$/i) {
-                # Explicit centering (same as the default)
-                $view->scroll_to_mark($buf->get_insert(), 0.1, TRUE, 0, 0.5);
-            }
-            else {
-                # Numeric scrolloff: keep at least N lines of context
-                # above and below the cursor line.
+
+            # Numeric scrolloff: keep at least N lines of context
+            if (defined $scrolloff && $scrolloff =~ /^\d+$/ && $scrolloff > 0) {
                 my $so = int($scrolloff);
                 my $cursor_line = $buf->get_iter_at_mark($buf->get_insert)->get_line;
 
@@ -681,6 +764,18 @@ sub _init_utilities {
                 }
                 # else: cursor is safely within the margin -- no scroll needed
             }
+            elsif ($ctx->{_scroll_mode} eq 'center') {
+                # Mode 2: always keep cursor vertically centered.
+                # GTK's scroll_to_mark with yalign=0.5 handles EOF gracefully
+                # -- the cursor will leave the center to reach the last lines.
+                $view->scroll_to_mark($buf->get_insert(), 0.0, TRUE, 0, 0.5);
+            }
+            # Mode 1 (edge) or scroll_lock active: do nothing.
+            # For edge mode, GTK's default place_cursor behavior scrolls
+            # the minimum amount to keep the cursor visible -- exactly the
+            # desired "scroll when cursor hits the edge" behavior.
+            # For scroll_lock, the cursor doesn't move so there's nothing
+            # to scroll here.
         };
     };
 }
@@ -756,7 +851,19 @@ sub _init_mode_setter {
             $ml->set_text("-- READ ONLY --");
             return;
         }
+        my $old_mode = $$vm;
         $$vm = $mode;
+
+        # Clear GTK selection when leaving visual mode.
+        # Do this BEFORE set_editable to avoid GTK re-highlighting artefacts.
+        if ($mode ne 'visual' && $mode ne 'visual_line' && $mode ne 'visual_block'
+            && ($old_mode eq 'visual' || $old_mode eq 'visual_line' || $old_mode eq 'visual_block')) {
+            if ($ctx->{gtk_view} && $vb->can('gtk_buffer')) {
+                my $gbuf = $vb->gtk_buffer;
+                my $iter = $gbuf->get_iter_at_mark($gbuf->get_insert);
+                $gbuf->select_range($iter, $iter);
+            }
+        }
 
         # Set textview editable for insert and replace modes
         if ($ctx->{gtk_view} && !$ro) {
@@ -769,28 +876,22 @@ sub _init_mode_setter {
                                 : ($mode eq 'visual_block') ? 'block'
                                 : 'char';
             $ctx->{visual_start} = { line => $vb->cursor_line, col => $vb->cursor_col };
-            # Set the GTK selection_bound to the cursor position so the
-            # selection is visible as the cursor moves.  place_cursor
-            # (called by set_cursor) removes any existing selection, so
-            # we must re-establish it here.
+            # Set the GTK selection to make it visible immediately.
+            # For visual_line mode, select the entire current line.
+            # place_cursor (called by set_cursor) removes any existing
+            # selection, so we must re-establish it here.
             if ($ctx->{gtk_view} && $vb->can('gtk_buffer')) {
-                eval {
-                    my $gbuf = $vb->gtk_buffer;
-                    my $iter = $gbuf->get_iter_at_mark($gbuf->get_insert);
+                my $gbuf = $vb->gtk_buffer;
+                my $iter = $gbuf->get_iter_at_mark($gbuf->get_insert);
+                if ($mode eq 'visual_line') {
+                    # Select the entire current line
+                    my $start_iter = $gbuf->get_iter_at_line($iter->get_line);
+                    my $end_iter = $start_iter->copy;
+                    $end_iter->forward_to_line_end;
+                    $gbuf->select_range($end_iter, $start_iter);
+                } else {
                     $gbuf->select_range($iter, $iter);
-                };
-            }
-        }
-
-        # Clear GTK selection when leaving visual mode
-        if ($mode ne 'visual' && $mode ne 'visual_line' && $mode ne 'visual_block'
-            && ($$vm eq 'visual' || $$vm eq 'visual_line' || $$vm eq 'visual_block')) {
-            if ($ctx->{gtk_view} && $vb->can('gtk_buffer')) {
-                eval {
-                    my $gbuf = $vb->gtk_buffer;
-                    my $iter = $gbuf->get_iter_at_mark($gbuf->get_insert);
-                    $gbuf->select_range($iter, $iter);
-                };
+                }
             }
         }
 

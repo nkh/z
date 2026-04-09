@@ -213,9 +213,6 @@ sub register {
             my $mode = ($arg eq 'cursor=block') ? 'block' : 'ibeam';
             if ($ctx->{set_cursor_mode}) {
                 $ctx->{set_cursor_mode}->($mode);
-                # No status message -- cursor change is visually obvious.
-                # Setting mode_label here would persist and override
-                # subsequent mode changes.
             } else {
                 my $view = $ctx->{gtk_view};
                 if ($view) {
@@ -226,6 +223,38 @@ sub register {
                     }
                 }
             }
+        } elsif ($arg =~ /^scrolloff\s*=\s*(.+)$/i) {
+            my $val = $1;
+            $val =~ s/^\s+|\s+$//g;
+            if ($val =~ /^(?:center)$/i) {
+                $ctx->{scrolloff} = lc($val);
+                $ctx->{show_status}->("scrolloff=center") if $ctx->{show_status};
+            } elsif ($val =~ /^(\d+)$/) {
+                $ctx->{scrolloff} = 0 + $1;
+                $ctx->{show_status}->("scrolloff=$ctx->{scrolloff}") if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: invalid scrolloff value '$val'") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^scrolloff$/i) {
+            # Show current value
+            my $val = defined $ctx->{scrolloff} ? $ctx->{scrolloff} : 'natural (default)';
+            $ctx->{show_status}->("scrolloff=$val") if $ctx->{show_status};
+        } elsif ($arg =~ /^scroll_mode\s*=\s*(.+)$/i) {
+            my $val = $1;
+            $val =~ s/^\s+|\s+$//g;
+            if ($val =~ /^(edge|center)$/i) {
+                $ctx->{_scroll_mode} = lc($val);
+                $ctx->{_scroll_lock_active} = 0;
+                $ctx->{_scroll_lock_prev} = undef;
+                $ctx->{show_status}->("scroll_mode=$ctx->{_scroll_mode}") if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: invalid scroll_mode '$val' (edge|center)") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^scroll_mode$/i) {
+            # Show current value
+            my $val = $ctx->{_scroll_lock_active} ? 'scroll_lock'
+                    : ($ctx->{_scroll_mode} // 'edge');
+            $ctx->{show_status}->("scroll_mode=$val") if $ctx->{show_status};
         } else {
             $ctx->{show_status}->("Error: Unknown option '$arg'") if $ctx->{show_status};
         }
@@ -599,6 +628,7 @@ sub _build_desc_map {
         cmd_substitute    => 'substitute',           cmd_set       => 'set option',
         cmd_show_bindings => 'show key bindings',    cmd_browse    => 'file browser',
         goto_line         => 'goto line N',
+        toggle_scroll_lock=> 'toggle scroll lock (zx)',
     };
 }
 

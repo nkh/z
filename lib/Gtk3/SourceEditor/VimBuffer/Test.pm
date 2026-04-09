@@ -123,6 +123,15 @@ sub set_cursor {
     $self->_clamp_cursor;
 }
 
+sub move_cursor {
+    my ( $self, $line, $col ) = @_;
+    # In the test backend, move_cursor is identical to set_cursor
+    # since there is no GTK selection to preserve.
+    $self->{_cur_line} = $line;
+    $self->{_cur_col}  = $col;
+    $self->_clamp_cursor;
+}
+
 # ----------------------------------------------------------------
 # Line access
 # ----------------------------------------------------------------

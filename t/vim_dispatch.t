@@ -354,11 +354,11 @@ subtest 'Prefix: d waits for second key (dd = delete line)' => sub {
     is($vb->text, "line2\n", 'dd deletes line');
 };
 
-subtest 'Prefix: unknown prefix resets' => sub {
+subtest 'Prefix: unknown key resets' => sub {
     my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
     my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
 
-    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'z');  # z is not a prefix
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Q');  # Q is not a key in normal mode
     is(${$ctx->{cmd_buf}}, '', 'unknown key resets buffer');
 };
 

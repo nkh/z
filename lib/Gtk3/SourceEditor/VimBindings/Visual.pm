@@ -119,8 +119,11 @@ sub register {
     # ----------------------------------------------------------------
     $ACTIONS->{visual_exit} = sub {
         my ($ctx) = @_;
-        $_visual_cleanup->($ctx);
+        # Call set_mode FIRST so it can detect the transition from visual
+        # to normal and properly clear the GTK selection.  Only clean up
+        # our visual state after set_mode has run.
         $ctx->{set_mode}->('normal');
+        $_visual_cleanup->($ctx);
     };
 
     # ----------------------------------------------------------------
@@ -133,18 +136,33 @@ sub register {
 
         $_save_last_visual->($ctx);
 
+        my $yanked = '';
         if ($vtype eq 'block') {
-            ${$ctx->{yank_buf}} = $_block_text->($ctx);
+            $yanked = $_block_text->($ctx);
         } elsif ($vtype eq 'line') {
             my $s = $ctx->{visual_start};
             my $e = $vb->cursor_line;
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
-            my $yank = '';
-            $yank .= $vb->line_text($_) . "\n" for $lo .. $hi;
-            ${$ctx->{yank_buf}} = $yank;
+            $yanked = '';
+            $yanked .= $vb->line_text($_) . "\n" for $lo .. $hi;
         } else {
             my $r = $_selection_range->($ctx);
-            ${$ctx->{yank_buf}} = $vb->get_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2});
+            $yanked = $vb->get_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2});
+        }
+
+        ${$ctx->{yank_buf}} = $yanked;
+
+        # Copy to clipboard if enabled
+        if ($ctx->{use_clipboard} && defined $yanked && length $yanked) {
+            my $view = $ctx->{gtk_view};
+            if ($view) {
+                eval {
+                    my $clipboard = Gtk3::Clipboard::get_default(
+                        $view->get_display
+                    );
+                    $clipboard->set_text($yanked, length($yanked));
+                };
+            }
         }
 
         $_visual_cleanup->($ctx);
@@ -238,8 +256,12 @@ sub register {
         # Swap: cursor goes to anchor, anchor becomes cursor position
         my $cur_line = $vb->cursor_line;
         my $cur_col  = $vb->cursor_col;
-        $vb->set_cursor($s->{line}, $s->{col});
+        # Use move_cursor to preserve the GTK selection while moving the
+        # insert mark.  after_move will re-establish the selection with
+        # the new visual_start.
+        $vb->move_cursor($s->{line}, $s->{col});
         $ctx->{visual_start} = { line => $cur_line, col => $cur_col };
+        $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
     # ----------------------------------------------------------------
@@ -511,7 +533,7 @@ sub register {
     # Return the keymap
     # ----------------------------------------------------------------
     return {
-        _immediate     => [],
+        _immediate     => [qw(Escape)],
         _prefixes      => ['g', 'greater', 'less'],
         _char_actions  => {},
         Escape         => 'visual_exit',
@@ -538,7 +560,7 @@ sub navigation_keys {
         h => 'move_left', j => 'move_down', k => 'move_up', l => 'move_right',
         w => 'word_forward', b => 'word_backward', e => 'word_end',
         0 => 'line_start', dollar => 'line_end',
-        caret => 'first_nonblank',
+        caret => 'first_nonblank', asciicircum => 'first_nonblank',
         G => 'file_end', gg => 'file_start',
         Up => 'move_up', Down => 'move_down',
         Left => 'move_left', Right => 'move_right',

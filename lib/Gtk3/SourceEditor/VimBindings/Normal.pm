@@ -52,7 +52,13 @@ sub register {
         my $col = $vb->cursor_col;
         $col -= $count;
         $col = 0 if $col < 0;
-        $vb->set_cursor($vb->cursor_line, $col);
+        my $line = $vb->cursor_line;
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $col);
+        } else {
+            $vb->set_cursor($line, $col);
+        }
         $ctx->{desired_col} = $vb->cursor_col;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -66,7 +72,13 @@ sub register {
         my $max = $vb->line_length($vb->cursor_line);
         $col += $count;
         $col = $max if $col > $max;
-        $vb->set_cursor($vb->cursor_line, $col);
+        my $line = $vb->cursor_line;
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $col);
+        } else {
+            $vb->set_cursor($line, $col);
+        }
         $ctx->{desired_col} = $vb->cursor_col;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -93,7 +105,12 @@ sub register {
         my $ps = $ctx->{page_size} // 20;
         my $target = $vb->cursor_line - ($ps * $count);
         $target = 0 if $target < 0;
-        $vb->set_cursor($target, $vb->cursor_col);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($target, $vb->cursor_col);
+        } else {
+            $vb->set_cursor($target, $vb->cursor_col);
+        }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -106,7 +123,12 @@ sub register {
         my $target = $vb->cursor_line + ($ps * $count);
         my $last = $vb->line_count - 1;
         $target = $last if $target > $last;
-        $vb->set_cursor($target, $vb->cursor_col);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($target, $vb->cursor_col);
+        } else {
+            $vb->set_cursor($target, $vb->cursor_col);
+        }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -137,9 +159,15 @@ sub register {
         return unless $view;
         $count ||= 1;
         eval {
+            # Use actual line height from font metrics if available,
+            # otherwise fall back to the GTK step_increment.
+            my $step = $ctx->{_line_height};
+            if (!$step) {
+                my $vadj = $view->get_vadjustment();
+                $step = $vadj->get_step_increment() || 20;
+            }
             my $vadj = $view->get_vadjustment();
             my $val = $vadj->get_value();
-            my $step = $vadj->get_step_increment() || 20;
             $vadj->set_value($val - ($step * $count));
         };
     };
@@ -151,9 +179,15 @@ sub register {
         return unless $view;
         $count ||= 1;
         eval {
+            # Use actual line height from font metrics if available,
+            # otherwise fall back to the GTK step_increment.
+            my $step = $ctx->{_line_height};
+            if (!$step) {
+                my $vadj = $view->get_vadjustment();
+                $step = $vadj->get_step_increment() || 20;
+            }
             my $vadj = $view->get_vadjustment();
             my $val = $vadj->get_value();
-            my $step = $vadj->get_step_increment() || 20;
             $vadj->set_value($val + ($step * $count));
         };
     };
@@ -203,7 +237,13 @@ sub register {
         my ($ctx) = @_;
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
-        $vb->set_cursor($vb->cursor_line, 0);
+        my $line = $vb->cursor_line;
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, 0);
+        } else {
+            $vb->set_cursor($line, 0);
+        }
         $ctx->{desired_col} = 0;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -212,9 +252,15 @@ sub register {
         my ($ctx) = @_;
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
-        my $col = $vb->line_length($vb->cursor_line) - 1;
+        my $line = $vb->cursor_line;
+        my $col = $vb->line_length($line) - 1;
         $col = 0 if $col < 0;
-        $vb->set_cursor($vb->cursor_line, $col);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $col);
+        } else {
+            $vb->set_cursor($line, $col);
+        }
         $ctx->{desired_col} = $vb->cursor_col;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -223,8 +269,14 @@ sub register {
         my ($ctx) = @_;
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
-        my $col = $vb->first_nonblank_col($vb->cursor_line);
-        $vb->set_cursor($vb->cursor_line, $col);
+        my $line = $vb->cursor_line;
+        my $col = $vb->first_nonblank_col($line);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $col);
+        } else {
+            $vb->set_cursor($line, $col);
+        }
         $ctx->{desired_col} = $col;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -236,7 +288,12 @@ sub register {
         my $target = 0;
         $target = $count - 1 if $count && $count > 1;
         $target = 0 if $target < 0;
-        $vb->set_cursor($target, 0);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($target, 0);
+        } else {
+            $vb->set_cursor($target, 0);
+        }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -251,7 +308,12 @@ sub register {
             $target = $last if $target > $last;
         }
         $target = 0 if $target < 0;
-        $vb->set_cursor($target, 0);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($target, 0);
+        } else {
+            $vb->set_cursor($target, 0);
+        }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -263,7 +325,13 @@ sub register {
         my $target = $count - 1;
         $target = 0     if $target < 0;
         $target = $last if $target > $last;
-        $vb->set_cursor($target, $vb->cursor_col);
+        my $col = $vb->cursor_col;
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($target, $col);
+        } else {
+            $vb->set_cursor($target, $col);
+        }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -1071,7 +1139,33 @@ sub register {
         # Set visual_start AFTER set_mode (which overwrites it)
         $ctx->{visual_type} = $lv->{type};
         $ctx->{visual_start} = { line => $lv->{start_line}, col => $lv->{start_col} };
-        $ctx->{vb}->set_cursor($lv->{end_line}, $lv->{end_col});
+        # Use move_cursor to preserve the GTK selection, then let
+        # after_move re-establish the full selection range.
+        $ctx->{vb}->move_cursor($lv->{end_line}, $lv->{end_col});
+        $ctx->{after_move}->($ctx) if $ctx->{after_move};
+    };
+
+    # ================================================================
+    #  Scroll Mode Toggle (Mode 3 -- scroll lock)
+    # ================================================================
+
+    $ACTIONS->{toggle_scroll_lock} = sub {
+        my ($ctx) = @_;
+        if ($ctx->{_scroll_lock_active}) {
+            # Deactivate: restore the previous scroll mode
+            $ctx->{_scroll_lock_active} = 0;
+            $ctx->{_scroll_mode} = $ctx->{_scroll_lock_prev} // 'edge';
+            $ctx->{_scroll_lock_prev} = undef;
+            my $mode_label = $ctx->{_scroll_mode} eq 'center' ? 'CENTER' : 'EDGE';
+            $ctx->{show_status}->("Scroll lock OFF (mode: $mode_label)")
+                if $ctx->{show_status};
+        } else {
+            # Activate: save current mode and switch to scroll_lock
+            $ctx->{_scroll_lock_prev} = $ctx->{_scroll_mode};
+            $ctx->{_scroll_lock_active} = 1;
+            $ctx->{show_status}->("Scroll lock ON (cursor frozen)")
+                if $ctx->{show_status};
+        }
     };
 
     # ================================================================
@@ -1079,8 +1173,8 @@ sub register {
     # ================================================================
 
     return {
-        _immediate => [qw(Up Down Left Right Page_Up Page_Down caret asciicircum Home End)],
-        _prefixes  => [qw(g d y c greater less)],
+        _immediate => [qw(Page_Up Page_Down caret asciicircum dead_circumflex Home End)],
+        _prefixes  => [qw(g d y c greater less z)],
         _char_actions => {
             r      => 'replace_char',
             m      => 'set_mark',
@@ -1117,8 +1211,9 @@ sub register {
         Home          => 'line_start',
         End           => 'line_end',
         dollar        => 'line_end',
-        caret         => 'first_nonblank',
-        asciicircum   => 'first_nonblank',
+        caret             => 'first_nonblank',
+        asciicircum       => 'first_nonblank',
+        dead_circumflex   => 'first_nonblank',
         G             => 'file_end',
         gg            => 'file_start',
         i             => 'enter_insert',
@@ -1141,6 +1236,24 @@ sub register {
         yw            => 'yank_word',
         yiw           => 'yank_inner_word',
         p             => 'paste',
+        P             => 'paste_before',
+        greatergreater => 'indent_right',
+        lessless       => 'indent_left',
+        J             => 'join_lines',
+        u             => 'undo',
+        U             => 'line_undo',
+        n             => 'search_next',
+        N             => 'search_prev',
+        v             => 'enter_visual',
+        V             => 'enter_visual_line',
+        gv            => 'reselect_visual',
+        semicolon         => 'find_repeat',
+        comma             => 'find_repeat_reverse',
+        percent           => 'percent_motion',
+        zx            => 'toggle_scroll_lock',
+        colon         => 'enter_command',
+        slash         => 'enter_search',
+        question      => 'enter_search_backward',
         P             => 'paste_before',
         J             => 'join_lines',
         u             => 'undo',

@@ -248,6 +248,7 @@ True when the cursor is on the last line B<and> at the end of that line.
 sub cursor_line  { die "Unimplemented in " . __PACKAGE__ }
 sub cursor_col   { die "Unimplemented in " . __PACKAGE__ }
 sub set_cursor   { die "Unimplemented in " . __PACKAGE__ }
+sub move_cursor  { die "Unimplemented in " . __PACKAGE__ }
 sub line_count   { die "Unimplemented in " . __PACKAGE__ }
 sub line_text    { die "Unimplemented in " . __PACKAGE__ }
 sub line_length  { die "Unimplemented in " . __PACKAGE__ }

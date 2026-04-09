@@ -49,6 +49,8 @@ sub new {
                 force_language           => 'force_language',
                 use_clipboard            => 'use_clipboard',
                 tab_string               => 'tab_string',
+                scrolloff                => 'scrolloff',
+                scroll_mode              => 'scroll_mode',
             );
             for my $ck (keys %$cfg) {
                 my $opt_key = $map{$ck};
@@ -325,6 +327,8 @@ sub _build_ui {
             tab_string    => $self->{tab_string},
             use_clipboard => $self->{use_clipboard},
             pos_label     => $self->{pos_label},
+            scrolloff     => $self->{scrolloff},
+            scroll_mode   => $opts{scroll_mode},
             on_ready      => $opts{on_ready},
             theme         => { fg => $fg, bg => $bg },
         );
@@ -544,6 +548,41 @@ C<gtk_view>, C<mode_label>, C<pos_label>, C<set_cursor_mode>, and other
 internals. Use it to attach custom signal handlers for debugging or
 extended functionality (e.g. a Cairo draw hook). Only called when vim mode
 is enabled.
+
+=head3 scroll_mode => $mode (optional, default: 'edge')
+
+Controls how the viewport follows the cursor during vertical navigation in
+normal mode. Accepts two static values that can be set at construction time
+or via the configuration file:
+
+=over 4
+
+=item C<'edge'> (default)
+
+The cursor moves freely within the viewport. Scrolling only starts when the
+cursor reaches the top or bottom edge of the visible area. This matches
+standard GTK text widget behavior and is comfortable for most editing tasks.
+
+=item C<'center'>
+
+The cursor is kept vertically centered in the viewport during navigation.
+Near the beginning or end of the buffer, GTK automatically relaxes centering
+so the cursor can still reach the first and last lines. This mode is useful
+for reading code or following long functions.
+
+=back
+
+A third mode, C<scroll_lock>, is available only as a runtime toggle via the
+C<zx> key binding. When activated, the cursor is frozen at its current screen
+position and j/k (or arrow keys) scroll the buffer underneath instead of moving
+the cursor. Pressing C<zx> again deactivates scroll lock and restores the
+previous mode (edge or center). The scroll mode can also be changed at runtime
+via the ex-command C<:set scroll_mode=edge> or C<:set scroll_mode=center>,
+and the current mode can be queried with C<:set scroll_mode>.
+
+When the C<scrolloff> option is set to a positive integer, it takes precedence
+over C<scroll_mode> by enforcing a minimum context margin around the cursor.
+Set C<scrolloff> to 0 or leave it undefined to use C<scroll_mode>.
 
 =head1 DEPENDENCIES
 

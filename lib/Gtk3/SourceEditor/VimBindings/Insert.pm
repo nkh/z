@@ -110,6 +110,10 @@ sub register {
         _char_actions => {},
         Escape => 'exit_to_normal',
         Tab    => 'insert_tab',
+        Up     => 'move_up',
+        Down   => 'move_down',
+        Left   => 'move_left',
+        Right  => 'move_right',
     };
 }
 

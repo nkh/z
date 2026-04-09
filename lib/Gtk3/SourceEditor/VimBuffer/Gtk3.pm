@@ -122,6 +122,26 @@ sub set_cursor {
     $buf->place_cursor($iter);
 }
 
+sub move_cursor {
+    my ( $self, $line, $col ) = @_;
+    my $buf = $self->{_buffer};
+
+    # Clamp line to valid range
+    my $max_line = $buf->get_line_count - 1;
+    $line = 0        if $line < 0;
+    $line = $max_line if $line > $max_line;
+
+    # Clamp column to valid range
+    my $max_col = $self->line_length($line);
+    $col = 0        if $col < 0;
+    $col = $max_col if $col > $max_col;
+
+    my $iter = $buf->get_iter_at_line_offset( $line, $col );
+    # Move the insert mark WITHOUT moving selection_bound.
+    # This preserves the GTK selection while repositioning the cursor.
+    $buf->move_mark_by_name( 'insert', $iter );
+}
+
 # ----------------------------------------------------------------
 # Line access
 # ----------------------------------------------------------------
@@ -253,6 +273,22 @@ sub word_end {
     my ($self) = @_;
     my $buf  = $self->{_buffer};
     my $iter = $self->_iter;
+
+    # If we are already at the last character of a word (or on whitespace
+    # just past a word), advance at least one character first so that
+    # repeated 'e' presses move through consecutive words.
+    my $ch = $iter->get_char;
+    if ($ch ne chr(0) && !$iter->ends_line) {
+        my $next = $iter->copy;
+        $next->forward_char;
+        if ($next->get_char =~ /^\s$/) {
+            # We are at end of a word, skip whitespace to reach the next
+            $iter->forward_char;
+            while (!$iter->ends_line && $iter->get_char =~ /^\s$/) {
+                $iter->forward_char;
+            }
+        }
+    }
 
     $iter->forward_word_end;
 
