@@ -391,4 +391,256 @@ subtest 'Ex-command: colon + Return in command mode' => sub {
     is($vb->text, "hello\n", ':q does not modify buffer');
 };
 
+# ==========================================================================
+# 9. Arrow keys produce identical results to h/j/k/l (no double movement)
+# ==========================================================================
+subtest 'Arrow keys: Down alias to j, not double movement' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\nline3\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Press Down once — should move exactly one line
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Down');
+    is($vb->cursor_line, 1, 'Down moves down exactly 1 line (not 2)');
+    is($vb->cursor_col, 0, 'Down preserves column');
+
+    # Press Down again — should move to line 2
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Down');
+    is($vb->cursor_line, 2, 'Down again moves to line 2');
+
+    # At last line (index 3), Down should stop
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Down');
+    is($vb->cursor_line, 3, 'Down moves to last line');
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Down');
+    is($vb->cursor_line, 3, 'Down stops at last line');
+};
+
+subtest 'Arrow keys: Up alias to k, not double movement' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\nline3\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(2, 0);
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Up');
+    is($vb->cursor_line, 1, 'Up moves up exactly 1 line (not 2)');
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Up');
+    is($vb->cursor_line, 0, 'Up moves to line 0');
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Up');
+    is($vb->cursor_line, 0, 'Up stops at line 0');
+};
+
+subtest 'Arrow keys: Left alias to h, not double movement' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 4);
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Left');
+    is($vb->cursor_col, 3, 'Left moves left exactly 1 col (not 2)');
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Left');
+    is($vb->cursor_col, 2, 'Left again moves to col 2');
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Left');
+    is($vb->cursor_col, 1, 'Left moves to col 1');
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Left');
+    is($vb->cursor_col, 0, 'Left moves to col 0');
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Left');
+    is($vb->cursor_col, 0, 'Left stops at col 0');
+};
+
+subtest 'Arrow keys: Right alias to l, not double movement' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Right');
+    is($vb->cursor_col, 1, 'Right moves right exactly 1 col (not 2)');
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Right');
+    is($vb->cursor_col, 2, 'Right again moves to col 2');
+
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Right');
+    is($vb->cursor_col, 3, 'Right moves to col 3');
+
+    # In normal mode, l stops at last char (col 4 for "hello")
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Right');
+    is($vb->cursor_col, 4, 'Right moves to last char (col 4)');
+    Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Right');
+    is($vb->cursor_col, 4, 'Right stays at last char');
+};
+
+subtest 'Arrow keys: handle_normal_mode returns TRUE' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    my $r;
+    $r = Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Down');
+    ok($r, 'handle_normal_mode returns true for Down');
+
+    $r = Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Up');
+    ok($r, 'handle_normal_mode returns true for Up');
+
+    $r = Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Left');
+    ok($r, 'handle_normal_mode returns true for Left');
+
+    $r = Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'Right');
+    ok($r, 'handle_normal_mode returns true for Right');
+};
+
+# ==========================================================================
+# 10. Word motions must not create selection in normal mode
+#     (Bug: Gtk3 backend uses move_mark_by_name which only moves the
+#     insert mark, leaving selection_bound behind and creating a visible
+#     GTK selection.  Fix: Normal.pm actions collapse selection via
+#     set_cursor after word motion in non-visual modes.)
+# ==========================================================================
+subtest 'Word motions in normal mode: no selection after w' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world foo\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'w');
+    is($vb->cursor_col, 6, 'w moves to start of next word');
+    is(${$ctx->{vim_mode}}, 'normal', 'still in normal mode');
+    ok(!defined($vb->get_selection), 'w does not create a selection');
+};
+
+subtest 'Word motions in normal mode: no selection after b' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world foo\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 6);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'b');
+    is($vb->cursor_col, 0, 'b moves to start of previous word');
+    ok(!defined($vb->get_selection), 'b does not create a selection');
+};
+
+subtest 'Word motions in normal mode: no selection after e' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world foo\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'e');
+    is($vb->cursor_col, 4, 'e moves to end of word');
+    ok(!defined($vb->get_selection), 'e does not create a selection');
+};
+
+subtest 'Word motions: 2w moves two words, no selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "one two three four\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '2', 'w');
+    is($vb->cursor_col, 8, '2w moves two words forward');
+    ok(!defined($vb->get_selection), '2w does not create a selection');
+};
+
+subtest 'Word motions: w/b/e sequence maintains no selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aa bb cc dd\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'w', 'w', 'b', 'e', 'b');
+    is($vb->cursor_col, 3, 'w/w/b/e/b sequence ends at correct position');
+    ok(!defined($vb->get_selection),
+       'w/w/b/e/b sequence never creates a selection');
+};
+
+# ==========================================================================
+# 11. Page scrolling uses correct page_size
+#     (Bug: page_size computed before widget realized, giving too small
+#     a value.  Fix: size-allocate signal handler recalculates on resize.)
+# ==========================================================================
+subtest 'Page scrolling: default page_size is 20 in test context' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    is($ctx->{page_size}, 20, 'default page_size is 20');
+};
+
+subtest 'Page scrolling: custom page_size is respected' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 30
+    );
+    is($ctx->{page_size}, 30, 'custom page_size is 30');
+};
+
+subtest 'Page scrolling: Page_Down moves page_size lines' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 20
+    );
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Page_Down');
+    is($vb->cursor_line, 20, 'Page_Down moves 20 lines (full page)');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Page_Down');
+    is($vb->cursor_line, 40, 'Page_Down moves another 20 lines');
+
+    # Near end of buffer, should stop at last line
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Page_Down');
+    is($vb->cursor_line, 50, 'Page_Down stops at last line');
+};
+
+subtest 'Page scrolling: Page_Up moves page_size lines' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 20
+    );
+    $vb->set_cursor(40, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Page_Up');
+    is($vb->cursor_line, 20, 'Page_Up moves 20 lines up');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Page_Up');
+    is($vb->cursor_line, 0, 'Page_Up moves to line 0');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Page_Up');
+    is($vb->cursor_line, 0, 'Page_Up stops at line 0');
+};
+
+subtest 'Page scrolling: Ctrl-f (page_down) moves full page' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 20
+    );
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Control-f');
+    is($vb->cursor_line, 20, 'Ctrl-f moves full page (20 lines)');
+};
+
+subtest 'Page scrolling: Ctrl-b (page_up) moves full page' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 20
+    );
+    $vb->set_cursor(40, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Control-b');
+    is($vb->cursor_line, 20, 'Ctrl-b moves full page (20 lines)');
+};
+
+subtest 'Page scrolling: Ctrl-d moves half page' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 20
+    );
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Control-d');
+    is($vb->cursor_line, 10, 'Ctrl-d moves half page (10 lines)');
+};
+
+subtest 'Page scrolling: Ctrl-u moves half page up' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 20
+    );
+    $vb->set_cursor(30, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Control-u');
+    is($vb->cursor_line, 20, 'Ctrl-u moves half page up (10 lines)');
+};
+
 done_testing;

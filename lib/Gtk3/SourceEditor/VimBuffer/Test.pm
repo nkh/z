@@ -118,6 +118,9 @@ sub cursor_col {
 
 sub set_cursor {
     my ( $self, $line, $col ) = @_;
+    # set_cursor collapses the selection (mirrors GTK place_cursor which
+    # moves both 'insert' and 'selection_bound' to the same position).
+    $self->clear_selection;
     $self->{_cur_line} = $line;
     $self->{_cur_col}  = $col;
     $self->_clamp_cursor;

@@ -220,6 +220,10 @@ sub add_vim_bindings {
     # Determine page size from GTK view if available.
     # Use the actual line height from the font metrics rather than a
     # hardcoded pixel guess so page-up/down move a full viewport.
+    # NOTE: The initial computation may run before the widget is fully
+    # realized, giving an incorrect (too small) visible_rect height.
+    # The size-allocate handler below corrects this once the widget gets
+    # its actual allocation.
     if ($textview && !$ctx->{page_size}) {
         eval {
             my $vr = $textview->get_visible_rect();
@@ -244,6 +248,35 @@ sub add_vim_bindings {
     }
     $ctx->{page_size} //= 20;
 
+    # Recalculate page_size on widget resize.  When add_vim_bindings()
+    # is called, the textview may not yet be realized (the window hasn't
+    # been shown), so get_visible_rect() can return a small default size.
+    # The size-allocate signal fires once the widget has its real
+    # allocation, and again on every resize, ensuring page_size stays
+    # in sync with the actual number of visible lines.
+    if ($textview) {
+        $textview->signal_connect('size-allocate' => sub {
+            my ($w, $alloc) = @_;
+            return unless $alloc->{height} > 0;
+            eval {
+                my $line_height = 20;
+                my $pango_ctx = $textview->get_pango_context();
+                if ($pango_ctx) {
+                    my $metrics = $pango_ctx->get_metrics(
+                        $textview->get_pango_context()->get_font_description(),
+                        undef
+                    );
+                    if ($metrics && $metrics->get_height > 0) {
+                        $line_height = int($metrics->get_height() / 1024 + 0.5) || 20;
+                    }
+                }
+                my $ps = int($alloc->{height} / $line_height) || 20;
+                $ctx->{page_size} = $ps;
+                $ctx->{_line_height} = $line_height;
+            };
+        });
+    }
+
     # Build dispatch tables
     my ($resolved, $ex_cmds) = _resolve_keymap($opts{keymap}, $opts{ex_commands});
     $ctx->{resolved_keymap} = $resolved;
@@ -264,6 +297,13 @@ sub add_vim_bindings {
     }
 
     # Signal handlers
+    # Note: we use signal_connect (not signal_connect_after) so our handler
+    # runs before GTK's class handler.  Returning TRUE should prevent the
+    # class handler from running.  However, GtkSourceView may install
+    # internal signal_connect_after handlers that process arrow keys and
+    # other navigation keys even when we return TRUE.  To prevent this,
+    # we call $e->stop_propagation() which sets the event's propagation
+    # flag to FALSE, preventing any further processing by GTK or SourceView.
     $textview->signal_connect('key-press-event' => sub {
         my ($w, $e) = @_;
         my $k = eval { Gtk3::Gdk::keyval_name($e->keyval) } // '';
@@ -276,20 +316,38 @@ sub add_vim_bindings {
                 || $vim_mode eq 'visual'
                 || $vim_mode eq 'visual_line'
                 || $vim_mode eq 'visual_block') {
-                return handle_ctrl_key($ctx, $ctrl_k);
+                my $handled = handle_ctrl_key($ctx, $ctrl_k);
+                $e->stop_propagation() if $handled;
+                return TRUE;
             }
             # In insert/replace/command modes, suppress all Ctrl keys so
             # GTK does not handle them (no copy/paste/undo/select-all).
             # Users who want native GTK Ctrl-key behavior should set
             # vim_mode => 0.
+            $e->stop_propagation();
             return TRUE;
         }
-        return handle_normal_mode($ctx, $k)   if $vim_mode eq 'normal';
-        return handle_insert_mode($ctx, $k)   if $vim_mode eq 'insert';
-        return handle_visual_mode($ctx, $k)   if $vim_mode eq 'visual';
-        return handle_visual_mode($ctx, $k)   if $vim_mode eq 'visual_line';
-        return handle_visual_mode($ctx, $k)   if $vim_mode eq 'visual_block';
-        return handle_replace_mode($ctx, $k)  if $vim_mode eq 'replace';
+        if ($vim_mode eq 'normal') {
+            my $handled = handle_normal_mode($ctx, $k);
+            $e->stop_propagation() if $handled;
+            return $handled;
+        }
+        if ($vim_mode eq 'insert') {
+            my $handled = handle_insert_mode($ctx, $k);
+            return $handled;
+        }
+        if ($vim_mode eq 'visual'
+            || $vim_mode eq 'visual_line'
+            || $vim_mode eq 'visual_block') {
+            my $handled = handle_visual_mode($ctx, $k);
+            $e->stop_propagation() if $handled;
+            return $handled;
+        }
+        if ($vim_mode eq 'replace') {
+            my $handled = handle_replace_mode($ctx, $k);
+            $e->stop_propagation() if $handled;
+            return $handled;
+        }
         return FALSE;
     }) if $textview;
 

@@ -226,6 +226,15 @@ sub register {
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
         $vb->word_forward() for 1 .. $count;
+        # In normal mode, collapse any selection that the buffer's word
+        # motion may have created.  The Gtk3 backend uses
+        # move_mark_by_name('insert') which preserves selection_bound,
+        # creating a visible GTK selection.  place_cursor (via set_cursor)
+        # collapses both marks to the same position.
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode ne 'visual' && $mode ne 'visual_line' && $mode ne 'visual_block') {
+            $vb->set_cursor($vb->cursor_line, $vb->cursor_col);
+        }
         $ctx->{desired_col} = $vb->cursor_col;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -236,6 +245,11 @@ sub register {
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
         $vb->word_backward() for 1 .. $count;
+        # Collapse selection in normal mode (see word_forward comment).
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode ne 'visual' && $mode ne 'visual_line' && $mode ne 'visual_block') {
+            $vb->set_cursor($vb->cursor_line, $vb->cursor_col);
+        }
         $ctx->{desired_col} = $vb->cursor_col;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -246,6 +260,11 @@ sub register {
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
         $vb->word_end() for 1 .. $count;
+        # Collapse selection in normal mode (see word_forward comment).
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode ne 'visual' && $mode ne 'visual_line' && $mode ne 'visual_block') {
+            $vb->set_cursor($vb->cursor_line, $vb->cursor_col);
+        }
         $ctx->{desired_col} = $vb->cursor_col;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -1245,6 +1264,10 @@ sub register {
             e => 'scroll_line_down',
             r => 'redo',
         },
+        # Arrow keys are mapped to h/j/k/l in handle_normal_mode()
+        # before dispatch, so they reach the h/j/k/l entries above.
+        # The entries below are kept for _build_dispatch completeness
+        # (e.g., if a future code path dispatches the raw GDK key name).
         Up            => 'move_up',
         Down          => 'move_down',
         Left          => 'move_left',

@@ -94,6 +94,14 @@ Numeric count prefix works on most normal-mode commands.
 | Ctrl-y | line up | Ctrl-e | line down |
 | Ctrl-r | redo | | |
 
+The page size (lines per page for Ctrl-f/b/Page_Up/Page_Down, half-page for
+Ctrl-u/d) is calculated from the text widget's allocated height divided by the
+font's line height.  A `size-allocate` signal handler on the text view
+recalculates this value on every widget resize, ensuring the page size stays
+accurate even when the initial computation runs before the widget is fully
+realized.  The fallback default is 20 lines when no widget metrics are
+available (e.g., in test contexts).
+
 ### Editing
 
 | Key | Action | Key | Action |
@@ -166,7 +174,7 @@ All three visual modes share navigation from normal mode plus:
 | `I` | block ins left | `A` | block ins right |
 | `gq` | format 78c | `gv` | reselect |
 
-### Navigation in Visual Mode
+### Movement in Visual Mode
 
 All normal-mode navigation keys (h, j, k, l, w, b, e, 0, $, ^, G, gg, f, t, ;, %,
 Page_Up, Page_Down, Home, End) work within visual mode to extend the selection.
@@ -177,6 +185,11 @@ Key differences from normal mode:
   character (EOL+1) so the last character is included in the selection.
 - `j`/k use `move_cursor()` (preserving the selection anchor) rather than
   `set_cursor()` (which would collapse the selection).
+- `w`/`b`/`e` use `move_cursor()` in visual modes (preserving the
+  selection anchor) and `set_cursor()` in normal mode (collapsing any
+  spurious GTK selection that the Gtk3 backend's `move_mark_by_name`
+  may create).  This ensures word motions never leave a visible selection
+  in normal mode.
 - Vertical movement preserves the virtual column position (`desired_col`)
   and restores it when returning to a longer line, clamping to EOL+1 on
   short lines in visual modes (vs. last-char in normal mode).
