@@ -20,6 +20,7 @@ sub new {
 # --- Common widget methods ---
 sub signal_connect      { }
 sub signal_connect_after { }
+sub signal_stop_emission_by_name { }
 sub show                { }
 sub hide                { }
 sub show_all            { }

@@ -302,8 +302,9 @@ sub add_vim_bindings {
     # class handler from running.  However, GtkSourceView may install
     # internal signal_connect_after handlers that process arrow keys and
     # other navigation keys even when we return TRUE.  To prevent this,
-    # we call $e->stop_propagation() which sets the event's propagation
-    # flag to FALSE, preventing any further processing by GTK or SourceView.
+    # we call $w->signal_stop_emission_by_name() which halts the signal
+    # emission entirely, preventing any further handlers (including
+    # signal_connect_after) from processing the event.
     $textview->signal_connect('key-press-event' => sub {
         my ($w, $e) = @_;
         my $k = eval { Gtk3::Gdk::keyval_name($e->keyval) } // '';
@@ -317,35 +318,36 @@ sub add_vim_bindings {
                 || $vim_mode eq 'visual_line'
                 || $vim_mode eq 'visual_block') {
                 my $handled = handle_ctrl_key($ctx, $ctrl_k);
-                $e->stop_propagation() if $handled;
+                $w->signal_stop_emission_by_name('key-press-event') if $handled;
                 return TRUE;
             }
             # In insert/replace/command modes, suppress all Ctrl keys so
             # GTK does not handle them (no copy/paste/undo/select-all).
             # Users who want native GTK Ctrl-key behavior should set
             # vim_mode => 0.
-            $e->stop_propagation();
+            $w->signal_stop_emission_by_name('key-press-event');
             return TRUE;
         }
         if ($vim_mode eq 'normal') {
             my $handled = handle_normal_mode($ctx, $k);
-            $e->stop_propagation() if $handled;
+            $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
         }
         if ($vim_mode eq 'insert') {
             my $handled = handle_insert_mode($ctx, $k);
+            $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
         }
         if ($vim_mode eq 'visual'
             || $vim_mode eq 'visual_line'
             || $vim_mode eq 'visual_block') {
             my $handled = handle_visual_mode($ctx, $k);
-            $e->stop_propagation() if $handled;
+            $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
         }
         if ($vim_mode eq 'replace') {
             my $handled = handle_replace_mode($ctx, $k);
-            $e->stop_propagation() if $handled;
+            $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
         }
         return FALSE;
