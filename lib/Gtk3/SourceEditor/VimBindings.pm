@@ -334,6 +334,7 @@ sub add_vim_bindings {
         }
         if ($vim_mode eq 'insert') {
             my $handled = handle_insert_mode($ctx, $k);
+            $e->stop_propagation() if $handled;
             return $handled;
         }
         if ($vim_mode eq 'visual'
