@@ -164,7 +164,22 @@ All three visual modes share navigation from normal mode plus:
 | `U` | uppercase | `u` | lowercase |
 | `J` | join | `>>`/`<<` | indent |
 | `I` | block ins left | `A` | block ins right |
-| `gq` | format 78c | | |
+| `gq` | format 78c | `gv` | reselect |
+
+### Navigation in Visual Mode
+
+All normal-mode navigation keys (h, j, k, l, w, b, e, 0, $, ^, G, gg, f, t, ;, %,
+Page_Up, Page_Down, Home, End) work within visual mode to extend the selection.
+Arrow keys (Left, Down, Up, Right) alias to h, j, k, l respectively.
+
+Key differences from normal mode:
+- `l`/Right in char/block visual allows cursor one position past the last
+  character (EOL+1) so the last character is included in the selection.
+- `j`/k use `move_cursor()` (preserving the selection anchor) rather than
+  `set_cursor()` (which would collapse the selection).
+- Vertical movement preserves the virtual column position (`desired_col`)
+  and restores it when returning to a longer line, clamping to EOL+1 on
+  short lines in visual modes (vs. last-char in normal mode).
 
 Block I/A: type text, Escape replays on all block lines.
 

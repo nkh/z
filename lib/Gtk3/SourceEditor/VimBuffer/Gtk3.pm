@@ -266,7 +266,9 @@ sub word_forward {
         $iter->forward_char;
     }
 
-    $buf->place_cursor($iter);
+    # Use move_mark_by_name instead of place_cursor to preserve the
+    # selection_bound mark (important for visual mode selections).
+    $buf->move_mark_by_name( 'insert', $iter );
 }
 
 sub word_end {
@@ -298,7 +300,9 @@ sub word_end {
         $iter->backward_char;
     }
 
-    $buf->place_cursor($iter);
+    # Use move_mark_by_name instead of place_cursor to preserve the
+    # selection_bound mark (important for visual mode selections).
+    $buf->move_mark_by_name( 'insert', $iter );
 }
 
 sub word_backward {
@@ -308,7 +312,9 @@ sub word_backward {
 
     $iter->backward_word_start;
 
-    $buf->place_cursor($iter);
+    # Use move_mark_by_name instead of place_cursor to preserve the
+    # selection_bound mark (important for visual mode selections).
+    $buf->move_mark_by_name( 'insert', $iter );
 }
 
 # ----------------------------------------------------------------

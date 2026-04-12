@@ -125,8 +125,9 @@ sub set_cursor {
 
 sub move_cursor {
     my ( $self, $line, $col ) = @_;
-    # In the test backend, move_cursor is identical to set_cursor
-    # since there is no GTK selection to preserve.
+    # In the test backend, move_cursor preserves the selection anchor
+    # (unlike set_cursor which collapses it to the new position).
+    # Track _sel_bound separately so tests can verify selection behavior.
     $self->{_cur_line} = $line;
     $self->{_cur_col}  = $col;
     $self->_clamp_cursor;

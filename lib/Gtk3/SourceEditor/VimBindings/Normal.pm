@@ -71,12 +71,17 @@ sub register {
         my $col = $vb->cursor_col;
         my $max = $vb->line_length($vb->cursor_line);
         $col += $count;
-        $col = $max if $col > $max;
         my $line = $vb->cursor_line;
         my $mode = ${$ctx->{vim_mode}};
         if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            # In visual mode, allow cursor one past the last character
+            # so the last character is included in the selection.
+            $col = $max if $col > $max;
             $vb->move_cursor($line, $col);
         } else {
+            # In normal mode, stop at the last character (Vim behavior).
+            my $limit = $max > 0 ? $max - 1 : 0;
+            $col = $limit if $col > $limit;
             $vb->set_cursor($line, $col);
         }
         $ctx->{desired_col} = $vb->cursor_col;
@@ -105,11 +110,17 @@ sub register {
         my $ps = $ctx->{page_size} // 20;
         my $target = $vb->cursor_line - ($ps * $count);
         $target = 0 if $target < 0;
+        # Use desired_col for Vim virtual-column behavior (like move_vert).
+        my $col = $ctx->{desired_col} // $vb->cursor_col;
+        my $max = $vb->line_length($target);
         my $mode = ${$ctx->{vim_mode}};
         if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
-            $vb->move_cursor($target, $vb->cursor_col);
+            $col = $max if $col > $max;
+            $vb->move_cursor($target, $col);
         } else {
-            $vb->set_cursor($target, $vb->cursor_col);
+            my $limit = $max > 0 ? $max - 1 : 0;
+            $col = $limit if $col > $limit;
+            $vb->set_cursor($target, $col);
         }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -123,11 +134,17 @@ sub register {
         my $target = $vb->cursor_line + ($ps * $count);
         my $last = $vb->line_count - 1;
         $target = $last if $target > $last;
+        # Use desired_col for Vim virtual-column behavior (like move_vert).
+        my $col = $ctx->{desired_col} // $vb->cursor_col;
+        my $max = $vb->line_length($target);
         my $mode = ${$ctx->{vim_mode}};
         if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
-            $vb->move_cursor($target, $vb->cursor_col);
+            $col = $max if $col > $max;
+            $vb->move_cursor($target, $col);
         } else {
-            $vb->set_cursor($target, $vb->cursor_col);
+            my $limit = $max > 0 ? $max - 1 : 0;
+            $col = $limit if $col > $limit;
+            $vb->set_cursor($target, $col);
         }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -358,7 +375,12 @@ sub register {
             $col = $pos;
             $found = 1;
         }
-        $vb->set_cursor($line, $col);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $col);
+        } else {
+            $vb->set_cursor($line, $col);
+        }
         $ctx->{desired_col} = $col;
         $ctx->{last_find} = { cmd => 'f', char => $char, count => $count };
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
@@ -383,7 +405,12 @@ sub register {
             $col = $pos;
             $found = 1;
         }
-        $vb->set_cursor($line, $col);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $col);
+        } else {
+            $vb->set_cursor($line, $col);
+        }
         $ctx->{desired_col} = $col;
         $ctx->{last_find} = { cmd => 'F', char => $char, count => $count };
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
@@ -407,8 +434,14 @@ sub register {
             $col = $pos;
         }
         # t lands one character before the target
-        $vb->set_cursor($line, $col - 1);
-        $ctx->{desired_col} = $col - 1;
+        my $target_col = $col - 1;
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $target_col);
+        } else {
+            $vb->set_cursor($line, $target_col);
+        }
+        $ctx->{desired_col} = $target_col;
         $ctx->{last_find} = { cmd => 't', char => $char, count => $count };
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -431,8 +464,14 @@ sub register {
             $col = $pos;
         }
         # T lands one character after the target
-        $vb->set_cursor($line, $col + 1);
-        $ctx->{desired_col} = $col + 1;
+        my $target_col = $col + 1;
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($line, $target_col);
+        } else {
+            $vb->set_cursor($line, $target_col);
+        }
+        $ctx->{desired_col} = $target_col;
         $ctx->{last_find} = { cmd => 'T', char => $char, count => $count };
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -524,7 +563,12 @@ sub register {
                     } elsif ($ch eq $target) {
                         $depth--;
                         if ($depth == 0) {
-                            $vb->set_cursor($c_line, $c_col);
+                            my $mode = ${$ctx->{vim_mode}};
+                            if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+                                $vb->move_cursor($c_line, $c_col);
+                            } else {
+                                $vb->set_cursor($c_line, $c_col);
+                            }
                             $ctx->{desired_col} = $c_col;
                             $ctx->{after_move}->($ctx) if $ctx->{after_move};
                             return;
@@ -548,7 +592,12 @@ sub register {
                     } elsif ($ch eq $target) {
                         $depth--;
                         if ($depth == 0) {
-                            $vb->set_cursor($c_line, $c_col);
+                            my $mode = ${$ctx->{vim_mode}};
+                            if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+                                $vb->move_cursor($c_line, $c_col);
+                            } else {
+                                $vb->set_cursor($c_line, $c_col);
+                            }
                             $ctx->{desired_col} = $c_col;
                             $ctx->{after_move}->($ctx) if $ctx->{after_move};
                             return;
@@ -561,6 +610,8 @@ sub register {
                 $c_col = length($vb->line_text($c_line)) - 1;
             }
         }
+
+        # No match found - do nothing (Vim behavior)
     };
 
     # ================================================================

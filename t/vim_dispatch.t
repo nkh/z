@@ -73,7 +73,8 @@ subtest 'Navigation: l (right)' => sub {
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l');
     is($vb->cursor_col, 1, 'l moves right');
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l', 'l', 'l', 'l');
-    is($vb->cursor_col, 5, 'l stops at line end');
+    # In normal mode, l stops at line_length - 1 (= col 4 for "hello")
+    is($vb->cursor_col, 4, 'l stops at line end');
 };
 
 subtest 'Navigation: j (down)' => sub {

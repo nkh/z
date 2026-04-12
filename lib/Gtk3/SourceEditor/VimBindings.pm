@@ -48,8 +48,17 @@ my %visual_nav = %$visual_nav_ref;
 my %visual_km  = (%visual_base, %visual_nav);
 $visual_km{_immediate}     = $visual_base{_immediate}     // [];
 $visual_km{_prefixes}      = $visual_base{_prefixes}      // [];
-$visual_km{_char_actions}  = $visual_base{_char_actions}  // {};
+# Inherit find-char char_actions from normal mode so f/F/t/T work in visual
+$visual_km{_char_actions}  = { %{$visual_base{_char_actions} // {}},
+                               (f => 'find_char_forward', F => 'find_char_backward',
+                                t => 'till_char_forward',  T => 'till_char_backward') };
 $visual_km{_ctrl}          = $normal_km{_ctrl} // {};
+# Add motions that were missing from the visual keymap:
+#   semicolon/comma  -- repeat/reverse last find-char
+#   percent          -- bracket matching
+$visual_km{semicolon}      = 'find_repeat';
+$visual_km{comma}          = 'find_repeat_reverse';
+$visual_km{percent}        = 'percent_motion';
 
 # Visual line mode -- same keymap as visual
 my %visual_line_km = %visual_km;
@@ -537,6 +546,16 @@ sub handle_visual_mode {
     $k = 'k' if $k eq 'Up';
     $k = 'h' if $k eq 'Left';
     $k = 'l' if $k eq 'Right';
+    # Clear any pending status message on keypress in visual mode
+    if ($ctx->{_showing_status} && $ctx->{clear_status}) {
+        $ctx->{clear_status}->($ctx);
+    }
+    # Immediate keys bypass _dispatch (no buffer accumulation, no undo group)
+    if (exists $ctx->{visual_immediate}{$k}) {
+        ${$ctx->{cmd_buf}} = '';
+        $ctx->{visual_immediate}{$k}->($ctx, 1);
+        return TRUE;
+    }
     return _dispatch($ctx, $ctx->{visual_dispatch}, $ctx->{visual_prefixes},
                      $ctx->{visual_char_actions}, $k);
 }
@@ -663,13 +682,17 @@ sub _init_utilities {
         $line = 0                     if $line < 0;
         $line = $vb->line_count - 1 if $line >= $vb->line_count;
         my $max = $vb->line_length($line);
-        $col = $max > 0 ? $max - 1 : 0 if $col >= $max;
-        # In visual modes, use move_cursor to preserve the GTK selection.
-        # set_cursor calls place_cursor which clears selection_bound.
+        # In visual modes, allow the cursor to rest at position max
+        # (one past the last character) so that a column previously set
+        # by 'l' in visual mode can be restored when moving back to
+        # a long line.  In normal mode, stop at the last character.
         my $mode = ${$ctx->{vim_mode}};
         if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $col = $max if $col > $max;
             $vb->move_cursor($line, $col);
         } else {
+            my $limit = $max > 0 ? $max - 1 : 0;
+            $col = $limit if $col >= $max;
             $vb->set_cursor($line, $col);
         }
         $ctx->{after_move}->($ctx) if $ctx->{after_move};

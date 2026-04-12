@@ -26,6 +26,9 @@ sub register {
     # ----------------------------------------------------------------
     # Helper: normalize selection range for char/line modes
     # ----------------------------------------------------------------
+    # get_range is exclusive at end, but visual selections are inclusive
+    # on both ends.  We add 1 to the end column so that get_range
+    # (exclusive end) returns exactly the characters the user selected.
     my $_selection_range = sub {
         my ($ctx) = @_;
         my $vb = $ctx->{vb};
@@ -34,9 +37,9 @@ sub register {
         my $e_col  = $vb->cursor_col;
 
         if ($s->{line} > $e_line || ($s->{line} == $e_line && $s->{col} > $e_col)) {
-            return { l1 => $e_line, c1 => $e_col, l2 => $s->{line}, c2 => $s->{col} };
+            return { l1 => $e_line, c1 => $e_col, l2 => $s->{line}, c2 => $s->{col} + 1 };
         }
-        return { l1 => $s->{line}, c1 => $s->{col}, l2 => $e_line, c2 => $e_col };
+        return { l1 => $s->{line}, c1 => $s->{col}, l2 => $e_line, c2 => $e_col + 1 };
     };
 
     # ----------------------------------------------------------------
@@ -52,9 +55,12 @@ sub register {
         my ($top, $bottom) = $s->{line} <= $e_line
             ? ($s->{line}, $e_line)
             : ($e_line, $s->{line});
+        # Block selections are inclusive on both sides.
+        # Add 1 to right so that substr(text, left, right - left)
+        # includes the character at column (right - 1).
         my ($left, $right) = $s->{col} <= $e_col
-            ? ($s->{col}, $e_col)
-            : ($e_col, $s->{col});
+            ? ($s->{col}, $e_col + 1)
+            : ($e_col + 1, $s->{col});
 
         return { left => $left, top => $top, right => $right, bottom => $bottom };
     };
@@ -510,6 +516,9 @@ sub register {
         # Update visual start and cursor positions
         $ctx->{visual_start} = { line => $lo, col => 0 };
         $vb->set_cursor($hi, $vb->line_length($hi));
+        # Re-establish GTK selection highlighting after indent_lines
+        # which calls place_cursor internally (clearing selection)
+        $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
     # ----------------------------------------------------------------
@@ -527,6 +536,9 @@ sub register {
         $vb->indent_lines($count, $sw, -1);
         $ctx->{visual_start} = { line => $lo, col => 0 };
         $vb->set_cursor($hi, $vb->line_length($hi));
+        # Re-establish GTK selection highlighting after indent_lines
+        # which calls place_cursor internally (clearing selection)
+        $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
     # ----------------------------------------------------------------

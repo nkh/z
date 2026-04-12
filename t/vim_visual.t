@@ -42,7 +42,7 @@ subtest 'Char-wise visual: yank' => sub {
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'y');
     is(${$ctx->{vim_mode}}, 'normal', 'returned to normal after yank');
-    is(${$ctx->{yank_buf}}, 'hel', 'yank_buf has selected chars (3 l presses)');
+    is(${$ctx->{yank_buf}}, 'hell', 'yank_buf has selected chars (3 l presses = 4 chars inclusive)');
     is($vb->text, "hello\n", 'text unchanged after yank');
 };
 
@@ -55,8 +55,8 @@ subtest 'Char-wise visual: delete' => sub {
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'd');
     is(${$ctx->{vim_mode}}, 'normal', 'returned to normal after delete');
-    is(${$ctx->{yank_buf}}, 'hel', 'yank_buf has deleted chars');
-    is($vb->text, "lo\n", 'text changed after delete');
+    is(${$ctx->{yank_buf}}, 'hell', 'yank_buf has deleted chars');
+    is($vb->text, "o\n", 'text changed after delete');
 };
 
 # ==========================================================================
@@ -68,8 +68,8 @@ subtest 'Char-wise visual: change' => sub {
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'c');
     is(${$ctx->{vim_mode}}, 'insert', 'entered insert mode after change');
-    is(${$ctx->{yank_buf}}, 'hel', 'yank_buf has changed chars');
-    is($vb->text, "lo\n", 'text deleted after change');
+    is(${$ctx->{yank_buf}}, 'hell', 'yank_buf has changed chars');
+    is($vb->text, "o\n", 'text deleted after change');
 };
 
 # ==========================================================================
@@ -142,7 +142,7 @@ subtest 'Block-wise visual: yank rectangular region' => sub {
     $vb->set_cursor(1, 2);
 
     Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'y');
-    is(${$ctx->{yank_buf}}, "ab\nef\n", 'block yank gets rectangular region');
+    is(${$ctx->{yank_buf}}, "abc\nefg\n", 'block yank gets rectangular region');
     is(${$ctx->{vim_mode}}, 'normal', 'returned to normal after block yank');
 };
 
@@ -154,9 +154,9 @@ subtest 'Block-wise visual: delete rectangular region' => sub {
     $vb->set_cursor(1, 2);
 
     Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'd');
-    is(${$ctx->{yank_buf}}, "ab\nef\n", 'block delete yanks rectangular region');
+    is(${$ctx->{yank_buf}}, "abc\nefg\n", 'block delete yanks rectangular region');
     is(${$ctx->{vim_mode}}, 'normal', 'returned to normal after block delete');
-    is($vb->text, "cd\ngh\nijkl\n", 'columns removed from first two lines');
+    is($vb->text, "d\nh\nijkl\n", 'columns removed from first two lines');
 };
 
 subtest 'Block-wise visual: change rectangular region' => sub {
@@ -168,8 +168,8 @@ subtest 'Block-wise visual: change rectangular region' => sub {
 
     Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'c');
     is(${$ctx->{vim_mode}}, 'insert', 'entered insert mode after block change');
-    is(${$ctx->{yank_buf}}, "ab\nef\n", 'block change yanks rectangular region');
-    is($vb->text, "cd\ngh\nijkl\n", 'columns removed after block change');
+    is(${$ctx->{yank_buf}}, "abc\nefg\n", 'block change yanks rectangular region');
+    is($vb->text, "d\nh\nijkl\n", 'columns removed after block change');
 };
 
 subtest 'Block-wise visual: yank with short lines padded' => sub {
@@ -180,7 +180,11 @@ subtest 'Block-wise visual: yank with short lines padded' => sub {
     $vb->set_cursor(2, 3);
 
     Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'y');
-    is(${$ctx->{yank_buf}}, "abc\nxy \nijk\n", 'block yank pads short lines with spaces');
+    # Block bounds: left=0, right=4, top=0, bottom=2
+    # "abc" (len=3) → "abc " (padded to width 4)
+    # "xy"  (len=2) → "xy  " (padded to width 4)
+    # "ijkl"(len=4) → "ijkl" (no padding needed, width exactly 4)
+    is(${$ctx->{yank_buf}}, "abc \nxy  \nijkl\n", 'block yank pads short lines with spaces');
 };
 
 # ==========================================================================
@@ -286,7 +290,8 @@ subtest 'gv re-select after yank' => sub {
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'y');
     is(${$ctx->{vim_mode}}, 'normal', 'in normal mode');
-    is(${$ctx->{yank_buf}}, 'hel', 'yank_buf has selected chars');
+    # 3 l presses from col 0 → cursor at col 3; inclusive selection = cols 0..3 = "hell"
+    is(${$ctx->{yank_buf}}, 'hell', 'yank_buf has selected chars');
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'g', 'v');
     is(${$ctx->{vim_mode}}, 'visual', 'gv re-enters visual mode');
@@ -468,6 +473,197 @@ subtest 'Block-wise visual: swap ends' => sub {
     is($vb->cursor_col, 0, 'cursor moved to anchor col');
     is($ctx->{visual_start}{line}, 1, 'anchor moved to cursor line');
     is($ctx->{visual_start}{col}, 2, 'anchor moved to cursor col');
+};
+
+# ==========================================================================
+# 20. Visual mode h/j/k/l and arrow key movement
+# ==========================================================================
+subtest 'Visual h/l movement (char-wise)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+    is($ctx->{visual_start}{col}, 0, 'anchor at col 0');
+
+    # l moves right, extending selection
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l');
+    is($vb->cursor_col, 1, 'l moves to col 1');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l', 'l', 'l');
+    is($vb->cursor_col, 4, 'l moves to col 4 (last char)');
+
+    # l at EOL+1: in visual mode, move_right allows col = max (5)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l');
+    is($vb->cursor_col, 5, 'l allows one past EOL in visual mode (col=5, line_length=5)');
+
+    # l again should stay at max
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l');
+    is($vb->cursor_col, 5, 'l stays at max when already at EOL+1');
+
+    # h moves back
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'h');
+    is($vb->cursor_col, 4, 'h moves back to col 4');
+
+    # h at col 0 stays
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'h', 'h', 'h', 'h', 'h');
+    is($vb->cursor_col, 0, 'h stops at col 0');
+
+    # At this point cursor (0,0) == visual_start (0,0).
+    # Visual selection is always at least 1 char (inclusive), so yank = "h".
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
+    is(${$ctx->{yank_buf}}, 'h', 'yank single char when cursor equals anchor');
+};
+
+subtest 'Visual j/k movement (char-wise, multi-line)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\nijkl\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    # Buffer has 4 lines: "abcd", "efgh", "ijkl", "" (trailing newline)
+    my $last = $vb->line_count - 1;
+    is($last, 3, 'buffer has 4 lines (0..3)');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+    is($vb->cursor_line, 0, 'start on line 0');
+
+    # j moves down
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 1, 'j moves to line 1');
+    is($vb->cursor_col, 0, 'column preserved at 0');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 2, 'j moves to line 2');
+
+    # j at last line stays (line 3 is the last)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 3, 'j moves to line 3 (trailing empty line)');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 3, 'j stays at last line (3)');
+
+    # k moves up
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
+    is($vb->cursor_line, 2, 'k moves to line 2');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
+    is($vb->cursor_line, 1, 'k moves to line 1');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
+    is($vb->cursor_line, 0, 'k moves to line 0');
+
+    # k at first line stays
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
+    is($vb->cursor_line, 0, 'k stays at first line');
+};
+
+subtest 'Visual j/k preserves virtual column (desired_col)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcdefgh\nab\nabcdefghijkl\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+    # Move to col 5 on line 0
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l', 'l', 'l', 'l', 'l');
+    is($vb->cursor_col, 5, 'cursor at col 5 on line 0');
+
+    # j to line 1 (len=2): col should clamp to max in visual mode
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 1, 'moved to line 1');
+    is($vb->cursor_col, 2, 'col clamped to line_length in visual mode (EOL+1)');
+
+    # j to line 2 (len=12): col should restore to desired_col=5
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 2, 'moved to line 2');
+    is($vb->cursor_col, 5, 'col restored to desired_col=5 on longer line');
+};
+
+subtest 'Visual arrow keys (Left/Right/Up/Down) alias to h/j/k/l' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\nijkl\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+
+    # Arrow Down = j
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'Down');
+    is($vb->cursor_line, 1, 'Down arrow moves to line 1');
+
+    # Arrow Right = l
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'Right');
+    is($vb->cursor_col, 1, 'Right arrow moves to col 1');
+
+    # Arrow Up = k
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'Up');
+    is($vb->cursor_line, 0, 'Up arrow moves to line 0');
+
+    # Arrow Left = h
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'Left');
+    is($vb->cursor_col, 0, 'Left arrow moves to col 0');
+};
+
+subtest 'Visual h/l movement in line-wise mode' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\nfoo bar\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V');
+    is(${$ctx->{vim_mode}}, 'visual_line', 'in visual_line mode');
+
+    # In Vim, h/l are not completely no-op in visual_line mode;
+    # they move the cursor column which affects the "active end"
+    # of the selection. Our implementation allows this, which is
+    # a reasonable design choice.
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l', 'l', 'l');
+    is($vb->cursor_col, 3, 'l moves column in visual_line mode');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'h');
+    is($vb->cursor_col, 2, 'h moves column back in visual_line mode');
+};
+
+subtest 'Visual movement with Page_Up/Page_Down' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => join("\n", map { "line$_" } 1..50) . "\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 10,
+    );
+
+    $vb->set_cursor(25, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+
+    # Page_Down in visual mode
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'Page_Down');
+    is($vb->cursor_line, 35, 'Page_Down moves down one page in visual mode');
+    is(${$ctx->{vim_mode}}, 'visual', 'still in visual mode after Page_Down');
+
+    # Page_Up in visual mode
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'Page_Up');
+    is($vb->cursor_line, 25, 'Page_Up moves back up in visual mode');
+    is(${$ctx->{vim_mode}}, 'visual', 'still in visual mode after Page_Up');
+};
+
+subtest 'Visual movement with Home/End' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l', 'l', 'l', 'l', 'l', 'l', 'l', 'l');
+    ok($vb->cursor_col > 0, 'cursor not at start');
+
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'Home');
+    is($vb->cursor_col, 0, 'Home moves to col 0 in visual mode');
+
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'End');
+    is($vb->cursor_col, 10, 'End moves to last char in visual mode');
+};
+
+subtest 'Visual numeric prefix with movement (3j, 2l)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "a\nb\nc\nd\ne\nf\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+    is($vb->cursor_line, 0, 'start at line 0');
+
+    # 3j should move down 3 lines
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '3', 'j');
+    is($vb->cursor_line, 3, '3j moves to line 3');
+
+    # 2l should move right 2 columns
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '2', 'l');
+    is($vb->cursor_col, 1, '2l moves to col 1 (single-char lines, clamped)');
 };
 
 done_testing;
