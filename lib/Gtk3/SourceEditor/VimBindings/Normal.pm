@@ -29,30 +29,36 @@ sub register {
         }
     };
 
-    # --- helper: explicitly scroll viewport so cursor is visible ---
-    # GTK's place_cursor only ensures visibility with a minimum scroll,
-    # which can fail for large jumps or rapid repeated paging.  This
-    # forces the viewport to include the cursor line by scrolling to it,
-    # then snaps the top of the viewport to a line boundary so no
-    # partial lines are shown.
-    my $_scroll_cursor_visible;
-    $_scroll_cursor_visible = sub {
-        my ($ctx) = @_;
+    # --- helper: scroll viewport by N pages (used by page_up/page_down) ---
+    # Scrolls the vadjustment by exactly N * page_size * line_height pixels,
+    # then snaps to a line boundary.  This avoids the double-scroll that
+    # occurs when place_cursor (ensure-visible) and scroll_to_mark both
+    # move the viewport independently.
+    my $_scroll_by_pages;
+    $_scroll_by_pages = sub {
+        my ($ctx, $direction, $count) = @_;
         my $view = $ctx->{gtk_view};
         return unless $view;
-        my $vb = $ctx->{vb};
-        return unless $vb->can('gtk_buffer');
+        my $line_height = $ctx->{_line_height} || 20;
+        my $ps = $ctx->{page_size} // 20;
         eval {
-            my $buf = $vb->gtk_buffer;
-            $view->scroll_to_mark($buf->get_insert(), 0.0, 1, 0, 0.0);
-            # Snap viewport top to line boundary: if the top visible line
-            # is partially cut off, adjust the scroll position so it
-            # starts at the line's y coordinate.
+            my $vadj = $view->get_vadjustment;
+            my $delta = $line_height * $ps * ($count || 1);
+            my $new_val;
+            if ($direction eq 'down') {
+                $new_val = $vadj->get_value + $delta;
+                my $max_val = $vadj->get_upper - $vadj->get_page_size;
+                $new_val = $max_val if $new_val > $max_val;
+            } else {
+                $new_val = $vadj->get_value - $delta;
+                $new_val = 0 if $new_val < 0;
+            }
+            $vadj->set_value($new_val);
+            # Snap to line boundary so the top line is fully visible.
             my $vr = $view->get_visible_rect;
             my $top_iter = $view->get_iter_at_location($vr->{x}, $vr->{y});
             my ($line_y) = $top_iter->get_line_yrange;
             if ($line_y != $vr->{y}) {
-                my $vadj = $view->get_vadjustment;
                 $vadj->set_value($line_y);
             }
         };
@@ -151,10 +157,7 @@ sub register {
             $col = $limit if $col > $limit;
             $vb->set_cursor($target, $col);
         }
-        # Explicitly scroll the viewport to keep the cursor visible.
-        # GTK's built-in ensure-visible from place_cursor can fail for
-        # large jumps or rapid repeated page-up/down presses.
-        _scroll_cursor_visible($ctx);
+        $_scroll_by_pages->($ctx, 'up', $count);
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -179,10 +182,7 @@ sub register {
             $col = $limit if $col > $limit;
             $vb->set_cursor($target, $col);
         }
-        # Explicitly scroll the viewport to keep the cursor visible.
-        # GTK's built-in ensure-visible from place_cursor can fail for
-        # large jumps or rapid repeated page-up/down presses.
-        _scroll_cursor_visible($ctx);
+        $_scroll_by_pages->($ctx, 'down', $count);
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
