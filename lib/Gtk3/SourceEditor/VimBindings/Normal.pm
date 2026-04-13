@@ -29,6 +29,23 @@ sub register {
         }
     };
 
+    # --- helper: explicitly scroll viewport so cursor is visible ---
+    # GTK's place_cursor only ensures visibility with a minimum scroll,
+    # which can fail for large jumps or rapid repeated paging.  This
+    # forces the viewport to include the cursor line by scrolling to it.
+    my $_scroll_cursor_visible;
+    $_scroll_cursor_visible = sub {
+        my ($ctx) = @_;
+        my $view = $ctx->{gtk_view};
+        return unless $view;
+        my $vb = $ctx->{vb};
+        return unless $vb->can('gtk_buffer');
+        eval {
+            my $buf = $vb->gtk_buffer;
+            $view->scroll_to_mark($buf->get_insert(), 0.0, TRUE, 0, 0.0);
+        };
+    };
+
     # --- helper: save line snapshot for U (line-undo) ---
     my $_save_line_snapshot;
     $_save_line_snapshot = sub {
@@ -122,6 +139,10 @@ sub register {
             $col = $limit if $col > $limit;
             $vb->set_cursor($target, $col);
         }
+        # Explicitly scroll the viewport to keep the cursor visible.
+        # GTK's built-in ensure-visible from place_cursor can fail for
+        # large jumps or rapid repeated page-up/down presses.
+        _scroll_cursor_visible($ctx);
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -146,6 +167,10 @@ sub register {
             $col = $limit if $col > $limit;
             $vb->set_cursor($target, $col);
         }
+        # Explicitly scroll the viewport to keep the cursor visible.
+        # GTK's built-in ensure-visible from place_cursor can fail for
+        # large jumps or rapid repeated page-up/down presses.
+        _scroll_cursor_visible($ctx);
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
