@@ -42,7 +42,7 @@ sub register {
         return unless $vb->can('gtk_buffer');
         eval {
             my $buf = $vb->gtk_buffer;
-            $view->scroll_to_mark($buf->get_insert(), 0.0, TRUE, 0, 0.0);
+            $view->scroll_to_mark($buf->get_insert(), 0.0, 1, 0, 0.0);
         };
     };
 
