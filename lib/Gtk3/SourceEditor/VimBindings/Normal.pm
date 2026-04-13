@@ -29,39 +29,36 @@ sub register {
         }
     };
 
-    # --- helper: scroll viewport by N pages (used by page_up/page_down) ---
-    # Scrolls the vadjustment by exactly N * page_size * line_height pixels,
-    # then snaps to a line boundary.  This avoids the double-scroll that
-    # occurs when place_cursor (ensure-visible) and scroll_to_mark both
-    # move the viewport independently.
-    my $_scroll_by_pages;
-    $_scroll_by_pages = sub {
-        my ($ctx, $direction, $count) = @_;
+    # --- helper: get the first and last fully-visible line numbers ---
+    # Returns (top_line, bottom_line) of the current viewport, or empty
+    # list if the widget is not available.
+    my $_visible_lines;
+    $_visible_lines = sub {
+        my ($ctx) = @_;
         my $view = $ctx->{gtk_view};
-        return unless $view;
-        my $line_height = $ctx->{_line_height} || 20;
-        my $ps = $ctx->{page_size} // 20;
+        return () unless $view;
+        my $vb = $ctx->{vb};
+        return () unless $vb->can('gtk_buffer');
         eval {
-            my $vadj = $view->get_vadjustment;
-            my $delta = $line_height * $ps * ($count || 1);
-            my $new_val;
-            if ($direction eq 'down') {
-                $new_val = $vadj->get_value + $delta;
-                my $max_val = $vadj->get_upper - $vadj->get_page_size;
-                $new_val = $max_val if $new_val > $max_val;
-            } else {
-                $new_val = $vadj->get_value - $delta;
-                $new_val = 0 if $new_val < 0;
-            }
-            $vadj->set_value($new_val);
-            # Snap to line boundary so the top line is fully visible.
+            my $buf = $vb->gtk_buffer;
             my $vr = $view->get_visible_rect;
+            # First line: iter at the top of the visible area.
             my $top_iter = $view->get_iter_at_location($vr->{x}, $vr->{y});
-            my ($line_y) = $top_iter->get_line_yrange;
-            if ($line_y != $vr->{y}) {
-                $vadj->set_value($line_y);
+            my ($top_y) = $top_iter->get_line_yrange;
+            # If the top iter starts above the viewport, use the next line
+            # so we get the first fully-visible line.
+            if ($top_y < $vr->{y}) {
+                $top_iter->forward_line;
             }
+            my $top_line = $top_iter->get_line;
+            # Last line: iter at one pixel above the bottom of the visible
+            # area to get the last fully-visible line.
+            my $bot_iter = $view->get_iter_at_location(
+                $vr->{x}, $vr->{y} + $vr->{height} - 1);
+            my $bot_line = $bot_iter->get_line;
+            return ($top_line, $bot_line);
         };
+        return ();
     };
 
     # --- helper: save line snapshot for U (line-undo) ---
@@ -142,22 +139,29 @@ sub register {
         $count ||= 1;
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
-        my $ps = $ctx->{page_size} // 20;
-        my $target = $vb->cursor_line - ($ps * $count);
-        $target = 0 if $target < 0;
-        # Use desired_col for Vim virtual-column behavior (like move_vert).
-        my $col = $ctx->{desired_col} // $vb->cursor_col;
-        my $max = $vb->line_length($target);
-        my $mode = ${$ctx->{vim_mode}};
-        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
-            $col = $max if $col > $max;
-            $vb->move_cursor($target, $col);
+        my ($top_line, $bot_line) = $_visible_lines->($ctx);
+        if (defined $top_line && defined $bot_line) {
+            # vim behavior: the top visible line becomes the bottom
+            # visible line, and the cursor moves to it.
+            my $target = $top_line;
+            my $col = $ctx->{desired_col} // $vb->cursor_col;
+            my $max = $vb->line_length($target);
+            my $mode = ${$ctx->{vim_mode}};
+            if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+                $col = $max if $col > $max;
+                $vb->move_cursor($target, $col);
+            } else {
+                my $limit = $max > 0 ? $max - 1 : 0;
+                $col = $limit if $col > $limit;
+                $vb->set_cursor($target, $col);
+            }
         } else {
-            my $limit = $max > 0 ? $max - 1 : 0;
-            $col = $limit if $col > $limit;
-            $vb->set_cursor($target, $col);
+            # Fallback if viewport info unavailable: move by page_size.
+            my $ps = $ctx->{page_size} // 20;
+            my $target = $vb->cursor_line - ($ps * $count);
+            $target = 0 if $target < 0;
+            $vb->set_cursor($target, $ctx->{desired_col} // $vb->cursor_col);
         }
-        $_scroll_by_pages->($ctx, 'up', $count);
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -166,23 +170,30 @@ sub register {
         $count ||= 1;
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
-        my $ps = $ctx->{page_size} // 20;
-        my $target = $vb->cursor_line + ($ps * $count);
-        my $last = $vb->line_count - 1;
-        $target = $last if $target > $last;
-        # Use desired_col for Vim virtual-column behavior (like move_vert).
-        my $col = $ctx->{desired_col} // $vb->cursor_col;
-        my $max = $vb->line_length($target);
-        my $mode = ${$ctx->{vim_mode}};
-        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
-            $col = $max if $col > $max;
-            $vb->move_cursor($target, $col);
+        my ($top_line, $bot_line) = $_visible_lines->($ctx);
+        if (defined $top_line && defined $bot_line) {
+            # vim behavior: the bottom visible line becomes the top
+            # visible line, and the cursor moves to it.
+            my $target = $bot_line;
+            my $col = $ctx->{desired_col} // $vb->cursor_col;
+            my $max = $vb->line_length($target);
+            my $mode = ${$ctx->{vim_mode}};
+            if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+                $col = $max if $col > $max;
+                $vb->move_cursor($target, $col);
+            } else {
+                my $limit = $max > 0 ? $max - 1 : 0;
+                $col = $limit if $col > $limit;
+                $vb->set_cursor($target, $col);
+            }
         } else {
-            my $limit = $max > 0 ? $max - 1 : 0;
-            $col = $limit if $col > $limit;
-            $vb->set_cursor($target, $col);
+            # Fallback if viewport info unavailable: move by page_size.
+            my $ps = $ctx->{page_size} // 20;
+            my $target = $vb->cursor_line + ($ps * $count);
+            my $last = $vb->line_count - 1;
+            $target = $last if $target > $last;
+            $vb->set_cursor($target, $ctx->{desired_col} // $vb->cursor_col);
         }
-        $_scroll_by_pages->($ctx, 'down', $count);
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
