@@ -276,33 +276,37 @@ sub word_end {
     my $buf  = $self->{_buffer};
     my $iter = $self->_iter;
 
-    # If we are already at the last character of a word (or on whitespace
-    # just past a word), advance at least one character first so that
-    # repeated 'e' presses move through consecutive words.
-    my $ch = $iter->get_char;
-    if ($ch ne chr(0) && !$iter->ends_line) {
-        my $next = $iter->copy;
-        $next->forward_char;
-        if ($next->get_char =~ /^\s$/) {
-            # We are at end of a word, skip whitespace to reach the next
-            $iter->forward_char;
-            while (!$iter->ends_line && $iter->get_char =~ /^\s$/) {
-                $iter->forward_char;
-            }
-        }
+    # Move forward at least one character so repeated 'e' presses always
+    # make progress, even when already at the end of a word.
+    $iter->forward_char;
+
+    # Skip non-word characters (whitespace, punctuation, symbols).
+    # These act as word separators, so 'e' jumps past them to the next
+    # word.  This naturally crosses line boundaries because forward_char
+    # advances past the newline to the next line.
+    while ($iter->get_char ne chr(0) && $iter->get_char !~ /^\w$/) {
+        $iter->forward_char;
     }
 
-    $iter->forward_word_end;
-
-    # Back up one character to land on the last character of the word,
-    # unless we are at the very end of the buffer or at the start of a line.
-    if ( $iter->get_char ne chr(0) && !$iter->starts_line ) {
+    # If we reached the end of the buffer there is no next word;
+    # back up to the last character and stay there.
+    if ($iter->get_char eq chr(0)) {
         $iter->backward_char;
+        $buf->move_mark_by_name('insert', $iter);
+        return;
     }
+
+    # Skip word characters to reach the end of the word.
+    while ($iter->get_char ne chr(0) && $iter->get_char =~ /^\w$/) {
+        $iter->forward_char;
+    }
+
+    # Back up one to land on the last character of the word.
+    $iter->backward_char;
 
     # Use move_mark_by_name instead of place_cursor to preserve the
     # selection_bound mark (important for visual mode selections).
-    $buf->move_mark_by_name( 'insert', $iter );
+    $buf->move_mark_by_name('insert', $iter);
 }
 
 sub word_backward {

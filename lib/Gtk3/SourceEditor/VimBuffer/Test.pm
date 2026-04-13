@@ -333,7 +333,8 @@ sub word_end {
     my $col  = $self->{_cur_col};
     my $text = $self->{_lines}[$line];
 
-    # Move forward at least one position.
+    # Move forward at least one position so repeated 'e' presses always
+    # make progress, even when already at the end of a word.
     $col++;
     if ( $col > length($text) ) {
         if ( $line < $self->line_count - 1 ) {
@@ -349,9 +350,10 @@ sub word_end {
         }
     }
 
-    # Skip whitespace.
+    # Skip non-word characters (whitespace, punctuation, symbols).
+    # These act as word separators, matching the Gtk3 implementation.
     while (1) {
-        while ( $col < length($text) && substr( $text, $col, 1 ) =~ /\s/ ) {
+        while ( $col < length($text) && substr( $text, $col, 1 ) !~ /^\w$/ ) {
             $col++;
         }
         if ( $col < length($text) ) {
@@ -371,8 +373,8 @@ sub word_end {
         }
     }
 
-    # Skip non-whitespace.
-    while ( $col < length($text) && substr( $text, $col, 1 ) !~ /\s/ ) {
+    # Skip word characters to reach the end of the word.
+    while ( $col < length($text) && substr( $text, $col, 1 ) =~ /^\w$/ ) {
         $col++;
     }
 
