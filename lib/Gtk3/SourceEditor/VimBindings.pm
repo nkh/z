@@ -297,14 +297,37 @@ sub add_vim_bindings {
     }
 
     # Signal handlers
-    # Note: we use signal_connect (not signal_connect_after) so our handler
-    # runs before GTK's class handler.  Returning TRUE should prevent the
-    # class handler from running.  However, GtkSourceView may install
-    # internal signal_connect_after handlers that process arrow keys and
-    # other navigation keys even when we return TRUE.  To prevent this,
-    # we call $w->signal_stop_emission_by_name() which halts the signal
-    # emission entirely, preventing any further handlers (including
-    # signal_connect_after) from processing the event.
+    # Intercept arrow keys (and other navigation keys) in the 'event'
+    # signal, which fires BEFORE 'key-press-event'.  GtkTextView installs
+    # its own key-press-event handler during gtk_text_view_init() that
+    # processes arrow keys via key bindings.  Because that handler was
+    # connected before ours, it runs first and moves the cursor before
+    # signal_stop_emission_by_name can stop the emission.  By handling
+    # navigation keys here and returning TRUE, key-press-event is never
+    # emitted, so GtkSourceView never sees them.  In insert/replace modes
+    # we return FALSE to let GTK handle arrow keys natively.
+    $textview->signal_connect('event' => sub {
+        my ($w, $event) = @_;
+        # Only intercept key-press events
+        return FALSE unless defined $event->{type} && $event->{type} eq 'key-press';
+        # Don't intercept Ctrl+key combinations
+        return FALSE if ($event->{state} // 0) & 'control-mask';
+        my $k = eval { Gtk3::Gdk::keyval_name($event->{keyval}) } // '';
+        return FALSE unless $k eq 'Up' || $k eq 'Down'
+                        || $k eq 'Left' || $k eq 'Right';
+        # In insert/replace modes, let GTK handle arrow keys natively
+        return FALSE if $vim_mode eq 'insert' || $vim_mode eq 'replace';
+        # Handle navigation keys through vim in normal/visual modes.
+        # Returning TRUE prevents key-press-event from being emitted.
+        if ($vim_mode eq 'normal') {
+            handle_normal_mode($ctx, $k);
+        } elsif ($vim_mode eq 'visual' || $vim_mode eq 'visual_line'
+                 || $vim_mode eq 'visual_block') {
+            handle_visual_mode($ctx, $k);
+        }
+        return TRUE;
+    }) if $textview;
+
     $textview->signal_connect('key-press-event' => sub {
         my ($w, $e) = @_;
         my $k = eval { Gtk3::Gdk::keyval_name($e->keyval) } // '';
