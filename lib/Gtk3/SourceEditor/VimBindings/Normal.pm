@@ -32,7 +32,9 @@ sub register {
     # --- helper: explicitly scroll viewport so cursor is visible ---
     # GTK's place_cursor only ensures visibility with a minimum scroll,
     # which can fail for large jumps or rapid repeated paging.  This
-    # forces the viewport to include the cursor line by scrolling to it.
+    # forces the viewport to include the cursor line by scrolling to it,
+    # then snaps the top of the viewport to a line boundary so no
+    # partial lines are shown.
     my $_scroll_cursor_visible;
     $_scroll_cursor_visible = sub {
         my ($ctx) = @_;
@@ -43,6 +45,16 @@ sub register {
         eval {
             my $buf = $vb->gtk_buffer;
             $view->scroll_to_mark($buf->get_insert(), 0.0, 1, 0, 0.0);
+            # Snap viewport top to line boundary: if the top visible line
+            # is partially cut off, adjust the scroll position so it
+            # starts at the line's y coordinate.
+            my $vr = $view->get_visible_rect;
+            my $top_iter = $view->get_iter_at_location($vr->{x}, $vr->{y});
+            my ($line_y) = $top_iter->get_line_yrange;
+            if ($line_y != $vr->{y}) {
+                my $vadj = $view->get_vadjustment;
+                $vadj->set_value($line_y);
+            }
         };
     };
 
