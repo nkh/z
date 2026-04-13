@@ -308,17 +308,21 @@ sub add_vim_bindings {
     # we return FALSE to let GTK handle arrow keys natively.
     $textview->signal_connect('event' => sub {
         my ($w, $event) = @_;
-        # Only intercept key-press events
-        return FALSE unless defined $event->{type} && $event->{type} eq 'key-press';
-        # Don't intercept Ctrl+key combinations
-        return FALSE if ($event->{state} // 0) & 'control-mask';
-        my $k = eval { Gtk3::Gdk::keyval_name($event->{keyval}) } // '';
+        # Only intercept key-press events (not key-release, button, etc.)
+        my $evtype = eval { $event->type };
+        return FALSE unless defined $evtype;
+        # GdkEventType may be a string ('key-press') or integer (8 = GDK_KEY_PRESS)
+        return FALSE unless $evtype eq 'key-press'
+            || (eval { no warnings 'numeric'; 0 + $evtype == 8 });
+        return FALSE if $vim_mode eq 'insert' || $vim_mode eq 'replace';
+        my $state = eval { $event->state } // 0;
+        return FALSE if $state & 'control-mask';
+        my $k = eval { Gtk3::Gdk::keyval_name($event->keyval) } // '';
         return FALSE unless $k eq 'Up' || $k eq 'Down'
                         || $k eq 'Left' || $k eq 'Right';
-        # In insert/replace modes, let GTK handle arrow keys natively
-        return FALSE if $vim_mode eq 'insert' || $vim_mode eq 'replace';
-        # Handle navigation keys through vim in normal/visual modes.
-        # Returning TRUE prevents key-press-event from being emitted.
+        # Handle through vim in normal/visual modes.
+        # Returning TRUE prevents key-press-event from being emitted,
+        # so GtkSourceView never processes the arrow key.
         if ($vim_mode eq 'normal') {
             handle_normal_mode($ctx, $k);
         } elsif ($vim_mode eq 'visual' || $vim_mode eq 'visual_line'
