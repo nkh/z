@@ -880,13 +880,14 @@ sub _init_utilities {
                 # -- the cursor will leave the center to reach the last lines.
                 $view->scroll_to_mark($buf->get_insert(), 0.0, TRUE, 0, 0.5);
             }
-            # Mode 1 (edge): scroll to keep cursor visible.
+            # Mode 1 (edge): scroll only when cursor leaves the viewport.
             # We intercept arrow keys in the 'event' signal to prevent
             # double movement, which also prevents GtkTextView's built-in
-            # scrolling from key bindings.  Explicitly scroll here.
-            # For scroll_lock, the cursor doesn't move so there's nothing
-            # to scroll here.
-            $view->scroll_to_mark($buf->get_insert(), 0.0, TRUE, 0, 0.0)
+            # scrolling from key bindings.  scroll_mark_onscreen scrolls
+            # the minimum amount to keep the cursor visible, matching the
+            # original edge-scrolling behavior.
+            # For scroll_lock, the cursor doesn't move so skip.
+            $view->scroll_mark_onscreen($buf->get_insert())
                 unless $ctx->{_scroll_lock_active};
         };
     };
