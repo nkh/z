@@ -98,10 +98,8 @@ sub register {
         my ($ctx, $count, $char) = @_;
         return unless defined $char && length($char);
         $ctx->{vb}->replace_char($char);
-        my $vb = $ctx->{vb};
-        unless ($vb->at_line_end) {
-            $vb->set_cursor($vb->cursor_line, $vb->cursor_col + 1);
-        }
+        # buf->insert() inside replace_char already advances the cursor
+        # past the inserted character, so no explicit move is needed.
     };
     
     return {

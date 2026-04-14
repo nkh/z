@@ -506,6 +506,22 @@ sub _dispatch {
     my $original_key = $key;
     $$buf .= $key;
 
+    # Char actions: _any mechanism (e.g., replace mode -- any single-char key
+    # triggers the action immediately, no accumulation needed)
+    # Checked BEFORE the numeric accumulation so that digits are also
+    # caught by _any in replace mode.
+    if ($char_actions && exists $char_actions->{_any} && length($original_key) == 1) {
+        my $action_name = $char_actions->{_any};
+        $$buf = '';
+        if (exists $ACTIONS{$action_name}) {
+            my $result;
+            $ctx->{vb}->begin_user_action;
+            eval { $result = $ACTIONS{$action_name}->($ctx, undef, $original_key) };
+            $ctx->{vb}->end_user_action;
+            return defined $result ? $result : TRUE;
+        }
+    }
+
     # Purely numeric with non-zero leading digit -> keep accumulating
     if ($$buf =~ /^[1-9]\d*$/) {
         return TRUE;
@@ -550,20 +566,6 @@ sub _dispatch {
     # Known multi-key prefix
     if (exists $prefixes->{$$buf}) {
         return TRUE;
-    }
-
-    # Char actions: _any mechanism (e.g., replace mode -- any single-char key
-    # triggers the action immediately, no accumulation needed)
-    if ($char_actions && exists $char_actions->{_any} && length($original_key) == 1) {
-        my $action_name = $char_actions->{_any};
-        $$buf = '';
-        if (exists $ACTIONS{$action_name}) {
-            my $result;
-            $ctx->{vb}->begin_user_action;
-            eval { $result = $ACTIONS{$action_name}->($ctx, undef, $original_key) };
-            $ctx->{vb}->end_user_action;
-            return defined $result ? $result : TRUE;
-        }
     }
 
     # Char actions: prefix match (e.g., 'r', 'm', 'grave', 'apostrophe' in
@@ -656,7 +658,7 @@ sub handle_replace_mode {
         return TRUE;
     }
     return _dispatch($ctx, $ctx->{"${mode_name}_dispatch"}, $ctx->{"${mode_name}_prefixes"},
-                     $ctx->{"${mode_name}_char_actions"}, $k);
+                     $ctx->{"${mode_name}_char_actions"}, $k, FALSE);
 }
 
 # ==========================================================================
