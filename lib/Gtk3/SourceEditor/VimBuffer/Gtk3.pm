@@ -366,11 +366,15 @@ sub join_lines {
             $sep = '';
         }
 
+        # Delete from end of current line to end of next line
+        # (removes the newline AND the next line's content), then
+        # re-insert the trimmed next line with the separator.
         my $end_of_cur = $buf->get_iter_at_line($line);
         $end_of_cur->forward_to_line_end;
-        my $start_of_next = $buf->get_iter_at_line( $line + 1 );
+        my $end_of_next = $buf->get_iter_at_line($next);
+        $end_of_next->forward_to_line_end;
 
-        $buf->delete( $end_of_cur, $start_of_next );
+        $buf->delete( $end_of_cur, $end_of_next );
         my $at_eol = $buf->get_iter_at_line($line);
         $at_eol->forward_to_line_end;
         $buf->insert( $at_eol, $sep . $next_text );
