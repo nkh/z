@@ -469,6 +469,8 @@ sub join_lines {
     return if $line + $count >= $self->line_count;
 
     my $result = $self->{_lines}[$line];
+    # Save the join point: end of the original current line.
+    # Vim places the cursor here after joining.
     my $join_col = length($result);
 
     for my $i ( 1 .. $count ) {
@@ -482,7 +484,6 @@ sub join_lines {
         if ( $result =~ /\s$/ || $next_text =~ /^\)/ ) {
             $sep = '';
         }
-        $join_col += length($sep);
         $result .= $sep . $next_text;
     }
 

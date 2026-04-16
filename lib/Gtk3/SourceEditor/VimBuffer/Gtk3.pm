@@ -346,7 +346,11 @@ sub join_lines {
 
     my $buf  = $self->{_buffer};
     my $line = $self->_iter->get_line;
-    my $col  = $self->_iter->get_line_offset;
+
+    # Save the join point: end of the original current line.
+    # Vim places the cursor here after joining.
+    my $cur_text = $self->line_text($line);
+    my $join_col = length($cur_text);
 
     for ( 1 .. $count ) {
         my $next = $line + 1;
@@ -357,13 +361,11 @@ sub join_lines {
         my $next_text = $buf->get_iter_at_line($next)->get_text($end_iter);
         $next_text =~ s/^\s+//;
 
-        my $cur_text = $self->line_text($line);
         my $sep = ' ';
         if ( $cur_text =~ /\s$/ || $next_text =~ /^\)/ ) {
             $sep = '';
         }
 
-        my $join_col = length($cur_text) + length($sep);
         my $end_of_cur = $buf->get_iter_at_line($line);
         $end_of_cur->forward_to_line_end;
         my $start_of_next = $buf->get_iter_at_line( $line + 1 );
@@ -373,6 +375,7 @@ sub join_lines {
         $at_eol->forward_to_line_end;
         $buf->insert( $at_eol, $sep . $next_text );
 
+        $cur_text = $self->line_text($line);
         $buf->place_cursor(
             $buf->get_iter_at_line_offset( $line, $join_col ) );
     }
