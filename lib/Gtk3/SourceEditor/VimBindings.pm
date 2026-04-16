@@ -624,8 +624,27 @@ sub handle_normal_mode {
 
 sub handle_insert_mode {
     my ($ctx, $k) = @_;
-    return _dispatch($ctx, $ctx->{insert_dispatch}, $ctx->{insert_prefixes},
-                     $ctx->{insert_char_actions}, $k, FALSE);
+    # Insert mode only intercepts specific keys (Escape, Tab, and any
+    # user-defined dispatch entries).  Everything else -- digits, letters,
+    # symbols -- must pass through to GTK so the text widget handles
+    # text input natively.  We do NOT use _dispatch here because its
+    # numeric accumulation would swallow digits before GTK can process them.
+    if (exists $ctx->{insert_immediate}{$k}) {
+        ${$ctx->{cmd_buf}} = '';
+        $ctx->{insert_immediate}{$k}->($ctx, 1);
+        return TRUE;
+    }
+    # Check user-defined dispatch entries (exact match, no count prefix).
+    if (exists $ctx->{insert_dispatch}{$k}) {
+        ${$ctx->{cmd_buf}} = '';
+        my $handler = $ctx->{insert_dispatch}{$k};
+        my $result;
+        $ctx->{vb}->begin_user_action;
+        eval { $result = $handler->($ctx, undef) };
+        $ctx->{vb}->end_user_action;
+        return defined $result ? $result : TRUE;
+    }
+    return FALSE;
 }
 
 sub handle_visual_mode {
