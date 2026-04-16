@@ -821,8 +821,6 @@ sub _init_utilities {
                     my $cursor_iter = $buf->get_iter_at_mark($buf->get_insert);
                     if ($mode eq 'visual_line') {
                         # Line mode: extend selection to full line boundaries.
-                        # Anchor at start of visual_start line, cursor at end
-                        # of current line (including the newline).
                         my $cur_line = $cursor_iter->get_line;
                         my ($lo, $hi) = $vs->{line} <= $cur_line
                             ? ($vs->{line}, $cur_line)
@@ -830,14 +828,12 @@ sub _init_utilities {
                         my $anchor_iter = $buf->get_iter_at_line($lo);
                         my $end_iter = $buf->get_iter_at_line($hi);
                         $end_iter->forward_to_line_end;
+                        # select_range with insert at end_of_line and
+                        # selection_bound at start_of_line so GTK highlights
+                        # entire lines.  We do NOT restore the cursor to its
+                        # actual column because that would shrink the GTK
+                        # selection to stop at the cursor position.
                         $buf->select_range($end_iter, $anchor_iter);
-                        # Restore cursor to its actual column (select_range
-                        # moved the insert mark to end_iter).  Save the line
-                        # first because select_range may have invalidated iters.
-                        my $actual_col = $cursor_iter->get_line_offset;
-                        my $actual_line = $cur_line;
-                        $buf->move_mark_by_name('insert',
-                            $buf->get_iter_at_line_offset($actual_line, $actual_col));
                     } else {
                         my $anchor_iter = $buf->get_iter_at_line_offset(
                             $vs->{line}, $vs->{col});

@@ -976,6 +976,44 @@ sub register {
         $vb->replace_char($char);
     };
 
+    $ACTIONS->{search_word_under_cursor} = sub {
+        my ($ctx, $count) = @_;
+        $count ||= 1;
+        my $vb = $ctx->{vb};
+        # Extract the word under the cursor: scan backward to find the
+        # start of the word (\w characters), then forward for the end.
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $text = $vb->line_text($line);
+        return unless defined $text && length $text;
+        # Find start of word
+        my $start = $col;
+        while ($start > 0 && substr($text, $start - 1, 1) =~ /^\w$/) {
+            $start--;
+        }
+        # Find end of word
+        my $end = $col;
+        while ($end < length($text) && substr($text, $end, 1) =~ /^\w$/) {
+            $end++;
+        }
+        return if $start >= $end;
+        my $word = substr($text, $start, $end - $start);
+        return unless length $word;
+        # Set as search pattern and jump to next match
+        $ctx->{search_pattern}   = $word;
+        $ctx->{search_direction} = 'forward';
+        for (1 .. $count) {
+            my $result = $vb->search_forward($word);
+            if ($result) {
+                $vb->set_cursor($result->{line}, $result->{col});
+                $ctx->{after_move}->($ctx) if $ctx->{after_move};
+            } else {
+                $ctx->{show_status}->("Pattern not found: $word") if $ctx->{show_status};
+                last;
+            }
+        }
+    };
+
     $ACTIONS->{join_lines} = sub {
         my ($ctx, $count) = @_;
         $count ||= 1;
@@ -1366,6 +1404,7 @@ sub register {
         U             => 'line_undo',
         n             => 'search_next',
         N             => 'search_prev',
+        asterisk      => 'search_word_under_cursor',
         v             => 'enter_visual',
         V             => 'enter_visual_line',
         gv            => 'reselect_visual',
