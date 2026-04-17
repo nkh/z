@@ -208,6 +208,7 @@ sub add_vim_bindings {
         _scroll_mode        => $opts{scroll_mode} // 'edge',
         _scroll_lock_active => 0,
         _scroll_lock_prev   => undef,
+        _debug_key          => $opts{debug_key} // 0,
     };
 
     _init_utilities($ctx);
@@ -335,9 +336,39 @@ sub add_vim_bindings {
         return TRUE;
     }) if $textview;
 
+    # Debug helper: when _debug_key is set, print what GTK reports and
+    # what the dispatch resolves to.  Useful for diagnosing key bindings
+    # on non-US keyboard layouts or under different GDK backends.
+    my $_debug_key = sub {
+        return unless $ctx->{_debug_key};
+        my ($raw_k, $resolved_k, $state, $unicode, $action, $keyval) = @_;
+        my $state_str = '';
+        if ($state) {
+            my @mods;
+            push @mods, 'Ctrl'  if $state & 'control-mask';
+            push @mods, 'Shift' if $state & 'shift-mask';
+            push @mods, 'Mod1'  if $state & 'mod1-mask';
+            push @mods, 'Mod5'  if $state & 'mod5-mask';
+            $state_str = join('+', @mods) . '+' if @mods;
+        }
+        my $u_repr = $unicode ? (sprintf " U+%04X", $unicode) : '';
+        my $a_repr = defined $action ? $action : '(none)';
+        printf STDERR "[debug-key] mode=%-10s raw=%-20s resolved=%-15s keyval=%-6s state=%s%s -> %s\n",
+            $vim_mode, $raw_k, $resolved_k, $keyval, $state_str, $u_repr, $a_repr;
+    };
+
     $textview->signal_connect('key-press-event' => sub {
         my ($w, $e) = @_;
-        my $k = eval { Gtk3::Gdk::keyval_name($e->keyval) } // '';
+        my $raw_k = eval { Gtk3::Gdk::keyval_name($e->keyval) } // '';
+        my $k = $raw_k;
+        # Fallback for keyboard layouts where GDK reports unexpected key
+        # names for * and # (e.g. dead_acute instead of asterisk on some
+        # European layouts, or different names under Wayland).  Use
+        # keyval_to_unicode to match by Unicode codepoint, which is
+        # independent of the GDK key name string.
+        my $unicode = eval { Gtk3::Gdk::keyval_to_unicode($e->keyval) } // 0;
+        if ($unicode == 42) { $k = 'asterisk'; }
+        elsif ($unicode == 35) { $k = 'numbersign'; }
         # Ctrl-key combinations are handled here so they can be dispatched
         # to actions (e.g., Ctrl-U, Ctrl-D, Ctrl-R).  We construct a
         # synthetic key name like 'Control-u' for the dispatch tables.
@@ -357,6 +388,19 @@ sub add_vim_bindings {
                 || $vim_mode eq 'visual'
                 || $vim_mode eq 'visual_line'
                 || $vim_mode eq 'visual_block') {
+                # Look up action name for debug output
+                my $action = undef;
+                if ($ctx->{_debug_key}) {
+                    my $d = $ctx->{"${vim_mode}_ctrl_dispatch"};
+                    my $km = $ctx->{resolved_keymap}{$vim_mode};
+                    if ($d && exists $d->{$ctrl_k}) {
+                        # Walk the ctrl keymap to find the action name
+                        my $ctrl_km = $km->{_ctrl} // {};
+                        my $ctrl_key = lc((grep { "Control-$_" eq $ctrl_k } keys %$ctrl_km)[0] // '');
+                        $action = $ctrl_km->{$ctrl_key} if $ctrl_key;
+                    }
+                    $_debug_key->($raw_k, $ctrl_k, $state, $unicode, $action, $e->keyval);
+                }
                 my $handled = handle_ctrl_key($ctx, $ctrl_k);
                 $w->signal_stop_emission_by_name('key-press-event') if $handled;
                 return TRUE;
@@ -365,8 +409,19 @@ sub add_vim_bindings {
             # GTK does not handle them (no copy/paste/undo/select-all).
             # Users who want native GTK Ctrl-key behavior should set
             # vim_mode => 0.
+            $_debug_key->($raw_k, $ctrl_k, $state, $unicode, '(suppressed)', $e->keyval) if $ctx->{_debug_key};
             $w->signal_stop_emission_by_name('key-press-event');
             return TRUE;
+        }
+        # Look up action name for debug output
+        if ($ctx->{_debug_key}) {
+            my $action = undef;
+            my $km = $ctx->{resolved_keymap}{$vim_mode} // {};
+            if (exists $km->{$k}) { $action = $km->{$k}; }
+            elsif (exists $km->{_immediate} && grep { $_ eq $k } @{$km->{_immediate}}) {
+                $action = $km->{$k};
+            }
+            $_debug_key->($raw_k, $k, $state, $unicode, $action, $e->keyval);
         }
         if ($vim_mode eq 'normal') {
             my $handled = handle_normal_mode($ctx, $k);

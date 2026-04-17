@@ -17,6 +17,7 @@ my $block_cursor = 0;
 my $highlight_current_line = 1;
 my $filename = '';
 my $help = 0;
+my $debug_key = 0;
 
 GetOptions(
     'config|C=s'               => \$config_file,
@@ -28,6 +29,7 @@ GetOptions(
     'cursor-block|b'            => \$block_cursor,
     'highlight-current-line|H!' => \$highlight_current_line,
     'help|h'                    => \$help,
+    'debug-key'                  => \$debug_key,
 );
 
 if ($help) {
@@ -45,6 +47,7 @@ Options:
   -b, --cursor-block           Start with block cursor (instead of i-beam)
   -H, --[no-]highlight-current-line
                                 Highlight current line (default: on)
+  -D, --debug-key              Print key event debug info to stderr
   -h, --help                   Show this help message
 
 Configuration file settings are used as defaults.  Command-line options
@@ -78,6 +81,7 @@ my %editor_opts = (
     block_cursor            => $block_cursor,
     highlight_current_line  => $highlight_current_line,
     window                  => $window,
+    debug_key               => $debug_key,
     on_close                => sub {
         my $final_text = shift;
         print "--- WINDOW CLOSED ---\nCaptured Text:\n$final_text\n";

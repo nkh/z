@@ -330,6 +330,7 @@ sub _build_ui {
             scrolloff     => $self->{scrolloff},
             scroll_mode   => $opts{scroll_mode},
             on_ready      => $opts{on_ready},
+            debug_key     => $opts{debug_key},
             theme         => { fg => $fg, bg => $bg },
         );
     } else {
