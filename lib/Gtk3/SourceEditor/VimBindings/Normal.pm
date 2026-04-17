@@ -17,15 +17,18 @@ sub register {
         ${$ctx->{yank_buf}} = $text;
         # Copy to system clipboard if enabled
         if ($ctx->{use_clipboard} && defined $text && length $text) {
-            my $view = $ctx->{gtk_view};
-            if ($view) {
-                eval {
-                    my $clipboard = Gtk3::Clipboard::get_default(
+            eval {
+                my $clipboard;
+                my $view = $ctx->{gtk_view};
+                if ($view && $view->can('get_display')) {
+                    $clipboard = Gtk3::Clipboard::get_default(
                         $view->get_display
                     );
-                    $clipboard->set_text($text, length($text));
-                };
-            }
+                } else {
+                    $clipboard = Gtk3::Clipboard::get_default(undef);
+                }
+                $clipboard->set_text($text, length($text)) if $clipboard;
+            };
         }
     };
 

@@ -162,6 +162,27 @@ sub register {
     };
 
     # ----------------------------------------------------------------
+    # Helper: optionally copy text to system clipboard
+    # ----------------------------------------------------------------
+    my $_clipboard_copy;
+    $_clipboard_copy = sub {
+        my ($ctx, $text) = @_;
+        return unless $ctx->{use_clipboard} && defined $text && length $text;
+        eval {
+            my $clipboard;
+            my $view = $ctx->{gtk_view};
+            if ($view && $view->can('get_display')) {
+                $clipboard = Gtk3::Clipboard::get_default(
+                    $view->get_display
+                );
+            } else {
+                $clipboard = Gtk3::Clipboard::get_default(undef);
+            }
+            $clipboard->set_text($text, length($text)) if $clipboard;
+        };
+    };
+
+    # ----------------------------------------------------------------
     # visual_exit -- Escape
     # ----------------------------------------------------------------
     $ACTIONS->{visual_exit} = sub {
@@ -232,7 +253,11 @@ sub register {
             } else {
                 $vb->delete_range($lo, 0, $hi, $vb->line_length($hi));
             }
-            $vb->set_cursor($lo, 0);
+            # Clamp cursor: if we deleted past the end, go to previous line
+            my $target = $lo;
+            my $last = $vb->line_count - 1;
+            $target = $last if $target > $last;
+            $vb->set_cursor($target, $vb->first_nonblank_col($target));
         } else {
             my $r = $_selection_range->($ctx);
             $_set_yank->($ctx, $vb->get_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2}));
@@ -271,7 +296,10 @@ sub register {
             } else {
                 $vb->delete_range($lo, 0, $hi, $vb->line_length($hi));
             }
-            $vb->set_cursor($lo, 0);
+            my $target = $lo;
+            my $last = $vb->line_count - 1;
+            $target = $last if $target > $last;
+            $vb->set_cursor($target, 0);
             $vb->insert_text('');
         } else {
             my $r = $_selection_range->($ctx);

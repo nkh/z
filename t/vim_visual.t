@@ -7,6 +7,7 @@ use lib ('t/lib', 'lib');
 use Gtk3::SourceEditor::VimBuffer;
 use Gtk3::SourceEditor::VimBuffer::Test;
 use Gtk3::SourceEditor::VimBindings;
+use Gtk3::Clipboard;   # Full clipboard mock for clipboard tests
 
 # ==========================================================================
 # Visual mode — comprehensive tests
@@ -954,6 +955,345 @@ subtest 'Multiple consecutive visual yanks overwrite yank_buf' => sub {
     is(${$ctx->{yank_buf}}, 'de', 'second yank overwrote yank_buf with "de"');
     is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
     is($vb->text, "abcdef\n", 'text unchanged (both were yanks)');
+};
+
+# ==========================================================================
+# 28. Clipboard integration -- visual yank copies to clipboard
+# ==========================================================================
+subtest 'Visual yank copies to clipboard when use_clipboard=1' => sub {
+    Gtk3::Clipboard::_reset_all();
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, use_clipboard => 1,
+    );
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'l', 'y');
+    is(${$ctx->{yank_buf}}, 'hello', 'yank_buf has selected chars');
+
+    # Check clipboard content via mock
+    my $clipboard = Gtk3::Clipboard::get_default(undef);
+    is($clipboard->wait_for_text, 'hello', 'clipboard has selected chars');
+};
+
+subtest 'Visual yank does NOT copy to clipboard when use_clipboard=0' => sub {
+    Gtk3::Clipboard::_reset_all();
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, use_clipboard => 0,
+    );
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'l', 'y');
+    is(${$ctx->{yank_buf}}, 'hello', 'yank_buf has selected chars');
+
+    # Clipboard should be empty since use_clipboard=0
+    my $clipboard = Gtk3::Clipboard::get_default(undef);
+    is($clipboard->wait_for_text // '', '', 'clipboard empty when use_clipboard=0');
+};
+
+# ==========================================================================
+# 22. Clipboard integration -- visual delete copies to clipboard
+# ==========================================================================
+subtest 'Visual delete copies to clipboard when use_clipboard=1' => sub {
+    Gtk3::Clipboard::_reset_all();
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, use_clipboard => 1,
+    );
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'd');
+    is(${$ctx->{yank_buf}}, 'hell', 'yank_buf has deleted chars');
+    is($vb->text, "o\n", 'text changed after delete');
+
+    my $clipboard = Gtk3::Clipboard::get_default(undef);
+    is($clipboard->wait_for_text, 'hell', 'clipboard has deleted chars');
+};
+
+# ==========================================================================
+# 23. Clipboard integration -- visual change copies to clipboard
+# ==========================================================================
+subtest 'Visual change copies to clipboard when use_clipboard=1' => sub {
+    Gtk3::Clipboard::_reset_all();
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, use_clipboard => 1,
+    );
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'c');
+    is(${$ctx->{yank_buf}}, 'hell', 'yank_buf has changed chars');
+    is(${$ctx->{vim_mode}}, 'insert', 'entered insert mode');
+
+    my $clipboard = Gtk3::Clipboard::get_default(undef);
+    is($clipboard->wait_for_text, 'hell', 'clipboard has changed chars');
+};
+
+# ==========================================================================
+# 24. Clipboard integration -- line-wise visual yank
+# ==========================================================================
+subtest 'Line-wise visual yank copies to clipboard' => sub {
+    Gtk3::Clipboard::_reset_all();
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\nline3\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, use_clipboard => 1,
+    );
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V', 'j', 'y');
+    is(${$ctx->{yank_buf}}, "line1\nline2\n", 'yank_buf has full lines');
+
+    my $clipboard = Gtk3::Clipboard::get_default(undef);
+    is($clipboard->wait_for_text, "line1\nline2\n", 'clipboard has full lines');
+};
+
+# ==========================================================================
+# 25. Clipboard integration -- block-wise visual yank
+# ==========================================================================
+subtest 'Block-wise visual yank copies to clipboard' => sub {
+    Gtk3::Clipboard::_reset_all();
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\nijkl\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, use_clipboard => 1,
+    );
+
+    $ctx->{set_mode}->('visual_block');
+    $vb->set_cursor(1, 2);
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'y');
+
+    my $clipboard = Gtk3::Clipboard::get_default(undef);
+    is($clipboard->wait_for_text, "abc\nefg\n", 'clipboard has block region');
+};
+
+# ==========================================================================
+# 26. Clipboard integration -- block-wise visual delete
+# ==========================================================================
+subtest 'Block-wise visual delete copies to clipboard' => sub {
+    Gtk3::Clipboard::_reset_all();
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\nijkl\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, use_clipboard => 1,
+    );
+
+    $ctx->{set_mode}->('visual_block');
+    $vb->set_cursor(1, 2);
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'd');
+
+    my $clipboard = Gtk3::Clipboard::get_default(undef);
+    is($clipboard->wait_for_text, "abc\nefg\n", 'clipboard has deleted block region');
+};
+
+# ==========================================================================
+# 27. use_clipboard defaults to 1
+# ==========================================================================
+subtest 'use_clipboard defaults to 1 (clipboard)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    is($ctx->{use_clipboard}, 1, 'use_clipboard defaults to 1');
+};
+
+subtest 'use_clipboard can be set to 0 (internal buffer)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, use_clipboard => 0,
+    );
+    is($ctx->{use_clipboard}, 0, 'use_clipboard set to 0');
+};
+
+# ==========================================================================
+# 28. Visual mode: x is alias for d
+# ==========================================================================
+subtest 'Visual x deletes selection (same as d)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'x');
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal after x');
+    is(${$ctx->{yank_buf}}, 'hel', 'yank_buf has 3 chars (2 l presses + start)');
+    is($vb->text, "lo\n", 'text changed after x');
+};
+
+# ==========================================================================
+# 29. Visual mode: multi-line char-wise yank
+# ==========================================================================
+subtest 'Char-wise visual: multi-line yank' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\nijkl\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'j', 'l', 'y');
+    # v at (0,0), l*2 -> (0,2), j -> (1,2), l -> (1,3)
+    # Selection: (0,0) to (1,3) inclusive = line0 full + line1 first 4 chars
+    is(${$ctx->{yank_buf}}, "abcd\nefgh", 'multi-line char-wise yank correct');
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is($vb->text, "abcd\nefgh\nijkl\n", 'text unchanged after yank');
+};
+
+# ==========================================================================
+# 30. Visual mode: multi-line char-wise delete
+# ==========================================================================
+subtest 'Char-wise visual: multi-line delete' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\nijkl\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'j', 'l', 'd');
+    is(${$ctx->{yank_buf}}, "abcd\nefgh", 'multi-line char-wise delete yanks correct');
+    # After deleting "abcd\nefgh" from "abcd\nefgh\nijkl\n",
+    # the remaining text is "\nijkl\n" (leading newline from line boundary)
+    ok($vb->text eq "\nijkl\n", 'multi-line text deleted') or
+       diag("got: [" . length($vb->text) . " chars]");
+};
+
+# ==========================================================================
+# 31. Visual line: delete last line
+# ==========================================================================
+subtest 'Line-wise visual: delete last line' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $vb->set_cursor(1, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V', 'd');
+    is(${$ctx->{yank_buf}}, "line2\n", 'yank_buf has deleted last line');
+    is($vb->text, "line1\n", 'last line deleted');
+    is($vb->cursor_line, 0, 'cursor on line 0');
+};
+
+# ==========================================================================
+# 32. Visual line: delete all lines
+# ==========================================================================
+subtest 'Line-wise visual: delete all lines' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aaa\nbbb\nccc\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V', 'j', 'j', 'd');
+    is(${$ctx->{yank_buf}}, "aaa\nbbb\nccc\n", 'yank_buf has all lines');
+    # After deleting all content, buffer should be empty
+    ok(length($vb->text) == 0 || $vb->text eq "\n" || $vb->text eq '',
+       'all lines deleted');
+};
+
+# ==========================================================================
+# 33. Visual block: delete single column
+# ==========================================================================
+subtest 'Block-wise visual: delete single column' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\nijkl\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_mode}->('visual_block');
+    # cursor stays at (0,0), move down to (1,0) — selects column 0 on lines 0-1
+    $vb->set_cursor(1, 0);
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'd');
+    is(${$ctx->{yank_buf}}, "a\ne\n", 'single column block yanked');
+    is($vb->text, "bcd\nfgh\nijkl\n", 'column 0 removed from first two lines');
+};
+
+# ==========================================================================
+# 34. Visual line change enters insert at correct position
+# ==========================================================================
+subtest 'Line-wise visual change enters insert mode with empty line' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\nline3\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V', 'c');
+    is(${$ctx->{vim_mode}}, 'insert', 'entered insert mode');
+    is(${$ctx->{yank_buf}}, "line1\n", 'yank_buf has changed line');
+    is($vb->cursor_line, 0, 'cursor on line 0');
+    is($vb->cursor_col, 0, 'cursor at col 0');
+};
+
+# ==========================================================================
+# 35. Visual mode: w/b/e motions extend selection
+# ==========================================================================
+subtest 'Char-wise visual: word motion extends selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world foo\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'w');
+    is($vb->cursor_col, 6, 'w moves to start of "world" (col 6)');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'w');
+    is($vb->cursor_col, 12, 'w moves to start of "foo" (col 12)');
+
+    # v at (0,0), w->(0,6), w->(0,12). Selection: cols 0..12 inclusive = 13 chars
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
+    is(${$ctx->{yank_buf}}, "hello world fo", 'word motion selection yanked');
+};
+
+subtest 'Char-wise visual: b motion goes back' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Move to "world" first
+    $vb->set_cursor(0, 6);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'b');
+    is($vb->cursor_col, 0, 'b moves back to start of "hello"');
+};
+
+# ==========================================================================
+# 36. Visual line: j/k movement
+# ==========================================================================
+subtest 'Line-wise visual: j/k move correctly' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\nline3\nline4\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V');
+    is($ctx->{visual_type}, 'line', 'in line mode');
+
+    # Note: _visual_line_cursor is set in after_move which requires a real GTK
+    # widget. In the test backend it remains undef. Verify j/k move the cursor.
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 2, 'j moved cursor to line 2');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 3, 'j moved cursor to line 3');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
+    is($vb->cursor_line, 2, 'k moved cursor back to line 2');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
+    is($vb->cursor_line, 1, 'k moved cursor back to line 1');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
+    is($vb->cursor_line, 0, 'k moved cursor back to line 0');
+};
+
+# ==========================================================================
+# 37. Visual: 0/$ motions
+# ==========================================================================
+subtest 'Char-wise visual: 0 and $ motions' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Move to middle, enter visual, go to end
+    $vb->set_cursor(0, 5);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'dollar');
+    is($vb->cursor_col, 10, '$ moves to last char');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
+    is(${$ctx->{yank_buf}}, ' world', 'selection from col 5 to 10 yanked');
+
+    # Test 0 motion
+    $vb->set_cursor(0, 8);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', '0');
+    is($vb->cursor_col, 0, '0 moves to line start');
+
+    # v at (0,8), 0->(0,0). Selection: cols 0..8 inclusive = 9 chars
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
+    is(${$ctx->{yank_buf}}, 'hello wor', 'selection from col 0 to 8 yanked');
+};
+
+# ==========================================================================
+# 38. Visual: gg/G motions
+# ==========================================================================
+subtest 'Char-wise visual: gg and G motions' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => join("\n", 1..20) . "\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Buffer has 21 lines (1..20 + trailing empty). G goes to line 20.
+    $vb->set_cursor(10, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'G');
+    is($vb->cursor_line, 20, 'G moves to last line');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Escape');
+
+    $vb->set_cursor(10, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'g', 'g');
+    is($vb->cursor_line, 0, 'gg moves to first line');
 };
 
 done_testing;

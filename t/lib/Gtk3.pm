@@ -318,6 +318,24 @@ sub can { return 1 }
 package Gtk3::Clipboard;
 sub new { return bless {}, shift }
 
+# Clipboard singleton storage (for testing clipboard integration)
+my %_CLIPBOARDS;
+sub get_default {
+    my ($display) = @_;
+    my $key = $display // '_default_';
+    $_CLIPBOARDS{$key} //= bless { _text => '' }, __PACKAGE__;
+    return $_CLIPBOARDS{$key};
+}
+sub set_text {
+    my ($self, $text, $len) = @_;
+    $self->{_text} = $text // '';
+}
+sub wait_for_text {
+    my ($self) = @_;
+    return $self->{_text};
+}
+sub _reset_all { %_CLIPBOARDS = (); }
+
 # AUTOLOAD fallback: defense-in-depth so mock objects accept ANY method call
 our $AUTOLOAD;
 sub AUTOLOAD {
