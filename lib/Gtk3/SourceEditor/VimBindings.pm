@@ -201,7 +201,7 @@ sub add_vim_bindings {
         last_find     => undef,
         scrolloff     => $opts{scrolloff},
         tab_string    => $opts{tab_string} // "\t",
-        use_clipboard => $opts{use_clipboard} // 0,
+        use_clipboard => $opts{use_clipboard} // 1,
         pos_label     => $opts{pos_label},
         theme         => $opts{theme},
         # Scroll mode: 'edge' (default), 'center', or 'scroll_lock' (runtime toggle)
@@ -519,7 +519,7 @@ sub create_test_context {
         last_find     => undef,
         scrolloff     => $opts{scrolloff},
         tab_string    => $opts{tab_string} // "\t",
-        use_clipboard => $opts{use_clipboard} // 0,
+        use_clipboard => $opts{use_clipboard} // 1,
     };
 
     _init_utilities($ctx);

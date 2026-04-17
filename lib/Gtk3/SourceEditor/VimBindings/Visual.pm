@@ -97,6 +97,27 @@ sub register {
     };
 
     # ----------------------------------------------------------------
+    # Helper: copy text to yank_buf and optionally to system clipboard
+    # ----------------------------------------------------------------
+    my $_set_yank;
+    $_set_yank = sub {
+        my ($ctx, $text) = @_;
+        ${$ctx->{yank_buf}} = $text;
+        # Copy to system clipboard if enabled
+        if ($ctx->{use_clipboard} && defined $text && length $text) {
+            my $view = $ctx->{gtk_view};
+            if ($view) {
+                eval {
+                    my $clipboard = Gtk3::Clipboard::get_default(
+                        $view->get_display
+                    );
+                    $clipboard->set_text($text, length($text));
+                };
+            }
+        }
+    };
+
+    # ----------------------------------------------------------------
     # Helper: delete block columns from each line
     # ----------------------------------------------------------------
     my $_delete_block = sub {
@@ -166,20 +187,7 @@ sub register {
             $yanked = $vb->get_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2});
         }
 
-        ${$ctx->{yank_buf}} = $yanked;
-
-        # Copy to clipboard if enabled
-        if ($ctx->{use_clipboard} && defined $yanked && length $yanked) {
-            my $view = $ctx->{gtk_view};
-            if ($view) {
-                eval {
-                    my $clipboard = Gtk3::Clipboard::get_default(
-                        $view->get_display
-                    );
-                    $clipboard->set_text($yanked, length($yanked));
-                };
-            }
-        }
+        $_set_yank->($ctx, $yanked);
 
         $_visual_cleanup->($ctx);
         $ctx->{set_mode}->('normal');
@@ -196,7 +204,7 @@ sub register {
         $_save_last_visual->($ctx);
 
         if ($vtype eq 'block') {
-            ${$ctx->{yank_buf}} = $_block_text->($ctx);
+            $_set_yank->($ctx, $_block_text->($ctx));
             $_delete_block->($ctx);
         } elsif ($vtype eq 'line') {
             my $s = $ctx->{visual_start};
@@ -204,7 +212,7 @@ sub register {
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
             my $yank = '';
             $yank .= $vb->line_text($_) . "\n" for $lo .. $hi;
-            ${$ctx->{yank_buf}} = $yank;
+            $_set_yank->($ctx, $yank);
 
             if ($hi + 1 < $vb->line_count) {
                 $vb->delete_range($lo, 0, $hi + 1, 0);
@@ -214,7 +222,7 @@ sub register {
             $vb->set_cursor($lo, 0);
         } else {
             my $r = $_selection_range->($ctx);
-            ${$ctx->{yank_buf}} = $vb->get_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2});
+            $_set_yank->($ctx, $vb->get_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2}));
             $vb->delete_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2});
         }
 
@@ -233,7 +241,7 @@ sub register {
         $_save_last_visual->($ctx);
 
         if ($vtype eq 'block') {
-            ${$ctx->{yank_buf}} = $_block_text->($ctx);
+            $_set_yank->($ctx, $_block_text->($ctx));
             my $b = $_block_bounds->($ctx);
             $_delete_block->($ctx);
             $vb->set_cursor($b->{top}, $b->{left});
@@ -243,7 +251,7 @@ sub register {
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
             my $yank = '';
             $yank .= $vb->line_text($_) . "\n" for $lo .. $hi;
-            ${$ctx->{yank_buf}} = $yank;
+            $_set_yank->($ctx, $yank);
 
             if ($hi + 1 < $vb->line_count) {
                 $vb->delete_range($lo, 0, $hi + 1, 0);
@@ -254,7 +262,7 @@ sub register {
             $vb->insert_text('');
         } else {
             my $r = $_selection_range->($ctx);
-            ${$ctx->{yank_buf}} = $vb->get_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2});
+            $_set_yank->($ctx, $vb->get_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2}));
             $vb->delete_range($r->{l1}, $r->{c1}, $r->{l2}, $r->{c2});
         }
 

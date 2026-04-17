@@ -1022,10 +1022,31 @@ sub register {
         $vb->set_cursor($start_line, $start_col);
     };
 
+    # --- helper: optionally read text from GTK clipboard ---
+    my $_clipboard_text;
+    $_clipboard_text = sub {
+        my ($ctx) = @_;
+        return undef unless $ctx->{use_clipboard};
+        my $view = $ctx->{gtk_view};
+        return undef unless $view;
+        my $text = undef;
+        eval {
+            my $clipboard = Gtk3::Clipboard::get_default(
+                $view->get_display
+            );
+            $text = $clipboard->wait_for_text;
+        };
+        return $text;
+    };
+
     $ACTIONS->{paste} = sub {
         my ($ctx, $count) = @_;
         $count //= 1;
         my $text = ${$ctx->{yank_buf}};
+        # If internal yank_buf is empty, try system clipboard
+        if ((!defined $text || !length $text) && $ctx->{use_clipboard}) {
+            $text = $_clipboard_text->($ctx);
+        }
         return unless defined $text && length $text;
         my $vb = $ctx->{vb};
         
@@ -1051,6 +1072,10 @@ sub register {
         my ($ctx, $count) = @_;
         $count //= 1;
         my $text = ${$ctx->{yank_buf}};
+        # If internal yank_buf is empty, try system clipboard
+        if ((!defined $text || !length $text) && $ctx->{use_clipboard}) {
+            $text = $_clipboard_text->($ctx);
+        }
         return unless defined $text && length $text;
         my $vb = $ctx->{vb};
         

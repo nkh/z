@@ -87,7 +87,7 @@ sub new {
     $self->{tab_string}    = defined $opts{tab_string} ? $opts{tab_string} : "\t";
     $self->{block_cursor}      = defined $opts{block_cursor} ? $opts{block_cursor} : 0;
     $self->{highlight_current_line} = defined $opts{highlight_current_line} ? $opts{highlight_current_line} : 1;
-    $self->{use_clipboard}     = $opts{use_clipboard} // 0;
+    $self->{use_clipboard}     = $opts{use_clipboard} // 1;
     $self->{show_line_numbers} = defined $opts{show_line_numbers} ? $opts{show_line_numbers} : 1;
 
     $self->_build_ui(%opts);
