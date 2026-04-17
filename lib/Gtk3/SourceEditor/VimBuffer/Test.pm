@@ -555,6 +555,7 @@ sub replace_char {
 
     substr( $text, $col, 1 ) = $char;
     $self->{_lines}[$line] = $text;
+    $self->{_cur_col}      = $col + 1;
     $self->{_modified}     = 1;
 }
 

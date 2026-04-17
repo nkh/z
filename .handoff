@@ -56,11 +56,11 @@ Working tree: Two new commits ready to push (d9b46c2, 456f26d)
 | vim_buffer_abstract.t | 30 | PASS |
 | 00-smoke-mock.t | - | PASS |
 | vim_completion.t | 17 | PASS |
+| vim_replace.t | 10 | PASS |
 
 ### Pre-existing failures (NOT caused by our work — do NOT touch):
 | Test file | Issue |
 |-----------|-------|
-| vim_replace.t (5/10 fail) | Replace mode doesn't advance cursor properly; pre-existing code bug |
 | vim_plugin.t (7/8 fail) | Plugin loading/detection broken; pre-existing code bug |
 
 ## Pending Tasks
@@ -82,6 +82,7 @@ None. All requested work is complete.
 11. Project handoff file (`.handoff`) added to repo for cross-session continuity
 12. Keyboard dispatch architecture documentation (`docs/keyboard-dispatch.md`)
 13. Fix vim_completion.t: add missing `use lib ('lib', 't/lib')` so Perl can locate Completion.pm
+14. Fix vim_replace.t: add cursor advance in VimBuffer::Test::replace_char() (was using substr without moving cursor)
 
 ## Key Architectural Notes
 
