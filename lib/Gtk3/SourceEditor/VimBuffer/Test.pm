@@ -95,10 +95,12 @@ sub _clamp_cursor {
 
 sub _save_undo {
     my ($self) = @_;
+    my $sel = $self->get_selection;
     push @{$self->{_undo_stack}}, {
         _lines    => [ @{$self->{_lines}} ],
         _cur_line => $self->{_cur_line},
         _cur_col  => $self->{_cur_col},
+        _sel      => $sel,   # selection state at time of snapshot
     };
 }
 
@@ -274,6 +276,13 @@ sub undo {
     $self->{_lines}    = $snap->{_lines};
     $self->{_cur_line} = $snap->{_cur_line};
     $self->{_cur_col}  = $snap->{_cur_col};
+    # GTK's native undo restores mark positions which can re-create
+    # a visible selection.  Mimic that by restoring the saved selection.
+    if ($snap->{_sel}) {
+        $self->set_selection($snap->{_sel}{anchor_line}, $snap->{_sel}{anchor_col});
+    } else {
+        $self->clear_selection;
+    }
 }
 
 sub redo {

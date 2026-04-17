@@ -229,4 +229,67 @@ subtest 'Undo: mixed x and dd operations' => sub {
     is($vb->text, "abc\ndef\nghi\n", 'u restored x');
 };
 
+# ==========================================================================
+# 11. REGRESSION: undo after visual-line delete clears selection
+#
+#    GTK's native undo restores the text AND mark positions.  When a
+#    visual-line delete is undone, the selection_bound mark can differ
+#    from insert, causing a visible selection highlight in normal mode.
+#    The undo handler must clear the selection after undoing.
+# ==========================================================================
+subtest 'Regression: undo after visual-line delete clears selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\nline3\nline4\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Enter visual line mode, expand selection, delete
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j', 'j');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'x');  # delete selection
+    is($vb->text, "line4\n", 'visual-line delete removed lines 1-3');
+    is($vb->get_selection, undef, 'no selection after delete (normal mode)');
+
+    # Undo the delete
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'u');
+    is($vb->text, "line1\nline2\nline3\nline4\n", 'undo restored text');
+    is($vb->get_selection, undef,
+       'selection cleared after undo (no stale visual highlight)');
+};
+
+# ==========================================================================
+# 12. REGRESSION: undo after dd clears selection
+# ==========================================================================
+subtest 'Regression: undo after dd clears selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aaa\nbbb\nccc\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $vb->set_cursor(1, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'd', 'd');
+    is($vb->text, "aaa\nccc\n", 'dd deleted line bbb');
+    is($vb->get_selection, undef, 'no selection after dd');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'u');
+    is($vb->text, "aaa\nbbb\nccc\n", 'undo restored line bbb');
+    is($vb->get_selection, undef,
+       'selection cleared after undo (no stale highlight)');
+};
+
+# ==========================================================================
+# 13. REGRESSION: undo after visual char delete clears selection
+# ==========================================================================
+subtest 'Regression: undo after visual char delete clears selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'e');  # select "hello"
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'x');  # delete
+    is($vb->text, " world\n", 'visual char delete removed "hello"');
+    is($vb->get_selection, undef, 'no selection after delete');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'u');
+    is($vb->text, "hello world\n", 'undo restored text');
+    is($vb->get_selection, undef,
+       'selection cleared after undo (no stale highlight)');
+};
+
 done_testing;

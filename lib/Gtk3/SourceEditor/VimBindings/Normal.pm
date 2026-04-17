@@ -269,6 +269,9 @@ sub register {
         # call is absorbed into the group and has no net effect.
         $ctx->{vb}->end_user_action if $ctx->{vb}->can('end_user_action');
         $ctx->{vb}->redo() for 1 .. $count;
+        # Redo can also restore mark positions that create a stale
+        # selection.  Collapse it for the same reason as undo.
+        $ctx->{vb}->clear_selection;
     };
 
     $ACTIONS->{word_forward} = sub {
@@ -1168,6 +1171,11 @@ sub register {
         # call is absorbed into the group and has no net effect.
         $ctx->{vb}->end_user_action if $ctx->{vb}->can('end_user_action');
         $ctx->{vb}->undo() for 1 .. $count;
+        # GTK's native undo restores mark positions (insert + selection_bound)
+        # which can re-create a visible selection highlight.  Collapse it
+        # so the user sees normal-mode appearance, not a stale visual-mode
+        # selection.  Applies to undo after visual-mode deletes, dd, etc.
+        $ctx->{vb}->clear_selection;
     };
 
     $ACTIONS->{line_undo} = sub {
