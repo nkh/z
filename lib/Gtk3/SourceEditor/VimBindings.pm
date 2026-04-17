@@ -761,6 +761,9 @@ sub handle_normal_mode {
     if ($ctx->{_showing_status} && $ctx->{clear_status}) {
         $ctx->{clear_status}->($ctx);
     }
+    # Remove the undo/redo highlight tint on any subsequent keypress.
+    # The selection itself collapses naturally via set_cursor -> place_cursor.
+    Gtk3::SourceEditor::VimBindings::Normal::_clear_undo_highlight($ctx);
     if (exists $ctx->{normal_immediate}{$k}) {
         ${$ctx->{cmd_buf}} = '';
         $ctx->{normal_immediate}{$k}->($ctx, 1);

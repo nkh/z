@@ -5,10 +5,74 @@ use warnings;
 
 our $VERSION = '0.04';
 
+# Package-level state for undo/redo highlight CSS provider.
+# Accessed by _apply_undo_highlight (closure in register()) and
+# _clear_undo_highlight (package sub called from VimBindings.pm).
+our $_undo_hl_provider;
+our $_undo_hl_applier;
+
 # register(\%ACTIONS) -- populate %ACTIONS with all normal-mode action coderefs,
 # and return the default normal-mode keymap hashref.
 sub register {
     my ($ACTIONS) = @_;
+
+    # ----------------------------------------------------------------
+    # helper: undo/redo highlight
+    #
+    # After undo or redo, GTK may restore mark positions that create a
+    # visible selection.  Instead of clearing it (boring), we tint the
+    # selection colour to a subtle "restored" shade so the user sees
+    # what came back.  The tint is removed on the next normal-mode
+    # keypress; cursor motion naturally collapses the selection via
+    # place_cursor.
+    # ----------------------------------------------------------------
+    my $_apply_undo_highlight = sub {
+        my ($ctx) = @_;
+        my $view = $ctx->{gtk_view};
+        return unless $view && $view->can('get_style_context');
+
+        # Remove previous provider if still lingering
+        if ($_undo_hl_provider) {
+            eval {
+                $view->get_style_context->remove_provider($_undo_hl_provider);
+            };
+            $_undo_hl_provider = undef;
+        }
+
+        # Derive a subtle tint from the theme.  In a dark theme the
+        # highlight is lighter; in a light theme it is darker.
+        my $theme = $ctx->{theme};
+        my ($bg_hex) = $theme ? ($theme->{bg}) : ('#ffffff');
+
+        # Parse hex colour
+        my ($br, $bg, $bb) = $bg_hex =~ /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/;
+        return unless defined $br;
+
+        # Determine if theme is dark (average channel < 128)
+        my $avg = (hex($br) + hex($bg) + hex($bb)) / 3;
+        my ($hr, $hg, $hb);
+        if ($avg < 128) {
+            # Dark theme: lighten by ~15%
+            $hr = sprintf("%02x", hex($br) + 40 > 255 ? 255 : hex($br) + 40);
+            $hg = sprintf("%02x", hex($bg) + 40 > 255 ? 255 : hex($bg) + 40);
+            $hb = sprintf("%02x", hex($bb) + 40 > 255 ? 255 : hex($bb) + 40);
+        } else {
+            # Light theme: darken by ~15%
+            $hr = sprintf("%02x", hex($br) < 40 ? 0 : hex($br) - 40);
+            $hg = sprintf("%02x", hex($bg) < 40 ? 0 : hex($bg) - 40);
+            $hb = sprintf("%02x", hex($bb) < 40 ? 0 : hex($bb) - 40);
+        }
+        my $tint = "#$hr$hg$hb";
+
+        my $css = Gtk3::CssProvider->new();
+        $css->load_from_data(
+            "GtkSourceView text selection { background-color: $tint; }\n"
+        );
+        $view->get_style_context->add_provider($css, 700);
+        $_undo_hl_provider = $css;
+    };
+
+    $_undo_hl_applier = $_apply_undo_highlight;
 
     # --- helper: optionally copy yanked text to GTK clipboard ---
     my $_set_yank;
@@ -269,9 +333,8 @@ sub register {
         # call is absorbed into the group and has no net effect.
         $ctx->{vb}->end_user_action if $ctx->{vb}->can('end_user_action');
         $ctx->{vb}->redo() for 1 .. $count;
-        # Redo can also restore mark positions that create a stale
-        # selection.  Collapse it for the same reason as undo.
-        $ctx->{vb}->clear_selection;
+        # Same highlight treatment as undo.
+        $_apply_undo_highlight->($ctx);
     };
 
     $ACTIONS->{word_forward} = sub {
@@ -1172,10 +1235,12 @@ sub register {
         $ctx->{vb}->end_user_action if $ctx->{vb}->can('end_user_action');
         $ctx->{vb}->undo() for 1 .. $count;
         # GTK's native undo restores mark positions (insert + selection_bound)
-        # which can re-create a visible selection highlight.  Collapse it
-        # so the user sees normal-mode appearance, not a stale visual-mode
-        # selection.  Applies to undo after visual-mode deletes, dd, etc.
-        $ctx->{vb}->clear_selection;
+        # which can re-create a visible selection.  Instead of clearing it
+        # immediately, highlight the restored region with a distinct colour
+        # so the user sees what was restored.  The highlight disappears on
+        # the next keypress (any motion calls set_cursor -> place_cursor
+        # which collapses the selection).
+        $_apply_undo_highlight->($ctx);
     };
 
     $ACTIONS->{line_undo} = sub {
@@ -1431,6 +1496,24 @@ sub register {
         slash         => 'enter_search',
         question      => 'enter_search_backward',
     };
+}
+
+# ----------------------------------------------------------------
+# _clear_undo_highlight($ctx)
+#
+# Remove the CSS provider that tints the selection colour after
+# undo/redo.  Called from handle_normal_mode() on every subsequent
+# keypress so the tint lasts only until the user moves or types.
+# ----------------------------------------------------------------
+sub _clear_undo_highlight {
+    my ($ctx) = @_;
+    return unless $_undo_hl_provider;
+    my $view = $ctx->{gtk_view};
+    return unless $view && $view->can('get_style_context');
+    eval {
+        $view->get_style_context->remove_provider($_undo_hl_provider);
+    };
+    $_undo_hl_provider = undef;
 }
 
 1;
