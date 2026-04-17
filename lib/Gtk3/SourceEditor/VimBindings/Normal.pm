@@ -1030,14 +1030,18 @@ sub register {
     $_clipboard_text = sub {
         my ($ctx) = @_;
         return undef unless $ctx->{use_clipboard};
-        my $view = $ctx->{gtk_view};
-        return undef unless $view;
         my $text = undef;
         eval {
-            my $clipboard = Gtk3::Clipboard::get_default(
-                $view->get_display
-            );
-            $text = $clipboard->wait_for_text;
+            my $clipboard;
+            my $view = $ctx->{gtk_view};
+            if ($view && $view->can('get_display')) {
+                $clipboard = Gtk3::Clipboard::get_default(
+                    $view->get_display
+                );
+            } else {
+                $clipboard = Gtk3::Clipboard::get_default(undef);
+            }
+            $text = $clipboard->wait_for_text if $clipboard;
         };
         return $text;
     };

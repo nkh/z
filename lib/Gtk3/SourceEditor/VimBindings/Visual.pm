@@ -118,15 +118,18 @@ sub register {
         ${$ctx->{yank_buf}} = $text;
         # Copy to system clipboard if enabled
         if ($ctx->{use_clipboard} && defined $text && length $text) {
-            my $view = $ctx->{gtk_view};
-            if ($view) {
-                eval {
-                    my $clipboard = Gtk3::Clipboard::get_default(
+            eval {
+                my $clipboard;
+                my $view = $ctx->{gtk_view};
+                if ($view && $view->can('get_display')) {
+                    $clipboard = Gtk3::Clipboard::get_default(
                         $view->get_display
                     );
-                    $clipboard->set_text($text, length($text));
-                };
-            }
+                } else {
+                    $clipboard = Gtk3::Clipboard::get_default(undef);
+                }
+                $clipboard->set_text($text, length($text)) if $clipboard;
+            };
         }
     };
 
@@ -253,8 +256,11 @@ sub register {
             } else {
                 $vb->delete_range($lo, 0, $hi, $vb->line_length($hi));
             }
-            # Clamp cursor: if we deleted past the end, go to previous line
-            my $target = $lo;
+            # Place cursor on the correct line after deletion.
+            # When deleting the last line(s), the content at $lo is now empty
+            # (only a trailing newline remains), so move up to $lo - 1.
+            # When deleting middle lines, $lo now holds the next line.
+            my $target = ($hi + 1 < $vb->line_count) ? $lo : ($lo > 0 ? $lo - 1 : 0);
             my $last = $vb->line_count - 1;
             $target = $last if $target > $last;
             $vb->set_cursor($target, $vb->first_nonblank_col($target));
@@ -296,7 +302,8 @@ sub register {
             } else {
                 $vb->delete_range($lo, 0, $hi, $vb->line_length($hi));
             }
-            my $target = $lo;
+            # Same cursor logic as visual_delete for last-line deletion
+            my $target = ($hi + 1 < $vb->line_count) ? $lo : ($lo > 0 ? $lo - 1 : 0);
             my $last = $vb->line_count - 1;
             $target = $last if $target > $last;
             $vb->set_cursor($target, 0);

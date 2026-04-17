@@ -202,6 +202,9 @@ sub insert_text {
 
     my @parts = split /\n/, $text, -1;
 
+    # Empty text: nothing to insert
+    return unless @parts;
+
     my $line = $self->{_cur_line};
     my $col  = $self->{_cur_col};
     my $cur  = $self->{_lines}[$line];

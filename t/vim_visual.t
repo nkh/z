@@ -1211,7 +1211,7 @@ subtest 'Char-wise visual: word motion extends selection' => sub {
 
     # v at (0,0), w->(0,6), w->(0,12). Selection: cols 0..12 inclusive = 13 chars
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
-    is(${$ctx->{yank_buf}}, "hello world fo", 'word motion selection yanked');
+    is(${$ctx->{yank_buf}}, "hello world f", 'word motion selection yanked');
 };
 
 subtest 'Char-wise visual: b motion goes back' => sub {
@@ -1237,19 +1237,19 @@ subtest 'Line-wise visual: j/k move correctly' => sub {
     # Note: _visual_line_cursor is set in after_move which requires a real GTK
     # widget. In the test backend it remains undef. Verify j/k move the cursor.
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
-    is($vb->cursor_line, 2, 'j moved cursor to line 2');
+    is($vb->cursor_line, 1, 'j moved cursor to line 1');
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
-    is($vb->cursor_line, 3, 'j moved cursor to line 3');
-
-    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
-    is($vb->cursor_line, 2, 'k moved cursor back to line 2');
+    is($vb->cursor_line, 2, 'j moved cursor to line 2');
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
     is($vb->cursor_line, 1, 'k moved cursor back to line 1');
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
     is($vb->cursor_line, 0, 'k moved cursor back to line 0');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k');
+    is($vb->cursor_line, 0, 'k clamped at line 0');
 };
 
 # ==========================================================================
