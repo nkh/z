@@ -13,15 +13,16 @@
 use strict;
 use warnings;
 use Test::More;
+use FindBin qw($RealBin);
 
 # ==========================================================================
 # IMPORTANT: Add mock_strict BEFORE lib in @INC so strict mocks shadow
 # the real Gtk3::SourceView when it's not installed, and shadow the
 # permissive t/lib mocks.
 # ==========================================================================
-use lib "/home/z/my-project/src/lib";          # The actual library modules
-use lib "/home/z/my-project/src/t/mock_strict"; # Strict Gtk3::SourceView mock
-use lib "/home/z/my-project/src/t/lib";         # Gtk3.pm, Glib.pm mocks
+use lib "$RealBin/../lib";           # The actual library modules
+use lib "$RealBin/mock_strict";     # Strict Gtk3::SourceView mock
+use lib "$RealBin/lib";             # Gtk3.pm, Glib.pm mocks
 
 # ==========================================================================
 # Now load the actual modules under test
@@ -35,7 +36,7 @@ use_ok('Gtk3::SourceEditor::VimBuffer::Test');
 # ==========================================================================
 # Test 1: ThemeManager::load
 # ==========================================================================
-my $theme_dir = "/home/z/my-project/src/themes";
+my $theme_dir = "$RealBin/../themes";
 SKIP: {
     skip "themes directory not found", 3 unless -d $theme_dir;
     my $theme_file;
