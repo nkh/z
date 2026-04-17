@@ -857,9 +857,13 @@ sub _init_utilities {
                         }
                         $buf->select_range($end_iter, $anchor_iter);
                         # Track the visual cursor line so move_vert uses
-                        # the correct line (hi, not hi+1 where the insert
-                        # mark now sits).
-                        $ctx->{_visual_line_cursor} = $hi;
+                        # the correct line (the line the cursor was moved
+                        # to, not hi+1 where the insert mark now sits).
+                        # Must use cursor_line_for_sel (the actual cursor
+                        # position) rather than $hi, because when the cursor
+                        # is above visual_start, $hi is the visual_start line
+                        # (the far end of the selection), not the cursor.
+                        $ctx->{_visual_line_cursor} = $cursor_line_for_sel;
                         # Preserve desired_col when navigating through
                         # short or empty lines.  Only update it when the
                         # cursor was NOT clamped to the end of a shorter
