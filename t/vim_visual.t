@@ -666,4 +666,294 @@ subtest 'Visual numeric prefix with movement (3j, 2l)' => sub {
     is($vb->cursor_col, 1, '2l moves to col 1 (single-char lines, clamped)');
 };
 
+# ==========================================================================
+# 21. Backward selections (cursor before anchor via 'o')
+# ==========================================================================
+subtest 'Char-wise visual delete with backward selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Start at col 4, enter visual, move left to col 2 (cursor before anchor)
+    $vb->set_cursor(0, 4);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+    is($ctx->{visual_start}{col}, 4, 'anchor at col 4');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'h', 'h');
+    is($vb->cursor_col, 2, 'cursor at col 2 (before anchor)');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'd');
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal after backward delete');
+    is(${$ctx->{yank_buf}}, 'llo', 'yank_buf has chars from cursor to anchor');
+    is($vb->text, "he\n", 'backward selection deleted correctly');
+};
+
+subtest 'Block-wise visual delete with backward selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Enter visual_block at (0,2), then set cursor to (1,2) to form a
+    # single-column block at col 2, rows 0-1.  Use set_cursor (not j)
+    # because desired_col defaults to 0 and would move to col 0.
+    $vb->set_cursor(0, 2);
+    $ctx->{set_mode}->('visual_block');
+    $vb->set_cursor(1, 2);
+    # visual_start=(0,2), cursor=(1,2)
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'o');
+    # After swap: visual_start=(1,2), cursor=(0,2)
+    is($ctx->{visual_start}{line}, 1, 'anchor now on line 1 after swap');
+    is($vb->cursor_line, 0, 'cursor now on line 0 after swap');
+
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'd');
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is(${$ctx->{yank_buf}}, "c\ng\n", 'yank_buf has column 2 from both lines');
+    is($vb->text, "abd\nefh\n", 'block column deleted from both lines');
+};
+
+subtest 'Line-wise visual yank with backward selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "a\nb\nc\nd\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Start on line 2, enter visual line, move up to line 0
+    $vb->set_cursor(2, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V');
+    is($ctx->{visual_start}{line}, 2, 'anchor on line 2');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k', 'k');
+    is($vb->cursor_line, 0, 'cursor moved up to line 0');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
+
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is(${$ctx->{yank_buf}}, "a\nb\nc\n", 'yanked lines 0-2 regardless of direction');
+    is($vb->text, "a\nb\nc\nd\n", 'text unchanged after yank');
+};
+
+subtest 'Line-wise visual delete with backward selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "a\nb\nc\nd\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $vb->set_cursor(2, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'k', 'k');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'd');
+
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is(${$ctx->{yank_buf}}, "a\nb\nc\n", 'deleted lines 0-2');
+    is($vb->text, "d\n", 'only line 3 remains');
+    is($vb->cursor_line, 0, 'cursor at line 0');
+};
+
+# ==========================================================================
+# 22. Block mode case operations
+# ==========================================================================
+subtest 'Block-wise visual toggle case (~)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcd\nefgh\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_mode}->('visual_block');
+    # Use set_cursor to define a 2-column block (cols 0-1, rows 0-1)
+    # instead of j (which resets col to desired_col=0)
+    $vb->set_cursor(1, 1);
+
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'asciitilde');
+
+    is(${$ctx->{vim_mode}}, 'visual_block', '~ stays in visual_block mode');
+    is($vb->text, "ABcd\nEFgh\n", 'toggle case applied to block columns only');
+};
+
+subtest 'Block-wise visual uppercase (U)' => sub {
+    # Block mode U should uppercase only the block columns, not the
+    # entire char-wise range from anchor to cursor.
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "ab\ncd\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_mode}->('visual_block');
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'j');
+    # Block rows 0-1, col 0 only: uppercase 'a' and 'c' to 'A' and 'C'
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'U');
+
+    is($vb->text, "Ab\nCd\n", 'block U uppercases only block columns');
+};
+
+subtest 'Block-wise visual lowercase (u)' => sub {
+    # Block mode u should lowercase only the block columns.
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "AB\nCD\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_mode}->('visual_block');
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'j');
+    # Block: col 0 only, rows 0-1: lowercase 'A' and 'C' to 'a' and 'c'
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'u');
+
+    is($vb->text, "aB\ncD\n", 'block u lowercases only block columns');
+};
+
+# ==========================================================================
+# 23. Visual edge cases
+# ==========================================================================
+subtest 'Visual join on single line is no-op' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\nworld\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'J');
+
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is($vb->text, "hello\nworld\n", 'text unchanged (single line join is no-op)');
+};
+
+subtest 'Visual delete single character (cursor at anchor)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v');
+    is($ctx->{visual_start}{col}, 0, 'anchor at col 0');
+    is($vb->cursor_col, 0, 'cursor at col 0');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'd');
+
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is(${$ctx->{yank_buf}}, 'h', 'deleted single char "h"');
+    is($vb->text, "ello\n", 'first char deleted');
+};
+
+subtest 'Visual change single character (cursor at anchor)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'c');
+
+    is(${$ctx->{vim_mode}}, 'insert', 'entered insert mode');
+    is(${$ctx->{yank_buf}}, 'h', 'changed single char "h"');
+    is($vb->text, "ello\n", 'char removed for replacement');
+};
+
+subtest 'Numeric prefix 3d in visual mode' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l');
+    # Selection: cols 0-2 = "hel"
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '3', 'd');
+
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal after 3d');
+    is(${$ctx->{yank_buf}}, 'hel', 'yank_buf has selected text (count ignored)');
+    is($vb->text, "lo\n", 'deleted selected region regardless of count prefix');
+};
+
+# ==========================================================================
+# 24. Visual yank then paste
+# ==========================================================================
+subtest 'Visual yank then paste (p)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aa\nbb\ncc\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Yank lines 0-1
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'V', 'j', 'y');
+    is(${$ctx->{yank_buf}}, "aa\nbb\n", 'yanked two lines');
+
+    # Move to line 2 and paste below
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j');
+    is($vb->cursor_line, 2, 'cursor on line 2');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'p');
+
+    is(${$ctx->{vim_mode}}, 'normal', 'still in normal mode after paste');
+    is($vb->text, "aa\nbb\ncc\naa\nbb\n", 'pasted lines below line 2');
+    is($vb->cursor_line, 3, 'cursor moved to first pasted line');
+};
+
+# ==========================================================================
+# 25. gv after visual delete
+# ==========================================================================
+subtest 'gv after visual delete restores selection' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\nworld\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l', 'l', 'l', 'd');
+    is(${$ctx->{vim_mode}}, 'normal', 'in normal after delete');
+    is(${$ctx->{yank_buf}}, 'hell', 'deleted "hell"');
+    is($vb->text, "o\nworld\n", 'text after delete');
+
+    ok(exists $ctx->{last_visual}, 'last_visual saved after delete');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'g', 'v');
+
+    is(${$ctx->{vim_mode}}, 'visual', 'gv re-enters visual mode');
+    is($ctx->{visual_type}, 'char', 'visual_type restored');
+    is($ctx->{visual_start}{line}, 0, 'start line restored');
+    is($ctx->{visual_start}{col}, 0, 'start col restored');
+    # End col (3) is clamped to line_length of "o" (1 char)
+    is($vb->cursor_col, 1, 'end col clamped to current line length');
+};
+
+# ==========================================================================
+# 26. Block insert (I / A)
+# ==========================================================================
+subtest 'Block insert start (I) inserts at left edge of block' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "ab\nxy\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_mode}->('visual_block');
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'j');
+    # Block: rows 0-1, cols 0-0
+
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'I');
+    is(${$ctx->{vim_mode}}, 'insert', 'entered insert mode');
+    ok(exists $ctx->{block_insert_info}, 'block_insert_info set');
+    is($ctx->{block_insert_info}{col}, 0, 'insert col is left edge');
+    is($ctx->{block_insert_info}{top}, 0, 'top line correct');
+    is($ctx->{block_insert_info}{bottom}, 1, 'bottom line correct');
+
+    # Simulate typing "ZZ" (can't use simulate_keys for insert mode chars)
+    $vb->insert_text("ZZ");
+    is($vb->line_text(0), 'ZZab', 'first line has inserted text');
+
+    # Exit insert mode triggers block replay
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Escape');
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is($vb->text, "ZZab\nZZxy\n", 'ZZ inserted at left edge of both lines');
+};
+
+subtest 'Block insert end (A) inserts at right edge of block' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "ab\nxy\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_mode}->('visual_block');
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'j');
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'l');
+    # Block: rows 0-1, cols 0-1 (width 2)
+
+    Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'A');
+    is(${$ctx->{vim_mode}}, 'insert', 'entered insert mode');
+    is($ctx->{block_insert_info}{col}, 2, 'insert col is right edge');
+    is($vb->cursor_col, 2, 'cursor at right edge of block');
+
+    $vb->insert_text("ZZ");
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Escape');
+
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is($vb->text, "abZZ\nxyZZ\n", 'ZZ inserted at right edge of both lines');
+};
+
+# ==========================================================================
+# 27. Consecutive visual operations
+# ==========================================================================
+subtest 'Multiple consecutive visual yanks overwrite yank_buf' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcdef\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # First visual selection and yank
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l');
+    # Selection: cols 0-1 = "ab"
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
+    is(${$ctx->{yank_buf}}, 'ab', 'first yank stored "ab"');
+
+    # Move right and start new visual selection
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l', 'l');
+    is($vb->cursor_col, 3, 'cursor moved to col 3 in normal mode');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'l');
+    # Selection: cols 3-4 = "de"
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
+
+    is(${$ctx->{yank_buf}}, 'de', 'second yank overwrote yank_buf with "de"');
+    is(${$ctx->{vim_mode}}, 'normal', 'returned to normal');
+    is($vb->text, "abcdef\n", 'text unchanged (both were yanks)');
+};
+
 done_testing;
