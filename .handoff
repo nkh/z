@@ -20,20 +20,18 @@ a1c5de3 Fix clipboard paste when use_clipboard=1, default use_clipboard to 1
 
 ### Submodule (P5-Gtk3-SourceEditor): latest commits
 ```
-d9b46c2 Add keyboard dispatch architecture documentation
-456f26d Add project handoff file for cross-session continuity
-79d97b4 Update documentation: use_clipboard default changed to 1
-8e5fb63 Enable system clipboard integration by default
-71af97f Fix gv in visual_line mode: use tracked cursor line instead of insert mark
-66e88a6 Fix search_forward/search_backward: unpack (success, match_start, match_end)
-4f38162 Log ALL key-press events in --debug-key output (before filtering)
-3212a4a Add --debug-key option and per-keypress debug logging
-be9b9d3 Fix * and # not working on non-US keyboards (AltGr detection)
-ddee45d Fix visual line mode: up arrow stuck at line before selection start
-3ed4424 Fix visual line navigation, word search (* / #), and gv reselect
+a35da0a fix: use paragraph-background for full-width undo tint, reduce delta
+c83f487 fix: collapse selection after applying undo highlight tag
+dc6b98b fix: use GtkTextTag instead of CSS for undo/redo selection tint
+c5354f3 feat: tint selection colour after undo/redo to highlight restored text
+413700a fix: clear selection after undo/redo to remove stale visual highlight
+dee787f fix: replace hardcoded paths with FindBin in t/00-smoke-mock.t
+f29e86d Fix vim_plugin.t: wire PluginLoader into create_test_context()
+ee49af9 Fix vim_replace.t: advance cursor in VimBuffer::Test::replace_char()
+551373d Fix vim_completion.t: add missing use lib so Perl can locate Completion.pm
 ```
 
-Working tree: Two new commits ready to push (d9b46c2, 456f26d)
+Working tree: clean
 
 ## Test Results (as of 2026-04-18)
 
@@ -46,7 +44,7 @@ Working tree: Two new commits ready to push (d9b46c2, 456f26d)
 | vim_editing.t | 30 | PASS |
 | vim_ex_commands.t | 21 | PASS |
 | vim_search.t | 13 | PASS |
-| vim_undo.t | 10 | PASS |
+| vim_undo.t | 13 | PASS |
 | vim_scroll.t | 20 | PASS |
 | vim_find_char.t | 26 | PASS |
 | vim_ctrl_keys.t | 11 | PASS |
@@ -84,6 +82,14 @@ None. All requested work is complete.
 13. Fix vim_completion.t: add missing `use lib ('lib', 't/lib')` so Perl can locate Completion.pm
 14. Fix vim_replace.t: add cursor advance in VimBuffer::Test::replace_char() (was using substr without moving cursor)
 15. Fix vim_plugin.t: wire PluginLoader into create_test_context() so plugins are loaded, keymaps merged, and ex-commands registered
+16. Fix t/00-smoke-mock.t: replace 4 hardcoded paths with FindBin::($RealBin) for portability
+17. Fix stale visual highlight after undo/redo: clear selection (first approach)
+18. Undo/redo highlight: GtkTextTag with paragraph-background for subtle tint of restored content
+    - CSS approach failed (GtkSourceView ignores CSS selection override)
+    - `background` tag property only covers text, `paragraph-background` fills full widget width
+    - GTK selection collapsed after tag applied so native color doesn't paint over tint
+    - Delta ~5% (12/255) for subtle effect; lighter in dark theme, darker in light theme
+    - Tag auto-removed on next keypress via _clear_undo_highlight in handle_normal_mode
 
 ## Key Architectural Notes
 
