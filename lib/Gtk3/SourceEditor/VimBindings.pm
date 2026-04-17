@@ -316,7 +316,10 @@ sub add_vim_bindings {
             || (eval { no warnings 'numeric'; 0 + $evtype == 8 });
         return FALSE if $vim_mode eq 'insert' || $vim_mode eq 'replace';
         my $state = eval { $event->state } // 0;
-        return FALSE if $state & 'control-mask';
+        # Let AltGr keys through (see key-press-event handler comment)
+        my $altgr = ($state & 'control-mask')
+                 && ($state & 'mod1-mask' || $state & 'mod5-mask');
+        return FALSE if ($state & 'control-mask') && !$altgr;
         my $k = eval { Gtk3::Gdk::keyval_name($event->keyval) } // '';
         return FALSE unless $k eq 'Up' || $k eq 'Down'
                         || $k eq 'Left' || $k eq 'Right';
@@ -338,7 +341,17 @@ sub add_vim_bindings {
         # Ctrl-key combinations are handled here so they can be dispatched
         # to actions (e.g., Ctrl-U, Ctrl-D, Ctrl-R).  We construct a
         # synthetic key name like 'Control-u' for the dispatch tables.
-        if ($e->state & 'control-mask') {
+        #
+        # AltGr keys on non-US keyboards (e.g., AltGr+3 = # on Swedish
+        # keyboard) produce control-mask in the state because AltGr is
+        # typically Ctrl+Alt on X11.  Detect this by checking whether
+        # mod1-mask (Alt) or mod5-mask is also set, and skip the
+        # control-key branch so the key falls through to normal mode
+        # handling (where it matches the asterisk/numbersign keymap).
+        my $state = $e->state;
+        my $altgr = ($state & 'control-mask')
+                 && ($state & 'mod1-mask' || $state & 'mod5-mask');
+        if (($state & 'control-mask') && !$altgr) {
             my $ctrl_k = 'Control-' . lc($k);
             if ($vim_mode eq 'normal'
                 || $vim_mode eq 'visual'

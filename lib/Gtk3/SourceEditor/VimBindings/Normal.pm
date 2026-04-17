@@ -1378,6 +1378,7 @@ sub register {
         n             => 'search_next',
         N             => 'search_prev',
         asterisk      => 'search_word_forward',
+        KP_Multiply   => 'search_word_forward',
         numbersign    => 'search_word_backward',
         v             => 'enter_visual',
         V             => 'enter_visual_line',
