@@ -5,10 +5,12 @@ use warnings;
 
 our $VERSION = '0.04';
 
-# Package-level state for undo/redo highlight CSS provider.
+# Package-level state for undo/redo highlight tag.
 # Accessed by _apply_undo_highlight (closure in register()) and
 # _clear_undo_highlight (package sub called from VimBindings.pm).
-our $_undo_hl_provider;
+our $_undo_hl_tag;      # GtkTextTag applied to restored selection
+our $_undo_hl_start;    # start iter offset (for removal)
+our $_undo_hl_end;      # end iter offset   (for removal)
 our $_undo_hl_applier;
 
 # register(\%ACTIONS) -- populate %ACTIONS with all normal-mode action coderefs,
@@ -17,27 +19,54 @@ sub register {
     my ($ACTIONS) = @_;
 
     # ----------------------------------------------------------------
+    # helper: remove highlight tag from buffer (internal)
+    #
+    # Defined before _apply_undo_highlight so it can be called from there.
+    # ----------------------------------------------------------------
+    my $_clear_undo_highlight_from_buffer;
+    $_clear_undo_highlight_from_buffer = sub {
+        my ($vb) = @_;
+        return unless $_undo_hl_tag && $vb && $vb->can('gtk_buffer');
+        my $buf = $vb->gtk_buffer;
+        eval {
+            my $start = $buf->get_iter_at_offset($_undo_hl_start);
+            my $end   = $buf->get_iter_at_offset($_undo_hl_end);
+            $buf->remove_tag($_undo_hl_tag, $start, $end);
+        };
+        # Remove the tag from the tag table so it can be recreated later.
+        eval {
+            $buf->get_tag_table->remove($_undo_hl_tag);
+        };
+        $_undo_hl_tag   = undef;
+        $_undo_hl_start = undef;
+        $_undo_hl_end   = undef;
+    };
+
+    # ----------------------------------------------------------------
     # helper: undo/redo highlight
     #
     # After undo or redo, GTK may restore mark positions that create a
-    # visible selection.  Instead of clearing it (boring), we tint the
-    # selection colour to a subtle "restored" shade so the user sees
-    # what came back.  The tint is removed on the next normal-mode
-    # keypress; cursor motion naturally collapses the selection via
-    # place_cursor.
+    # visible selection.  Instead of clearing it (boring), we apply a
+    # GtkTextTag with a subtle background tint so the user sees what
+    # came back.  The tag is removed on the next normal-mode keypress;
+    # cursor motion naturally collapses the selection via place_cursor.
     # ----------------------------------------------------------------
     my $_apply_undo_highlight = sub {
         my ($ctx) = @_;
-        my $view = $ctx->{gtk_view};
-        return unless $view && $view->can('get_style_context');
+        my $vb = $ctx->{vb};
+        return unless $vb && $vb->can('gtk_buffer');
 
-        # Remove previous provider if still lingering
-        if ($_undo_hl_provider) {
-            eval {
-                $view->get_style_context->remove_provider($_undo_hl_provider);
-            };
-            $_undo_hl_provider = undef;
-        }
+        # Clean up any previous highlight tag
+        $_clear_undo_highlight_from_buffer->($vb);
+
+        my $buf = $vb->gtk_buffer;
+
+        # Check if there is actually a selection to highlight.
+        # GTK's native undo may or may not restore mark positions.
+        my ($sel_start, $sel_end) = eval {
+            $buf->get_selection_bounds;
+        };
+        return unless $sel_start && $sel_end && $sel_start->get_offset < $sel_end->get_offset;
 
         # Derive a subtle tint from the theme.  In a dark theme the
         # highlight is lighter; in a light theme it is darker.
@@ -64,12 +93,21 @@ sub register {
         }
         my $tint = "#$hr$hg$hb";
 
-        my $css = Gtk3::CssProvider->new();
-        $css->load_from_data(
-            "GtkSourceView text selection { background-color: $tint; }\n"
+        # Create a tag with the tinted background.
+        # We do NOT override the foreground so text remains readable.
+        my $tag = $buf->create_tag('vim-undo-highlight',
+            'background' => $tint,
         );
-        $view->get_style_context->add_provider($css, 700);
-        $_undo_hl_provider = $css;
+
+        # Apply the tag to the selection range.
+        my $start = $sel_start->copy;
+        my $end   = $sel_end->copy;
+        $buf->apply_tag($tag, $start, $end);
+
+        # Save references for later removal.
+        $_undo_hl_tag   = $tag;
+        $_undo_hl_start = $sel_start->get_offset;
+        $_undo_hl_end   = $sel_end->get_offset;
     };
 
     $_undo_hl_applier = $_apply_undo_highlight;
@@ -1501,19 +1539,27 @@ sub register {
 # ----------------------------------------------------------------
 # _clear_undo_highlight($ctx)
 #
-# Remove the CSS provider that tints the selection colour after
+# Remove the GtkTextTag that tints the restored selection after
 # undo/redo.  Called from handle_normal_mode() on every subsequent
 # keypress so the tint lasts only until the user moves or types.
 # ----------------------------------------------------------------
 sub _clear_undo_highlight {
     my ($ctx) = @_;
-    return unless $_undo_hl_provider;
-    my $view = $ctx->{gtk_view};
-    return unless $view && $view->can('get_style_context');
+    return unless $_undo_hl_tag;
+    my $vb = $ctx->{vb};
+    return unless $vb && $vb->can('gtk_buffer');
+    my $buf = $vb->gtk_buffer;
     eval {
-        $view->get_style_context->remove_provider($_undo_hl_provider);
+        my $start = $buf->get_iter_at_offset($_undo_hl_start);
+        my $end   = $buf->get_iter_at_offset($_undo_hl_end);
+        $buf->remove_tag($_undo_hl_tag, $start, $end);
     };
-    $_undo_hl_provider = undef;
+    eval {
+        $buf->get_tag_table->remove($_undo_hl_tag);
+    };
+    $_undo_hl_tag   = undef;
+    $_undo_hl_start = undef;
+    $_undo_hl_end   = undef;
 }
 
 1;
