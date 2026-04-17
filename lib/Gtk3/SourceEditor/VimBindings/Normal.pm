@@ -108,6 +108,13 @@ sub register {
         $_undo_hl_tag   = $tag;
         $_undo_hl_start = $sel_start->get_offset;
         $_undo_hl_end   = $sel_end->get_offset;
+
+        # Collapse the GTK selection so the native selection colour no
+        # longer paints over our tag background.  place_cursor moves
+        # both insert and selection_bound to the same position, which
+        # removes the GTK selection highlight.  The tag background
+        # remains visible until _clear_undo_highlight strips it.
+        $buf->place_cursor($sel_start);
     };
 
     $_undo_hl_applier = $_apply_undo_highlight;
