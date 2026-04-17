@@ -337,6 +337,26 @@ sub add_vim_bindings {
         # GdkEventType may be a string ('key-press') or integer (8 = GDK_KEY_PRESS)
         return FALSE unless $evtype eq 'key-press'
             || (eval { no warnings 'numeric'; 0 + $evtype == 8 });
+        # Debug: log ALL key-press events at the event signal level
+        # before any filtering.  Use [debug-event] prefix to distinguish
+        # from [debug-key] lines in the key-press-event handler.
+        if ($ctx->{_debug_key}) {
+            my $dk = eval { Gtk3::Gdk::keyval_name($event->keyval) } // '';
+            my $ds = eval { $event->state } // 0;
+            my $du = eval { Gtk3::Gdk::keyval_to_unicode($event->keyval) } // 0;
+            my $du_repr = $du ? sprintf("U+%04X", $du) : '';
+            my $state_str = '';
+            if ($ds) {
+                my @mods;
+                push @mods, 'Ctrl'  if $ds & 'control-mask';
+                push @mods, 'Shift' if $ds & 'shift-mask';
+                push @mods, 'Mod1'  if $ds & 'mod1-mask';
+                push @mods, 'Mod5'  if $ds & 'mod5-mask';
+                $state_str = join('+', @mods) . '+' if @mods;
+            }
+            printf STDERR "[debug-event] mode=%-10s raw=%-20s keyval=%-6s state=%s%s\n",
+                $vim_mode, $dk, $event->keyval, $state_str, $du_repr;
+        }
         return FALSE if $vim_mode eq 'insert' || $vim_mode eq 'replace';
         my $state = eval { $event->state } // 0;
         # Let AltGr keys through (see key-press-event handler comment)
@@ -346,12 +366,6 @@ sub add_vim_bindings {
         my $k = eval { Gtk3::Gdk::keyval_name($event->keyval) } // '';
         return FALSE unless $k eq 'Up' || $k eq 'Down'
                         || $k eq 'Left' || $k eq 'Right';
-        # Debug: show intercepted arrow key
-        if ($ctx->{_debug_key}) {
-            my $km = $ctx->{resolved_keymap}{$vim_mode} // {};
-            my $action = $km->{$k};
-            $_debug_key->($k, $k, $state, 0, $action, $event->keyval);
-        }
         # Handle through vim in normal/visual modes.
         # Returning TRUE prevents key-press-event from being emitted,
         # so GtkSourceView never processes the arrow key.
