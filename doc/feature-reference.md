@@ -43,7 +43,7 @@ PluginLoader.pm (runtime plugin management).
 | `show_line_marks` | Bool | `undef` | Show line-marks gutter |
 | `block_cursor` | Bool | `0` | 0=ibeam, 1=block (Cairo) |
 | `force_language` | String | `undef` | Override syntax lang |
-| `use_clipboard` | Bool | `0` | Copy to system clipboard |
+| `use_clipboard` | Bool | `1` | Copy to system clipboard; paste reads from clipboard when yank register is empty |
 | `tab_string` | String | `"\t"` | Tab insert text |
 | `window` | Widget | `undef` | Parent for on_close |
 | `on_close` | CodeRef | `undef` | Destroy callback |

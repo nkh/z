@@ -505,7 +505,7 @@ is the concatenation of the GDK names of each character. Examples:
 | `$ctx->{page_size}` | int | Lines per viewport (default 20) |
 | `$ctx->{shiftwidth}` | int | Indent width (default 4) |
 | `$ctx->{tab_string}` | str | Tab character (default "\t") |
-| `$ctx->{use_clipboard}` | bool | Copy yanks to system clipboard (default 0) |
+| `$ctx->{use_clipboard}` | bool | Copy yanks to system clipboard; paste reads from clipboard when yank register is empty (default 1) |
 | `$ctx->{is_readonly}` | bool | Block insert/replace transitions |
 | `$ctx->{filename_ref}` | str ref | Current filename |
 | `$ctx->{gtk_view}` | GtkWidget | Real GTK view (undef in tests) |

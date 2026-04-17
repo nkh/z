@@ -236,7 +236,7 @@ The context hash is created once in `add_vim_bindings()` (or `create_test_contex
 | `shiftwidth` | `integer` | 4 | Columns per indent level. |
 | `scrolloff` | `integer` or `undef` | `undef` | Scroll margin. `undef` = center. |
 | `tab_string` | `string` | `"\t"` | String inserted by Tab key. |
-| `use_clipboard` | `boolean` | 0 | Copy yanked text to system clipboard. |
+| `use_clipboard` | `boolean` | 1 | Copy yanked text to system clipboard; paste reads from clipboard when yank register is empty. |
 | `filename_ref` | `scalarref` | `\""` | Reference to filename string. Update for `:w`/`:e`. |
 
 **Closures (stable):**

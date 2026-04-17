@@ -284,7 +284,7 @@ command entry. Custom themes can be any valid GtkSourceView XML file.
 | `force_language` | string | -- | Override syntax language ID |
 | `tab_string` | string | `"\t"` | String inserted by Tab key |
 | `block_cursor` | bool | 0 | Start with block cursor |
-| `use_clipboard` | bool | 0 | Copy yanked text to clipboard |
+| `use_clipboard` | bool | 1 | Copy yanked text to clipboard; paste reads from clipboard when yank register is empty |
 
 **Vim customization:**
 
