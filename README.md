@@ -8,7 +8,7 @@ syntax highlighting, and configuration file support. Version 0.04.
 
 - **Drop-in widget** -- embed a full-featured editor with a single `new()` call
 - **6 editing modes** -- Normal, Insert, Replace, Visual (char/line/block), Command
-- **210+ headless tests** -- no GTK display server needed; pure Perl test backend
+- **390+ headless tests** -- no GTK display server needed; pure Perl test backend
 - **GUI-decoupled architecture** -- all editing logic operates through the abstract
   `VimBuffer` interface, enabling headless testing and potential reuse with other
   widget toolkits
@@ -322,7 +322,7 @@ command entry. Custom themes can be any valid GtkSourceView XML file.
 
 ## Testing
 
-All 210+ tests run without a display server using mock objects and `VimBuffer::Test`:
+All 390+ tests run without a display server using mock objects and `VimBuffer::Test`:
 
 ```bash
 # Run a single test file
@@ -331,7 +331,7 @@ perl -Ilib -It/lib t/vim_dispatch.t
 # Run the config parser tests
 perl -Ilib -It/lib t/editor_config.t
 
-# Run all 17 test files
+# Run all 19 test files
 prove -Ilib -It/lib t/
 ```
 
