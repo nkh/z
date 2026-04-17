@@ -297,6 +297,28 @@ sub add_vim_bindings {
         $ctx->{"${mode}_ctrl_dispatch"} = _build_ctrl_dispatch($mm);
     }
 
+    # Debug helper: when _debug_key is set, print what GTK reports and
+    # what the dispatch resolves to.  Useful for diagnosing key bindings
+    # on non-US keyboard layouts or under different GDK backends.
+    # Defined before the signal handlers so it can be used in both.
+    my $_debug_key = sub {
+        return unless $ctx->{_debug_key};
+        my ($raw_k, $resolved_k, $state, $unicode, $action, $keyval) = @_;
+        my $state_str = '';
+        if ($state) {
+            my @mods;
+            push @mods, 'Ctrl'  if $state & 'control-mask';
+            push @mods, 'Shift' if $state & 'shift-mask';
+            push @mods, 'Mod1'  if $state & 'mod1-mask';
+            push @mods, 'Mod5'  if $state & 'mod5-mask';
+            $state_str = join('+', @mods) . '+' if @mods;
+        }
+        my $u_repr = $unicode ? (sprintf " U+%04X", $unicode) : '';
+        my $a_repr = defined $action ? $action : '(none)';
+        printf STDERR "[debug-key] mode=%-10s raw=%-20s resolved=%-15s keyval=%-6s state=%s%s -> %s\n",
+            $vim_mode, $raw_k, $resolved_k, $keyval, $state_str, $u_repr, $a_repr;
+    };
+
     # Signal handlers
     # Intercept arrow keys (and other navigation keys) in the 'event'
     # signal, which fires BEFORE 'key-press-event'.  GtkTextView installs
@@ -324,6 +346,12 @@ sub add_vim_bindings {
         my $k = eval { Gtk3::Gdk::keyval_name($event->keyval) } // '';
         return FALSE unless $k eq 'Up' || $k eq 'Down'
                         || $k eq 'Left' || $k eq 'Right';
+        # Debug: show intercepted arrow key
+        if ($ctx->{_debug_key}) {
+            my $km = $ctx->{resolved_keymap}{$vim_mode} // {};
+            my $action = $km->{$k};
+            $_debug_key->($k, $k, $state, 0, $action, $event->keyval);
+        }
         # Handle through vim in normal/visual modes.
         # Returning TRUE prevents key-press-event from being emitted,
         # so GtkSourceView never processes the arrow key.
@@ -335,27 +363,6 @@ sub add_vim_bindings {
         }
         return TRUE;
     }) if $textview;
-
-    # Debug helper: when _debug_key is set, print what GTK reports and
-    # what the dispatch resolves to.  Useful for diagnosing key bindings
-    # on non-US keyboard layouts or under different GDK backends.
-    my $_debug_key = sub {
-        return unless $ctx->{_debug_key};
-        my ($raw_k, $resolved_k, $state, $unicode, $action, $keyval) = @_;
-        my $state_str = '';
-        if ($state) {
-            my @mods;
-            push @mods, 'Ctrl'  if $state & 'control-mask';
-            push @mods, 'Shift' if $state & 'shift-mask';
-            push @mods, 'Mod1'  if $state & 'mod1-mask';
-            push @mods, 'Mod5'  if $state & 'mod5-mask';
-            $state_str = join('+', @mods) . '+' if @mods;
-        }
-        my $u_repr = $unicode ? (sprintf " U+%04X", $unicode) : '';
-        my $a_repr = defined $action ? $action : '(none)';
-        printf STDERR "[debug-key] mode=%-10s raw=%-20s resolved=%-15s keyval=%-6s state=%s%s -> %s\n",
-            $vim_mode, $raw_k, $resolved_k, $keyval, $state_str, $u_repr, $a_repr;
-    };
 
     $textview->signal_connect('key-press-event' => sub {
         my ($w, $e) = @_;
