@@ -482,22 +482,21 @@ sub search_forward {
 
     my $found = $buf->get_iter_at_line_offset( $start_line, $start_col );
 
-    # Gtk3::TextIter::forward_search returns (match_start, match_end)
-    # in the Perl GI bindings when the search succeeds, or an empty
-    # list / undef when it fails.  We try the GTK native search first,
-    # then fall back to a Perl-based text search if it fails (e.g. due
-    # to the 'visible-only' flag not being recognised by the GI layer).
-    my ( $match_start, $match_end ) =
+    # Gtk3::TextIter::forward_search returns (success, match_start,
+    # match_end) — three values where the first is a boolean.  The
+    # comment from a previous refactor incorrectly stated it returns
+    # only (match_start, match_end).  Unpack all three values.
+    my ( $success, $match_start, $match_end ) =
       eval { $found->forward_search( $str, 'visible-only' ) };
 
-    if ( !$match_start ) {
+    if ( !$success ) {
         # Wrap: try from start of buffer
         $found = $buf->get_start_iter;
-        ( $match_start, $match_end ) =
+        ( $success, $match_start, $match_end ) =
           eval { $found->forward_search( $str, 'visible-only' ) };
     }
 
-    if ( !$match_start ) {
+    if ( !$success ) {
         # Fallback: Perl-based literal text search through buffer lines.
         my $total = $self->line_count;
         for my $offset ( 0 .. $total - 1 ) {
@@ -537,20 +536,19 @@ sub search_backward {
 
     my $found = $buf->get_iter_at_line_offset( $start_line, $safe_col );
 
-    # Gtk3::TextIter::backward_search returns (match_start, match_end)
-    # in the Perl GI bindings when the search succeeds, or an empty
-    # list / undef when it fails.
-    my ( $match_start, $match_end ) =
+    # Gtk3::TextIter::backward_search returns (success, match_start,
+    # match_end) — three values where the first is a boolean.
+    my ( $success, $match_start, $match_end ) =
       eval { $found->backward_search( $str, 'visible-only' ) };
 
-    if ( !$match_start ) {
+    if ( !$success ) {
         # Wrap: try from end of buffer
         $found = $buf->get_end_iter;
-        ( $match_start, $match_end ) =
+        ( $success, $match_start, $match_end ) =
           eval { $found->backward_search( $str, 'visible-only' ) };
     }
 
-    if ( !$match_start ) {
+    if ( !$success ) {
         # Fallback: Perl-based literal text search through buffer lines.
         my $total = $self->line_count;
         for my $offset ( 0 .. $total - 1 ) {
