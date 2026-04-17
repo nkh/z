@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
+use lib ('lib', 't/lib');
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use Cwd qw(getcwd);
