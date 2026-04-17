@@ -81,22 +81,22 @@ sub register {
         my $avg = (hex($br) + hex($bg) + hex($bb)) / 3;
         my ($hr, $hg, $hb);
         if ($avg < 128) {
-            # Dark theme: lighten by ~15%
-            $hr = sprintf("%02x", hex($br) + 40 > 255 ? 255 : hex($br) + 40);
-            $hg = sprintf("%02x", hex($bg) + 40 > 255 ? 255 : hex($bg) + 40);
-            $hb = sprintf("%02x", hex($bb) + 40 > 255 ? 255 : hex($bb) + 40);
+            # Dark theme: lighten by ~5%
+            $hr = sprintf("%02x", hex($br) + 12 > 255 ? 255 : hex($br) + 12);
+            $hg = sprintf("%02x", hex($bg) + 12 > 255 ? 255 : hex($bg) + 12);
+            $hb = sprintf("%02x", hex($bb) + 12 > 255 ? 255 : hex($bb) + 12);
         } else {
-            # Light theme: darken by ~15%
-            $hr = sprintf("%02x", hex($br) < 40 ? 0 : hex($br) - 40);
-            $hg = sprintf("%02x", hex($bg) < 40 ? 0 : hex($bg) - 40);
-            $hb = sprintf("%02x", hex($bb) < 40 ? 0 : hex($bb) - 40);
+            # Light theme: darken by ~5%
+            $hr = sprintf("%02x", hex($br) < 12 ? 0 : hex($br) - 12);
+            $hg = sprintf("%02x", hex($bg) < 12 ? 0 : hex($bg) - 12);
+            $hb = sprintf("%02x", hex($bb) < 12 ? 0 : hex($bb) - 12);
         }
         my $tint = "#$hr$hg$hb";
 
-        # Create a tag with the tinted background.
-        # We do NOT override the foreground so text remains readable.
+        # paragraph-background fills the full widget width per line,
+        # unlike 'background' which only covers the text characters.
         my $tag = $buf->create_tag('vim-undo-highlight',
-            'background' => $tint,
+            'paragraph-background' => $tint,
         );
 
         # Apply the tag to the selection range.
