@@ -1,0 +1,104 @@
+# Project Handoff — P5-Gtk3-SourceEditor
+# Maintained by AI sessions. Read this FIRST at the start of every session.
+# Last updated: 2026-04-18
+
+## Repository Structure
+- `/home/z/my-project/z` — parent repo (submodule pointer) with remote at github.com/nkh/z
+  - Commit token: stored in github_pat_... (available in env/session)
+  - Push command: `cd /home/z/my-project/z && git push origin main`
+- `/home/z/my-project/P5-Gtk3-SourceEditor` — the actual Perl module (submodule)
+  - NO remote configured (push goes through parent z repo)
+  - Working directory for all coding
+
+## Current Git State (as of 2026-04-18)
+
+### Parent repo (z): latest commits
+```
+a7b2215 Fix remaining test failures in visual mode tests
+a1c5de3 Fix clipboard paste when use_clipboard=1, default use_clipboard to 1
+```
+
+### Submodule (P5-Gtk3-SourceEditor): latest commits
+```
+d9b46c2 Add keyboard dispatch architecture documentation
+456f26d Add project handoff file for cross-session continuity
+79d97b4 Update documentation: use_clipboard default changed to 1
+8e5fb63 Enable system clipboard integration by default
+71af97f Fix gv in visual_line mode: use tracked cursor line instead of insert mark
+66e88a6 Fix search_forward/search_backward: unpack (success, match_start, match_end)
+4f38162 Log ALL key-press events in --debug-key output (before filtering)
+3212a4a Add --debug-key option and per-keypress debug logging
+be9b9d3 Fix * and # not working on non-US keyboards (AltGr detection)
+ddee45d Fix visual line mode: up arrow stuck at line before selection start
+3ed4424 Fix visual line navigation, word search (* / #), and gv reselect
+```
+
+Working tree: Two new commits ready to push (d9b46c2, 456f26d)
+
+## Test Results (as of 2026-04-18)
+
+### All passing tests (run from /home/z/my-project/P5-Gtk3-SourceEditor):
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| vim_visual.t | 42 | PASS |
+| vim_dispatch.t | 55 | PASS |
+| vim_bindings.t | 11 | PASS |
+| vim_editing.t | 30 | PASS |
+| vim_ex_commands.t | 21 | PASS |
+| vim_search.t | 13 | PASS |
+| vim_undo.t | 10 | PASS |
+| vim_scroll.t | 20 | PASS |
+| vim_find_char.t | 26 | PASS |
+| vim_ctrl_keys.t | 11 | PASS |
+| vim_marks.t | 8 | PASS |
+| editor_config.t | 17 | PASS |
+| vim_buffer.t | 24 | PASS |
+| vim_buffer_abstract.t | 30 | PASS |
+| 00-smoke-mock.t | - | PASS |
+
+### Pre-existing failures (NOT caused by our work — do NOT touch):
+| Test file | Issue |
+|-----------|-------|
+| vim_replace.t (5/10 fail) | Replace mode doesn't advance cursor properly; pre-existing code bug |
+| vim_plugin.t (7/8 fail) | Plugin loading/detection broken; pre-existing code bug |
+| vim_completion.t (crash) | Missing module Completion.pm; feature not implemented yet |
+
+## Pending Tasks
+
+None. All requested work is complete.
+
+## Completed Work (across sessions)
+
+1. Clipboard paste fix: `use_clipboard=1` now correctly pastes from system clipboard
+2. Default `use_clipboard` changed to 1
+3. Undo support for `:%s/pat/rep/g`
+4. `:%s/pat/rep` (without g flag) — replace first occurrence per line
+5. Status line timeout behavior fix
+6. Comprehensive visual mode tests (42 tests, all passing)
+7. Visual mode bug fixes (gv reselect, line navigation, case ops)
+8. Search forward/backward fix (unpack tuple correctly)
+9. Word search * / # fix (non-US keyboard AltGr detection)
+10. Debug key logging (`--debug-key` option)
+11. Project handoff file (`.handoff`) added to repo for cross-session continuity
+12. Keyboard dispatch architecture documentation (`docs/keyboard-dispatch.md`)
+
+## Key Architectural Notes
+
+- **Dispatch flow**: Key event → `_dispatch` in VimBindings.pm → routes to mode handler
+- **Modes**: normal, insert, visual, visual_line, visual_block, command_line
+- **Test infrastructure**: `t/lib/` has mock GTK objects; `Gtk3::SourceEditor::VimBuffer::Test` is the mock buffer
+- **Documentation**: `docs/keyboard-dispatch.md` covers the full dispatch architecture for all modes
+- **prove** does NOT work from this directory; must cd into /home/z/my-project/P5-Gtk3-SourceEditor first
+- Push workflow: commit in submodule → cd to z repo → git add submodule → commit → push
+
+## Important Process Rules (from user — NEVER violate these)
+
+1. **Read files SEQUENTIALLY** — never read in parallel, it breaks frequently
+2. **Keep this handoff file updated** — update it whenever state changes, always update before pushing
+3. **Commit messages must be descriptive** — explain what was done, not just "update"
+4. **Make small commits** — one commit per logical unit of work / functionality completed
+5. **Show commit messages in chat** — after committing, print the commit(s) so the user sees them
+6. **Always update the handoff before pushing to remote** — the handoff should reflect the state being pushed
+7. **The handoff file is tracked in the repo** — add it to the submodule and commit it
+8. **Do NOT re-do work already completed** — read this file first, check git log, check test results before starting anything
+9. **If you don't know what state something is in, check git log and run tests before guessing**
