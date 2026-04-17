@@ -49,6 +49,19 @@ sub register {
     };
 
     # ----------------------------------------------------------------
+    # Helper: get effective cursor line for visual operations.
+    # In visual_line mode with a GTK buffer, select_range moves the
+    # insert mark to start-of-line(hi+1), so cursor_line reports hi+1.
+    # When _visual_line_cursor is tracked, use it instead.
+    # In test mode (no GTK), _visual_line_cursor is never set, so
+    # cursor_line returns the correct value and we fall through.
+    # ----------------------------------------------------------------
+    my $_effective_cursor_line = sub {
+        my ($ctx) = @_;
+        return $ctx->{_visual_line_cursor} // $ctx->{vb}->cursor_line;
+    };
+
+    # ----------------------------------------------------------------
     # Helper: get block bounds { left, top, right, bottom }
     # ----------------------------------------------------------------
     my $_block_bounds = sub {
@@ -178,7 +191,7 @@ sub register {
             $yanked = $_block_text->($ctx);
         } elsif ($vtype eq 'line') {
             my $s = $ctx->{visual_start};
-            my $e = $vb->cursor_line;
+            my $e = $_effective_cursor_line->($ctx);
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
             $yanked = '';
             $yanked .= $vb->line_text($_) . "\n" for $lo .. $hi;
@@ -208,7 +221,7 @@ sub register {
             $_delete_block->($ctx);
         } elsif ($vtype eq 'line') {
             my $s = $ctx->{visual_start};
-            my $e = $vb->cursor_line;
+            my $e = $_effective_cursor_line->($ctx);
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
             my $yank = '';
             $yank .= $vb->line_text($_) . "\n" for $lo .. $hi;
@@ -247,7 +260,7 @@ sub register {
             $vb->set_cursor($b->{top}, $b->{left});
         } elsif ($vtype eq 'line') {
             my $s = $ctx->{visual_start};
-            my $e = $vb->cursor_line;
+            my $e = $_effective_cursor_line->($ctx);
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
             my $yank = '';
             $yank .= $vb->line_text($_) . "\n" for $lo .. $hi;
@@ -278,7 +291,7 @@ sub register {
         my $vb = $ctx->{vb};
         my $s = $ctx->{visual_start};
         # Swap: cursor goes to anchor, anchor becomes cursor position
-        my $cur_line = $vb->cursor_line;
+        my $cur_line = $_effective_cursor_line->($ctx);
         my $cur_col  = $vb->cursor_col;
         # Use move_cursor to preserve the GTK selection while moving the
         # insert mark.  after_move will re-establish the selection with
@@ -317,7 +330,7 @@ sub register {
                 ? $vb->line_length($b->{bottom}) : $b->{right});
         } elsif ($vtype eq 'line') {
             my $s = $ctx->{visual_start};
-            my $e = $vb->cursor_line;
+            my $e = $_effective_cursor_line->($ctx);
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
             for my $ln ($lo .. $hi) {
                 my $line_text = $vb->line_text($ln);
@@ -345,9 +358,24 @@ sub register {
 
         $_save_last_visual->($ctx);
 
-        if ($vtype eq 'line') {
+        if ($vtype eq 'block') {
+            my $b = $_block_bounds->($ctx);
+            for my $ln ($b->{top} .. $b->{bottom}) {
+                my $line_text = $vb->line_text($ln);
+                my $len = length($line_text);
+                next if $len <= $b->{left};
+                my $end = $b->{right} > $len ? $len : $b->{right};
+                my $slice = substr($line_text, $b->{left}, $end - $b->{left});
+                my $upper = uc $slice;
+                next if $upper eq $slice;
+                substr($line_text, $b->{left}, $end - $b->{left}) = $upper;
+                $vb->set_cursor($ln, 0);
+                $vb->delete_range($ln, 0, $ln, $len);
+                $vb->insert_text($line_text);
+            }
+        } elsif ($vtype eq 'line') {
             my $s = $ctx->{visual_start};
-            my $e = $vb->cursor_line;
+            my $e = $_effective_cursor_line->($ctx);
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
             for my $ln ($lo .. $hi) {
                 my $line_text = $vb->line_text($ln);
@@ -376,9 +404,24 @@ sub register {
 
         $_save_last_visual->($ctx);
 
-        if ($vtype eq 'line') {
+        if ($vtype eq 'block') {
+            my $b = $_block_bounds->($ctx);
+            for my $ln ($b->{top} .. $b->{bottom}) {
+                my $line_text = $vb->line_text($ln);
+                my $len = length($line_text);
+                next if $len <= $b->{left};
+                my $end = $b->{right} > $len ? $len : $b->{right};
+                my $slice = substr($line_text, $b->{left}, $end - $b->{left});
+                my $lower = lc $slice;
+                next if $lower eq $slice;
+                substr($line_text, $b->{left}, $end - $b->{left}) = $lower;
+                $vb->set_cursor($ln, 0);
+                $vb->delete_range($ln, 0, $ln, $len);
+                $vb->insert_text($line_text);
+            }
+        } elsif ($vtype eq 'line') {
             my $s = $ctx->{visual_start};
-            my $e = $vb->cursor_line;
+            my $e = $_effective_cursor_line->($ctx);
             my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
             for my $ln ($lo .. $hi) {
                 my $line_text = $vb->line_text($ln);
@@ -408,7 +451,7 @@ sub register {
         $_save_last_visual->($ctx);
 
         my $s = $ctx->{visual_start};
-        my $e = $vb->cursor_line;
+        my $e = $_effective_cursor_line->($ctx);
         my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
 
         $vb->set_cursor($lo, 0);
@@ -430,7 +473,7 @@ sub register {
         $_save_last_visual->($ctx);
 
         my $s = $ctx->{visual_start};
-        my $e = $vb->cursor_line;
+        my $e = $_effective_cursor_line->($ctx);
         my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
 
         # Simple format: join all lines with spaces, then re-wrap at 80 chars
@@ -525,7 +568,7 @@ sub register {
         my ($ctx) = @_;
         my $vb = $ctx->{vb};
         my $s = $ctx->{visual_start};
-        my $e = $vb->cursor_line;
+        my $e = $_effective_cursor_line->($ctx);
         my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
         my $count = $hi - $lo + 1;
         my $sw = $ctx->{shiftwidth} // 4;
@@ -546,7 +589,7 @@ sub register {
         my ($ctx) = @_;
         my $vb = $ctx->{vb};
         my $s = $ctx->{visual_start};
-        my $e = $vb->cursor_line;
+        my $e = $_effective_cursor_line->($ctx);
         my ($lo, $hi) = $s->{line} < $e ? ($s->{line}, $e) : ($e, $s->{line});
         my $count = $hi - $lo + 1;
         my $sw = $ctx->{shiftwidth} // 4;
