@@ -14,12 +14,18 @@ sub register {
         my ($ctx) = @_;
         my $vb = $ctx->{vb};
         return unless $ctx->{visual_start};
+        # In visual_line mode, select_range moves the insert mark to
+        # the start of line hi+1 (to include the trailing newline),
+        # so cursor_line reports the wrong line.  Use the tracked
+        # visual cursor line when available.
+        my $end_line = $ctx->{_visual_line_cursor} // $vb->cursor_line;
+        my $end_col  = $ctx->{_visual_line_cursor} ? ($ctx->{desired_col} // $vb->cursor_col) : $vb->cursor_col;
         $ctx->{last_visual} = {
             type       => $ctx->{visual_type},
             start_line => $ctx->{visual_start}{line},
             start_col  => $ctx->{visual_start}{col},
-            end_line   => $vb->cursor_line,
-            end_col    => $vb->cursor_col,
+            end_line   => $end_line,
+            end_col    => $end_col,
         };
     };
 
