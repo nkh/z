@@ -783,7 +783,20 @@ sub _init_utilities {
             return;
         }
 
-        my $line = $vb->cursor_line;
+        # In visual line mode, select_range places the insert mark at
+        # the start of the line AFTER the last selected line (so the
+        # trailing newline is included and the highlight fills the widget
+        # width).  This makes cursor_line report the wrong line for
+        # move_vert.  We keep a separate tracking variable for the
+        # "visual cursor line" in this mode.
+        my $line;
+        my $mode = ${$ctx->{vim_mode}};
+        if ( $mode eq 'visual_line'
+            && defined $ctx->{_visual_line_cursor} ) {
+            $line = $ctx->{_visual_line_cursor};
+        } else {
+            $line = $vb->cursor_line;
+        }
         # Use desired_col for vertical movement, fall back to current col
         my $col  = $ctx->{desired_col} // $vb->cursor_col;
         $line += $count;
@@ -794,7 +807,6 @@ sub _init_utilities {
         # (one past the last character) so that a column previously set
         # by 'l' in visual mode can be restored when moving back to
         # a long line.  In normal mode, stop at the last character.
-        my $mode = ${$ctx->{vim_mode}};
         if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
             $col = $max if $col > $max;
             $vb->move_cursor($line, $col);
@@ -821,25 +833,44 @@ sub _init_utilities {
                     my $cursor_iter = $buf->get_iter_at_mark($buf->get_insert);
                     if ($mode eq 'visual_line') {
                         # Line mode: extend selection to full line boundaries.
-                        my $cur_line = $cursor_iter->get_line;
-                        my ($lo, $hi) = $vs->{line} <= $cur_line
-                            ? ($vs->{line}, $cur_line)
-                            : ($cur_line, $vs->{line});
+                        # Select from the start of the first line to the start
+                        # of the line AFTER the last line.  This includes
+                        # all newline characters so GTK extends the
+                        # selection highlight to the right edge of the
+                        # widget on every line (matching vim behaviour).
+                        #
+                        # Note: select_range moves the insert mark to
+                        # $end_iter (start of line hi+1).  We record the
+                        # effective visual cursor line as $hi so that
+                        # move_vert uses the correct starting line for
+                        # subsequent up/down movements.
+                        my $cursor_line_for_sel = $cursor_iter->get_line;
+                        my ($lo, $hi) = $vs->{line} <= $cursor_line_for_sel
+                            ? ($vs->{line}, $cursor_line_for_sel)
+                            : ($cursor_line_for_sel, $vs->{line});
                         my $anchor_iter = $buf->get_iter_at_line($lo);
-                        my $end_iter = $buf->get_iter_at_line($hi);
-                        $end_iter->forward_to_line_end;
-                        # select_range with insert at end_of_line and
-                        # selection_bound at start_of_line so GTK highlights
-                        # entire lines.  We do NOT restore the cursor to its
-                        # actual column because that would shrink the GTK
-                        # selection to stop at the cursor position.
+                        my $end_iter;
+                        if ($hi + 1 < $buf->get_line_count) {
+                            $end_iter = $buf->get_iter_at_line($hi + 1);
+                        } else {
+                            $end_iter = $buf->get_end_iter;
+                        }
                         $buf->select_range($end_iter, $anchor_iter);
-                        # Do NOT restore the insert mark to the actual cursor
-                        # column -- that would truncate the visual selection at
-                        # the cursor column instead of showing the full line.
-                        # Instead, just preserve desired_col so vertical
-                        # movement continues to use the correct column.
-                        $ctx->{desired_col} = $cursor_iter->get_line_offset;
+                        # Track the visual cursor line so move_vert uses
+                        # the correct line (hi, not hi+1 where the insert
+                        # mark now sits).
+                        $ctx->{_visual_line_cursor} = $hi;
+                        # Preserve desired_col when navigating through
+                        # short or empty lines.  Only update it when the
+                        # cursor was NOT clamped to the end of a shorter
+                        # line; otherwise we lose the original column and
+                        # vertical movement breaks (up arrow stops at
+                        # empty lines).
+                        my $actual_col = $cursor_iter->get_line_offset;
+                        if (!defined($ctx->{desired_col})
+                            || $actual_col >= $ctx->{desired_col}) {
+                            $ctx->{desired_col} = $actual_col;
+                        }
                     } else {
                         my $anchor_iter = $buf->get_iter_at_line_offset(
                             $vs->{line}, $vs->{col});
@@ -999,6 +1030,7 @@ sub _init_mode_setter {
                 my $iter = $gbuf->get_iter_at_mark($gbuf->get_insert);
                 $gbuf->select_range($iter, $iter);
             }
+            delete $ctx->{_visual_line_cursor};
         }
 
         # Set textview editable for insert and replace modes
@@ -1020,11 +1052,23 @@ sub _init_mode_setter {
                 my $gbuf = $vb->gtk_buffer;
                 my $iter = $gbuf->get_iter_at_mark($gbuf->get_insert);
                 if ($mode eq 'visual_line') {
-                    # Select the entire current line
-                    my $start_iter = $gbuf->get_iter_at_line($iter->get_line);
-                    my $end_iter = $start_iter->copy;
-                    $end_iter->forward_to_line_end;
+                    # Select the entire current line by selecting from
+                    # the start of this line to the start of the next line
+                    # (or end of buffer).  This includes the newline so
+                    # GTK extends the highlight to the widget edge.
+                    my $cur_ln = $iter->get_line;
+                    my $start_iter = $gbuf->get_iter_at_line($cur_ln);
+                    my $end_iter;
+                    if ($cur_ln + 1 < $gbuf->get_line_count) {
+                        $end_iter = $gbuf->get_iter_at_line($cur_ln + 1);
+                    } else {
+                        $end_iter = $gbuf->get_end_iter;
+                    }
                     $gbuf->select_range($end_iter, $start_iter);
+                    # Track the visual cursor line: the user is on
+                    # $cur_ln, not on $cur_ln + 1 where the insert
+                    # mark was just moved by select_range.
+                    $ctx->{_visual_line_cursor} = $cur_ln;
                 } else {
                     $gbuf->select_range($iter, $iter);
                 }

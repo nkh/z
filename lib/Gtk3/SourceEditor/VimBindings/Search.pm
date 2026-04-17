@@ -125,13 +125,15 @@ sub register {
         my $word = substr($text, $start, $end - $start);
         return unless length $word;
 
-        # Set up the search pattern (with word boundaries for exact match).
-        my $pattern = "\\b$word\\b";
-        $ctx->{search_pattern}   = $pattern;
+        # Set up the search pattern.  GTK's forward_search does a
+        # literal string search (not regex), so \b boundaries cannot
+        # be used.  Use the plain word -- the user already identified
+        # it via \w boundaries when extracting it from the cursor.
+        $ctx->{search_pattern}   = $word;
         $ctx->{search_direction} = 'forward';
 
         for (1 .. $count) {
-            my $result = $vb->search_forward($pattern);
+            my $result = $vb->search_forward($word);
             if ($result) {
                 $vb->set_cursor($result->{line}, $result->{col});
                 $ctx->{after_move}->($ctx) if $ctx->{after_move};
@@ -168,13 +170,15 @@ sub register {
         my $word = substr($text, $start, $end - $start);
         return unless length $word;
 
-        # Set up the search pattern (with word boundaries for exact match).
-        my $pattern = "\\b$word\\b";
-        $ctx->{search_pattern}   = $pattern;
+        # Set up the search pattern.  GTK's backward_search does a
+        # literal string search (not regex), so \b boundaries cannot
+        # be used.  Use the plain word -- the user already identified
+        # it via \w boundaries when extracting it from the cursor.
+        $ctx->{search_pattern}   = $word;
         $ctx->{search_direction} = 'backward';
 
         for (1 .. $count) {
-            my $result = $vb->search_backward($pattern);
+            my $result = $vb->search_backward($word);
             if ($result) {
                 $vb->set_cursor($result->{line}, $result->{col});
                 $ctx->{after_move}->($ctx) if $ctx->{after_move};

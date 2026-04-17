@@ -473,18 +473,44 @@ sub search_forward {
     my $str = ref($pattern) ? "$pattern" : $pattern;
     return undef unless defined $str && length $str;
 
-    my $buf   = $self->{_buffer};
+    my $buf = $self->{_buffer};
+
+    # Clamp start_col to valid range for the line.
+    my $max_col = $self->line_length($start_line);
+    $start_col = $max_col if $start_col > $max_col;
+    $start_col = 0         if $start_col < 0;
+
     my $found = $buf->get_iter_at_line_offset( $start_line, $start_col );
 
-    # Gtk3::TextIter::forward_search returns (success, match_start, match_end)
-    # where success is a boolean.  We must capture all three return values.
-    my ($success, $match_start) = $found->forward_search( $str, 'visible-only' );
+    # Gtk3::TextIter::forward_search returns (match_start, match_end)
+    # in the Perl GI bindings when the search succeeds, or an empty
+    # list / undef when it fails.  We try the GTK native search first,
+    # then fall back to a Perl-based text search if it fails (e.g. due
+    # to the 'visible-only' flag not being recognised by the GI layer).
+    my ( $match_start, $match_end ) =
+      eval { $found->forward_search( $str, 'visible-only' ) };
 
-    if ( !$success ) {
+    if ( !$match_start ) {
         # Wrap: try from start of buffer
         $found = $buf->get_start_iter;
-        ($success, $match_start) = $found->forward_search( $str, 'visible-only' );
-        return undef unless $success;
+        ( $match_start, $match_end ) =
+          eval { $found->forward_search( $str, 'visible-only' ) };
+    }
+
+    if ( !$match_start ) {
+        # Fallback: Perl-based literal text search through buffer lines.
+        my $total = $self->line_count;
+        for my $offset ( 0 .. $total - 1 ) {
+            my $ln   = ( $start_line + $offset ) % $total;
+            my $text = $self->line_text($ln);
+            my $from = ( $offset == 0 ) ? $start_col : 0;
+            next if length($text) < $from;
+            my $pos = index( $text, $str, $from );
+            if ( $pos >= 0 ) {
+                return { line => $ln, col => $pos };
+            }
+        }
+        return undef;
     }
 
     return { line => $match_start->get_line, col => $match_start->get_line_offset };
@@ -503,16 +529,43 @@ sub search_backward {
     return undef unless defined $str && length $str;
 
     my $buf = $self->{_buffer};
-    my $found =
-      $buf->get_iter_at_line_offset( $start_line, $start_col < 0 ? 0 : $start_col );
 
-    # Gtk3::TextIter::backward_search returns (success, match_start, match_end).
-    my ($success, $match_start) = $found->backward_search( $str, 'visible-only' );
+    # Clamp start_col to valid range for the line.
+    my $safe_col = $start_col < 0 ? 0 : $start_col;
+    my $max_col  = $self->line_length($start_line);
+    $safe_col = $max_col if $safe_col > $max_col;
 
-    if ( !$success ) {
+    my $found = $buf->get_iter_at_line_offset( $start_line, $safe_col );
+
+    # Gtk3::TextIter::backward_search returns (match_start, match_end)
+    # in the Perl GI bindings when the search succeeds, or an empty
+    # list / undef when it fails.
+    my ( $match_start, $match_end ) =
+      eval { $found->backward_search( $str, 'visible-only' ) };
+
+    if ( !$match_start ) {
+        # Wrap: try from end of buffer
         $found = $buf->get_end_iter;
-        ($success, $match_start) = $found->backward_search( $str, 'visible-only' );
-        return undef unless $success;
+        ( $match_start, $match_end ) =
+          eval { $found->backward_search( $str, 'visible-only' ) };
+    }
+
+    if ( !$match_start ) {
+        # Fallback: Perl-based literal text search through buffer lines.
+        my $total = $self->line_count;
+        for my $offset ( 0 .. $total - 1 ) {
+            my $ln   = ( $start_line - $offset + $total ) % $total;
+            my $text = $self->line_text($ln);
+            my $from = ( $offset == 0 ) ? $safe_col : length($text) - 1;
+            while ( $from >= 0 ) {
+                my $pos = index( $text, $str, 0 );
+                if ( $pos >= 0 && $pos <= $from ) {
+                    return { line => $ln, col => $pos };
+                }
+                last;    # index only finds first occurrence; no more matches
+            }
+        }
+        return undef;
     }
 
     return { line => $match_start->get_line, col => $match_start->get_line_offset };

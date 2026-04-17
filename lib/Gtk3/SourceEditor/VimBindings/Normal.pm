@@ -976,43 +976,8 @@ sub register {
         $vb->replace_char($char);
     };
 
-    $ACTIONS->{search_word_under_cursor} = sub {
-        my ($ctx, $count) = @_;
-        $count ||= 1;
-        my $vb = $ctx->{vb};
-        # Extract the word under the cursor: scan backward to find the
-        # start of the word (\w characters), then forward for the end.
-        my $line = $vb->cursor_line;
-        my $col  = $vb->cursor_col;
-        my $text = $vb->line_text($line);
-        return unless defined $text && length $text;
-        # Find start of word
-        my $start = $col;
-        while ($start > 0 && substr($text, $start - 1, 1) =~ /^\w$/) {
-            $start--;
-        }
-        # Find end of word
-        my $end = $col;
-        while ($end < length($text) && substr($text, $end, 1) =~ /^\w$/) {
-            $end++;
-        }
-        return if $start >= $end;
-        my $word = substr($text, $start, $end - $start);
-        return unless length $word;
-        # Set as search pattern and jump to next match
-        $ctx->{search_pattern}   = $word;
-        $ctx->{search_direction} = 'forward';
-        for (1 .. $count) {
-            my $result = $vb->search_forward($word);
-            if ($result) {
-                $vb->set_cursor($result->{line}, $result->{col});
-                $ctx->{after_move}->($ctx) if $ctx->{after_move};
-            } else {
-                $ctx->{show_status}->("Pattern not found: $word") if $ctx->{show_status};
-                last;
-            }
-        }
-    };
+    # search_word_forward / search_word_backward are registered in
+    # Search.pm (which is loaded before _build_dispatch).
 
     $ACTIONS->{join_lines} = sub {
         my ($ctx, $count) = @_;
@@ -1286,7 +1251,10 @@ sub register {
 
     $ACTIONS->{reselect_visual} = sub {
         my ($ctx) = @_;
-        return unless $ctx->{last_visual};
+        unless ($ctx->{last_visual}) {
+            $ctx->{show_status}->("Error: No previous visual selection") if $ctx->{show_status};
+            return;
+        }
         my $lv = $ctx->{last_visual};
         my $mode = $lv->{type} eq 'block' ? 'visual_block'
                  : $lv->{type} eq 'line'  ? 'visual_line'
@@ -1295,6 +1263,11 @@ sub register {
         # Set visual_start AFTER set_mode (which overwrites it)
         $ctx->{visual_type} = $lv->{type};
         $ctx->{visual_start} = { line => $lv->{start_line}, col => $lv->{start_col} };
+        # For visual_line mode, pre-set _visual_line_cursor so that
+        # move_vert uses the correct line (see after_move tracking).
+        if ($mode eq 'visual_line') {
+            $ctx->{_visual_line_cursor} = $lv->{end_line};
+        }
         # Use move_cursor to preserve the GTK selection, then let
         # after_move re-establish the full selection range.
         $ctx->{vb}->move_cursor($lv->{end_line}, $lv->{end_col});
@@ -1416,21 +1389,6 @@ sub register {
         colon         => 'enter_command',
         slash         => 'enter_search',
         question      => 'enter_search_backward',
-        P             => 'paste_before',
-        J             => 'join_lines',
-        u             => 'undo',
-        U             => 'line_undo',
-        greatergreater => 'indent_right',
-        lessless     => 'indent_left',
-        colon         => 'enter_command',
-        slash         => 'enter_search',
-        question      => 'enter_search_backward',
-        v             => 'enter_visual',
-        V             => 'enter_visual_line',
-        gv            => 'reselect_visual',
-        semicolon     => 'find_repeat',
-        comma         => 'find_repeat_reverse',
-        percent       => 'percent_motion',
     };
 }
 

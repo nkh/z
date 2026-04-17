@@ -118,6 +118,7 @@ sub register {
         my ($ctx) = @_;
         delete $ctx->{visual_type};
         delete $ctx->{visual_start};
+        delete $ctx->{_visual_line_cursor};
     };
 
     # ----------------------------------------------------------------
@@ -125,6 +126,9 @@ sub register {
     # ----------------------------------------------------------------
     $ACTIONS->{visual_exit} = sub {
         my ($ctx) = @_;
+        # Save the visual selection so gv can reselect it later.
+        # Vim saves on Escape exit, not just on yank/delete.
+        $_save_last_visual->($ctx);
         # Call set_mode FIRST so it can detect the transition from visual
         # to normal and properly clear the GTK selection.  Only clean up
         # our visual state after set_mode has run.
