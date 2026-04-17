@@ -525,7 +525,66 @@ sub create_test_context {
     _init_utilities($ctx);
     _init_mode_setter($ctx);
 
-    my ($resolved, $ex_cmds) = _resolve_keymap($opts{keymap}, $opts{ex_commands});
+    # Load plugins if requested (test helper only; production uses add_vim_bindings)
+    my $plugin_keymap;
+    my $plugin_ex_cmds;
+    if ($opts{plugin_dirs} || $opts{plugin_files} || $opts{plugin_config}) {
+        require Gtk3::SourceEditor::VimBindings::PluginLoader;
+        my @results = Gtk3::SourceEditor::VimBindings::PluginLoader::load_plugins(
+            \%ACTIONS,
+            dirs     => $opts{plugin_dirs}  // [],
+            files    => $opts{plugin_files} // [],
+            config   => $opts{plugin_config} // {},
+            warnings => 1,
+        );
+        # Merge plugin mode keymaps into a single override structure
+        my %pkm;
+        my %pex;
+        for my $r (@results) {
+            next unless $r && $r->{modes};
+            for my $mode (keys %{$r->{modes}}) {
+                $pkm{$mode} //= {};
+                my $src = $r->{modes}{$mode};
+                for my $k (keys %$src) {
+                    if ($k eq '_immediate') {
+                        push @{$pkm{$mode}{$k}}, @{$src->{$k} // []};
+                    } elsif ($k eq '_prefixes') {
+                        push @{$pkm{$mode}{$k}}, @{$src->{$k} // []};
+                    } elsif ($k eq '_char_actions') {
+                        $pkm{$mode}{$k} //= {};
+                        %{$pkm{$mode}{$k}} = (%{$pkm{$mode}{$k} // {}}, %{$src->{$k} // {}});
+                    } else {
+                        $pkm{$mode}{$k} = $src->{$k};
+                    }
+                }
+            }
+            if ($r->{ex_commands}) {
+                $pex{$_} = $r->{ex_commands}{$_} for keys %{$r->{ex_commands}};
+            }
+        }
+        $plugin_keymap  = \%pkm if %pkm;
+        $plugin_ex_cmds = \%pex   if %pex;
+    }
+
+    # Merge plugin keymap on top of user keymap (plugin wins)
+    my $merged_keymap = $opts{keymap};
+    if ($plugin_keymap) {
+        $merged_keymap //= {};
+        for my $mode (keys %$plugin_keymap) {
+            $merged_keymap->{$mode} //= {};
+            my $src = $plugin_keymap->{$mode};
+            for my $k (keys %$src) {
+                $merged_keymap->{$mode}{$k} = $src->{$k};
+            }
+        }
+    }
+    my $merged_ex = $opts{ex_commands};
+    if ($plugin_ex_cmds) {
+        $merged_ex //= {};
+        $merged_ex->{$_} = $plugin_ex_cmds->{$_} for keys %$plugin_ex_cmds;
+    }
+
+    my ($resolved, $ex_cmds) = _resolve_keymap($merged_keymap, $merged_ex);
     $ctx->{resolved_keymap} = $resolved;
     $ctx->{ex_cmds}         = $ex_cmds;
 
