@@ -834,6 +834,12 @@ sub _init_utilities {
                         # actual column because that would shrink the GTK
                         # selection to stop at the cursor position.
                         $buf->select_range($end_iter, $anchor_iter);
+                        # Do NOT restore the insert mark to the actual cursor
+                        # column -- that would truncate the visual selection at
+                        # the cursor column instead of showing the full line.
+                        # Instead, just preserve desired_col so vertical
+                        # movement continues to use the correct column.
+                        $ctx->{desired_col} = $cursor_iter->get_line_offset;
                     } else {
                         my $anchor_iter = $buf->get_iter_at_line_offset(
                             $vs->{line}, $vs->{col});

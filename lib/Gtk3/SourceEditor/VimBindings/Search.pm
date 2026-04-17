@@ -99,6 +99,92 @@ sub register {
         }
     };
 
+    # ----------------------------------------------------------------
+    # search_word_forward -- * (search forward for word under cursor)
+    # ----------------------------------------------------------------
+    $ACTIONS->{search_word_forward} = sub {
+        my ($ctx, $count) = @_;
+        $count //= 1;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $text = $vb->line_text($line);
+
+        # If cursor is not on a word character, do nothing.
+        my $ch = length($text) > $col ? substr($text, $col, 1) : '';
+        unless ($ch =~ /\w/) {
+            $ctx->{show_status}->("Error: cursor is not on a word") if $ctx->{show_status};
+            return;
+        }
+
+        # Extract the word under the cursor using \w boundaries.
+        my $start = $col;
+        while ($start > 0 && substr($text, $start - 1, 1) =~ /\w/) { $start--; }
+        my $end = $col;
+        while ($end < length($text) && substr($text, $end, 1) =~ /\w/) { $end++; }
+        my $word = substr($text, $start, $end - $start);
+        return unless length $word;
+
+        # Set up the search pattern (with word boundaries for exact match).
+        my $pattern = "\\b$word\\b";
+        $ctx->{search_pattern}   = $pattern;
+        $ctx->{search_direction} = 'forward';
+
+        for (1 .. $count) {
+            my $result = $vb->search_forward($pattern);
+            if ($result) {
+                $vb->set_cursor($result->{line}, $result->{col});
+                $ctx->{after_move}->($ctx) if $ctx->{after_move};
+            } else {
+                $ctx->{show_status}->("Pattern not found: $word") if $ctx->{show_status};
+                last;
+            }
+        }
+    };
+
+    # ----------------------------------------------------------------
+    # search_word_backward -- # (search backward for word under cursor)
+    # ----------------------------------------------------------------
+    $ACTIONS->{search_word_backward} = sub {
+        my ($ctx, $count) = @_;
+        $count //= 1;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $text = $vb->line_text($line);
+
+        # If cursor is not on a word character, do nothing.
+        my $ch = length($text) > $col ? substr($text, $col, 1) : '';
+        unless ($ch =~ /\w/) {
+            $ctx->{show_status}->("Error: cursor is not on a word") if $ctx->{show_status};
+            return;
+        }
+
+        # Extract the word under the cursor using \w boundaries.
+        my $start = $col;
+        while ($start > 0 && substr($text, $start - 1, 1) =~ /\w/) { $start--; }
+        my $end = $col;
+        while ($end < length($text) && substr($text, $end, 1) =~ /\w/) { $end++; }
+        my $word = substr($text, $start, $end - $start);
+        return unless length $word;
+
+        # Set up the search pattern (with word boundaries for exact match).
+        my $pattern = "\\b$word\\b";
+        $ctx->{search_pattern}   = $pattern;
+        $ctx->{search_direction} = 'backward';
+
+        for (1 .. $count) {
+            my $result = $vb->search_backward($pattern);
+            if ($result) {
+                $vb->set_cursor($result->{line}, $result->{col});
+                $ctx->{after_move}->($ctx) if $ctx->{after_move};
+            } else {
+                $ctx->{show_status}->("Pattern not found: $word") if $ctx->{show_status};
+                last;
+            }
+        }
+    };
+
     return {};  # No keymap entries for search (n/N are in normal keymap)
 }
 
