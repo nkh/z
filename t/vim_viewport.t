@@ -122,4 +122,39 @@ subtest 'H at top of buffer stays at top' => sub {
     is($vb->cursor_line, 0, 'H at top stays at line 0');
 };
 
+# --- zz: center viewport on current line ---
+# zz calls scroll_to_mark on gtk_view, which doesn't exist in test context.
+# Verify it's a safe no-op and that the keymap dispatches correctly.
+subtest 'zz is a no-op without gtk_view' => sub {
+    my $text = join("\n", map { "line $_" } 1 .. 40);
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => $text);
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb,
+        page_size  => 20,
+    );
+    $vb->set_cursor(15, 2);
+
+    # zz should not crash even without gtk_view
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'z', 'z');
+    is($vb->cursor_line, 15, 'zz does not move cursor');
+    is($vb->cursor_col, 2, 'zz does not change column');
+    is(${$ctx->{vim_mode}}, 'normal', 'zz stays in normal mode');
+};
+
+subtest 'zz keymap dispatches correctly' => sub {
+    my $text = join("\n", map { "line $_" } 1 .. 40);
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => $text);
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb,
+    );
+    $vb->set_cursor(10, 0);
+
+    # Verify handle_normal_mode returns TRUE (key consumed)
+    my $result = Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'z');
+    ok($result, 'first z returns TRUE (consumed, waiting for second key)');
+
+    $result = Gtk3::SourceEditor::VimBindings::handle_normal_mode($ctx, 'z');
+    ok($result, 'second z returns TRUE (zz dispatched)');
+};
+
 done_testing;

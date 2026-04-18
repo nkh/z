@@ -36,6 +36,7 @@
 | `*`         | Search forward for the word under the cursor.                    |
 | `#`         | Search backward for the word under the cursor.                   |
 | `zx`        | Toggle scroll lock (freeze cursor on screen while scrolling).   |
+| `zz`        | Center the viewport on the current line.
 
 ### Ctrl-Key Navigation
 
@@ -102,6 +103,7 @@
 | Binding | Description                                                            |
 | ------- | ---------------------------------------------------------------------- |
 | `x`     | Delete the character under the cursor and place it in the yank buffer. |
+| `X`     | Delete the character before the cursor and place it in the yank buffer. |
 | `BackSp`| Move cursor back one position (does not delete).                           |
 | `r{c}`  | Replace a single character under the cursor with `c`.                   |
 

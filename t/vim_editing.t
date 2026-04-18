@@ -572,4 +572,54 @@ subtest 'Edit: Ctrl-w on first word of line' => sub {
     is($vb->cursor_col, 0, 'cursor at column 0');
 };
 
+# --- X: delete character before cursor ---
+subtest 'Edit: X deletes character before cursor' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 3);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'X');
+    is($vb->line_text(0), "helo", 'X deletes char before cursor (l at col 2)');
+    is($vb->cursor_col, 2, 'X moves cursor back one position');
+};
+
+subtest 'Edit: X yanks the deleted character' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcde\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 3);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'X');
+    is(${$ctx->{yank_buf}}, 'c', 'X yanks the deleted character (c at col 2)');
+};
+
+subtest 'Edit: X at column 0 is a no-op' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 0);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'X');
+    is($vb->line_text(0), "hello", 'X at col 0 does nothing');
+    is($vb->cursor_col, 0, 'X at col 0 stays at col 0');
+};
+
+subtest 'Edit: 3X deletes 3 characters before cursor' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcdefgh\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 5);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '3', 'X');
+    is($vb->line_text(0), "abfgh", '3X deletes 3 chars before cursor (c,d,e at cols 2-4)');
+    is($vb->cursor_col, 2, '3X moves cursor to col 2');
+};
+
+subtest 'Edit: 3X at col 2 deletes only 2 chars (clamped)' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcdef\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 2);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '3', 'X');
+    is($vb->line_text(0), "cdef", '3X at col 2 deletes only 2 chars');
+    is($vb->cursor_col, 0, '3X at col 2 moves cursor to col 0');
+};
+
 done_testing;

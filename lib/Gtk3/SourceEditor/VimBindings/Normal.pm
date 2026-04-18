@@ -412,6 +412,19 @@ sub register {
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
+    # --- zz: center the viewport on the current line ---
+    $ACTIONS->{viewport_center} = sub {
+        my ($ctx) = @_;
+        my $view = $ctx->{gtk_view};
+        return unless $view;
+        my $vb = $ctx->{vb};
+        return unless $vb && $vb->can('gtk_buffer');
+        eval {
+            my $buf = $vb->gtk_buffer;
+            $view->scroll_to_mark($buf->get_insert(), 0.0, 1, 0, 0.5);
+        };
+    };
+
     # ================================================================
     #  Ctrl-Key Scroll and Paging (C5) -- Ctrl-u/d/f/b/y/e
     # ================================================================
@@ -1017,6 +1030,25 @@ sub register {
         } elsif ($len == 0) {
             $vb->set_cursor($line, 0);
         }
+    };
+
+    # --- X: delete character before cursor (backward) ---
+    $ACTIONS->{delete_char_backward} = sub {
+        my ($ctx, $count) = @_;
+        $count ||= 1;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        return if $col == 0;   # nothing to delete before cursor
+        my $del  = $count;
+        if ($del > $col) {
+            $del = $col;
+        }
+        my $start_col = $col - $del;
+        my $text = $vb->get_range($line, $start_col, $line, $col);
+        $vb->delete_range($line, $start_col, $line, $col);
+        $_set_yank->($ctx, $text);
+        $vb->set_cursor($line, $start_col);
     };
 
     # ================================================================
@@ -1977,6 +2009,7 @@ sub register {
         O             => 'open_above',
         R             => 'enter_replace_mode',
         x             => 'delete_char',
+        X             => 'delete_char_backward',
         s             => 'substitute_char',
         Delete        => 'delete_char',
         BackSpace     => 'backspace',
@@ -2038,6 +2071,7 @@ sub register {
         comma             => 'find_repeat_reverse',
         percent           => 'percent_motion',
         zx            => 'toggle_scroll_lock',
+        zz            => 'viewport_center',
         plus          => 'zoom_in',
         KP_Add        => 'zoom_in',
         minus         => 'zoom_out',
