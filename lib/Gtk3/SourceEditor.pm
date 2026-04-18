@@ -353,6 +353,8 @@ sub _build_ui {
             set_tab_width => sub { $self->set_tab_width(shift) },
             set_theme     => sub { $self->set_theme(shift) },
             toggle_fullscreen => sub { $self->toggle_fullscreen() },
+            toggle_line_numbers => sub { $self->toggle_line_numbers(shift) },
+            toggle_highlight_current_line => sub { $self->toggle_highlight_current_line(shift) },
             current_theme => ($self->{_theme_name} //= ($opts{theme_file} // 'default')),
             current_tab_width => $self->{tab_width},
         );
@@ -472,6 +474,32 @@ sub toggle_fullscreen {
     } else {
         $window->fullscreen();
     }
+}
+
+sub toggle_line_numbers {
+    my ($self, $show) = @_;
+    if (defined $show) {
+        $self->{show_line_numbers} = $show ? 1 : 0;
+    } else {
+        $self->{show_line_numbers} = $self->{show_line_numbers} ? 0 : 1;
+    }
+    $self->{textview}->set_show_line_numbers(
+        $self->{show_line_numbers} ? TRUE : FALSE
+    );
+    return $self->{show_line_numbers};
+}
+
+sub toggle_highlight_current_line {
+    my ($self, $show) = @_;
+    if (defined $show) {
+        $self->{highlight_current_line} = $show ? 1 : 0;
+    } else {
+        $self->{highlight_current_line} = $self->{highlight_current_line} ? 0 : 1;
+    }
+    $self->{textview}->set_highlight_current_line(
+        $self->{highlight_current_line} ? TRUE : FALSE
+    );
+    return $self->{highlight_current_line};
 }
 
 1;

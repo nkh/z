@@ -18,7 +18,7 @@
 82c9a50 Fix search highlighting, plugin warn message, and block cursor default
 ```
 
-Working tree: clean
+Working tree: UNCOMMITTED changes (new features below)
 
 ## Test Results (as of 2026-04-19)
 
@@ -45,12 +45,14 @@ Working tree: clean
 | vim_plugin.t | 8 | PASS |
 | vim_text_objects.t | - | PASS |
 | vim_viewport.t | - | PASS |
+| vim_new_features.t | 22 | PASS |
+| 00-api-check.t | - | PASS |
 
-Total: 486 tests across 21 files. All passing.
+Total: 508 tests across 22 files. All passing.
 
 ### Pre-existing failures
 
-None. All 21 test files pass.
+None. All 22 test files pass.
 
 ## Pending Tasks
 
@@ -73,16 +75,31 @@ None. All requested work is complete.
 33. All theme XML files now include `search-match` and `cursor` style definitions
 34. GUI test automation suggestions documented (Xvfb+Dogtail, GTK::TestFixture, screenshot comparison)
 35. Documentation updated: doc/feature-reference.md sections 7, 4, 17-21
+36. `''` (double apostrophe) binding: jump to first non-blank of line of last mark jump (vim-style toggle)
+37. `` `` `` (double backtick) binding: jump to exact position of last mark jump (vim-style toggle)
+38. `_last_jump_pos` tracking: saved before every mark jump in jump_mark/jump_mark_line actions
+39. Char-action dispatch fix: multi-char GDK key names (apostrophe, grave, semicolon, etc.) now properly dispatched in pending char_action completion (was blocked by `length($char) == 1` check; replaced with explicit cancel-keys set)
+40. `Ctrl+G` binding: shows filename, modified status, line/col position, and percentage in status line
+41. `:set number` / `:set nonumber` ex commands: toggle line numbers (aliases: `:set nu` / `:set nonu`)
+42. `:set number=N` ex command: set line numbers with boolean value (1/0/true/false/on/off)
+43. `:set cursorline` / `:set nocursorline` ex commands: toggle current line highlight (aliases: `:set cul` / `:set nocul`)
+44. `:set cursorline=N` ex command: set current line highlighting with boolean value
+45. SourceEditor.pm new methods: toggle_line_numbers($show), toggle_highlight_current_line($show)
+46. VimBindings.pm new callbacks: toggle_line_numbers, toggle_highlight_current_line passed from SourceEditor
+47. Updated doc/bindings.md: added Ctrl-G, Ctrl-L, marks (``/'' toggle), :set number/nu/nonumber/nonu, :set cursorline/cul/nocursorline/nocul, :set filetype, :set tabstop, :set theme, F11 fullscreen
+48. New test file: t/vim_new_features.t (22 tests covering Ctrl-G, ''/`` toggle, :set number variants, :set cursorline variants, ex-command parser)
 
 ## Key Architectural Notes
 
 - **Dispatch flow**: Key event → `_dispatch` in VimBindings.pm → routes to mode handler
 - **Modes**: normal, insert, visual, visual_line, visual_block, command_line
 - **Test infrastructure**: `t/lib/` has mock GTK objects; `Gtk3::SourceEditor::VimBuffer::Test` is the mock buffer
-- **Documentation**: `doc/feature-reference.md` covers all features, keybindings, ex-commands, runtime config
+- **Documentation**: `doc/bindings.md` covers all features, keybindings, ex-commands; `doc/feature-reference.md` has detailed feature docs
 - **prove** does NOT work from this directory; must cd into /home/z/my-project/P5-Gtk3-SourceEditor first
 - Push workflow: commit in submodule → cd to z repo → git add submodule → commit → push
-- **Runtime config callbacks**: SourceEditor.pm passes closures (`set_language`, `set_tab_width`, `set_theme`, `toggle_fullscreen`) to VimBindings via `add_vim_bindings()`. These callbacks call GTK methods on the real widgets. Tests mock these with capturing closures.
+- **Runtime config callbacks**: SourceEditor.pm passes closures (`set_language`, `set_tab_width`, `set_theme`, `toggle_fullscreen`, `toggle_line_numbers`, `toggle_highlight_current_line`) to VimBindings via `add_vim_bindings()`. These callbacks call GTK methods on the real widgets. Tests mock these with capturing closures.
+- **Char-action dispatch**: Multi-char GDK key names (apostrophe, grave, semicolon, comma, asterisk, etc.) are now properly dispatched as mark/find-char arguments. Only navigation/control keys (Escape, Return, Tab, BackSpace, Delete, Page_*, Home, End, F-keys, KP_*, modifiers) are blocked in the pending char_action handler.
+- **Mark jump position tracking**: `_last_jump_pos` in context stores position before each mark jump. `''` and `` `` `` toggle between the two most recent positions (like vim's jump list head).
 
 ## Important Process Rules (from user — NEVER violate these)
 

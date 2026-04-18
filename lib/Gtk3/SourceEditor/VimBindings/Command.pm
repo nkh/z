@@ -309,6 +309,60 @@ sub register {
             # Show current theme
             my $th = $ctx->{_current_theme} // 'unknown';
             $ctx->{show_status}->("theme=$th") if $ctx->{show_status};
+        } elsif ($arg =~ /^nonu(?:mber)?$/i || $arg =~ /^no(?:nu)?mber$/i) {
+            # :set nonumber — hide line numbers
+            if ($ctx->{toggle_line_numbers}) {
+                my $val = $ctx->{toggle_line_numbers}->(0);
+                $ctx->{show_status}->("number=" . ($val ? "on" : "off")) if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: toggle_line_numbers not available") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^(?:nu(?:mber)?)$/i || $arg eq 'number') {
+            # :set number — show line numbers (bare :set number)
+            if ($ctx->{toggle_line_numbers}) {
+                my $val = $ctx->{toggle_line_numbers}->(1);
+                $ctx->{show_status}->("number=" . ($val ? "on" : "off")) if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: toggle_line_numbers not available") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^number\s*=\s*(.+)$/i) {
+            # :set number=true/false/1/0/on/off
+            my $val_str = $1;
+            $val_str =~ s/^\s+|\s+$//g;
+            my $val = ($val_str =~ /^(?:true|1|on)$/i) ? 1 : 0;
+            if ($ctx->{toggle_line_numbers}) {
+                my $result = $ctx->{toggle_line_numbers}->($val);
+                $ctx->{show_status}->("number=" . ($result ? "on" : "off")) if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: toggle_line_numbers not available") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^no(?:cursorline|cul)$/i) {
+            # :set nocursorline / :set nocul — hide current line highlight
+            if ($ctx->{toggle_highlight_current_line}) {
+                my $val = $ctx->{toggle_highlight_current_line}->(0);
+                $ctx->{show_status}->("cursorline=" . ($val ? "on" : "off")) if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: toggle_highlight_current_line not available") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^(?:cul|cu(?:rline)?|cursorline)$/i) {
+            # :set cursorline / :set cul — show current line highlight
+            if ($ctx->{toggle_highlight_current_line}) {
+                my $val = $ctx->{toggle_highlight_current_line}->(1);
+                $ctx->{show_status}->("cursorline=" . ($val ? "on" : "off")) if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: toggle_highlight_current_line not available") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^cursorline\s*=\s*(.+)$/i) {
+            # :set cursorline=true/false/1/0/on/off
+            my $val_str = $1;
+            $val_str =~ s/^\s+|\s+$//g;
+            my $val = ($val_str =~ /^(?:true|1|on)$/i) ? 1 : 0;
+            if ($ctx->{toggle_highlight_current_line}) {
+                my $result = $ctx->{toggle_highlight_current_line}->($val);
+                $ctx->{show_status}->("cursorline=" . ($result ? "on" : "off")) if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: toggle_highlight_current_line not available") if $ctx->{show_status};
+            }
         } else {
             $ctx->{show_status}->("Error: Unknown option '$arg'") if $ctx->{show_status};
         }
@@ -702,6 +756,10 @@ sub _build_desc_map {
         cmd_substitute    => 'substitute',           cmd_set       => 'set option',
         cmd_show_bindings => 'show key bindings',    cmd_browse    => 'file browser',
         cmd_no_hlsearch  => 'clear search highlight',
+        show_file_info    => 'show file info (Ctrl-G)',
+        toggle_fullscreen => 'toggle fullscreen (F11)',
+        toggle_line_numbers          => 'toggle line numbers',
+        toggle_highlight_current_line => 'toggle current line highlight',
         goto_line         => 'goto line N',
         toggle_scroll_lock=> 'toggle scroll lock (zx)',
     };

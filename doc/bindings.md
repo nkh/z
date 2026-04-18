@@ -48,6 +48,8 @@
 | `Ctrl-u`  | Scroll up half a page (half-page up).                          |
 | `Ctrl-e`  | Scroll viewport down one line (cursor stays).                   |
 | `Ctrl-y`  | Scroll viewport up one line (cursor stays).                     |
+| `Ctrl-g`  | Show file info: filename, modified status, line/col/percentage. |
+| `Ctrl-l`  | Clear search highlighting.                                     |
 | `Ctrl-r`  | Redo the last undone operation.                                 |
 
 ### Font Zoom
@@ -165,6 +167,10 @@
 | `m{a-z}`  | Set a mark at the current cursor position.                         |
 | `` `{a-z} `` | Jump to the exact position of mark `a-z`.                         |
 | `'{a-z}`  | Jump to the first non-whitespace of the line containing mark.      |
+| `` `` `` | Jump to the exact position of the previous mark jump (toggle).     |
+| `''`      | Jump to the first non-whitespace of the line of the previous mark jump (toggle). |
+
+> **Note:** The previous jump position is saved automatically before every mark jump (`` `{c} `` or `'{c}`). Pressing `` `` `` or `''` toggles between the two most recent positions. If no mark jump has occurred yet, these commands do nothing.
 
 ## Visual Mode
 
@@ -253,6 +259,16 @@ Text objects allow operating on delimited regions of text. They are used with op
 | `:nohlsearch`    | Clear search highlighting (abbreviated `:noh`).                    |
 | `:set cursor=block` | Switch to block cursor.                                          |
 | `:set cursor=ibeam` | Switch to i-beam (default) cursor.                                |
+| `:set number`   | Show line numbers (abbreviated `:set nu`).                       |
+| `:set nonumber` | Hide line numbers (abbreviated `:set nonu`).                     |
+| `:set number=N` | Set line numbers on (`1`/`true`/`on`) or off (`0`/`false`/`off`). |
+| `:set cursorline` | Highlight the current line (abbreviated `:set cul`).             |
+| `:set nocursorline` | Disable current line highlighting (abbreviated `:set nocul`).    |
+| `:set cursorline=N` | Set current line highlighting on (`1`/`true`/`on`) or off.     |
+| `:set filetype=<lang>` | Set syntax highlighting language (e.g., `perl`, `python`, `c`). |
+| `:set tabstop=N` | Set tab width (1-32, abbreviated `:set ts=N`).                  |
+| `:set theme=<name>` | Switch color theme (e.g., `dark`, `light`, `solarized`).       |
+| `F11`            | Toggle fullscreen mode.                                         |
 
 
 ---

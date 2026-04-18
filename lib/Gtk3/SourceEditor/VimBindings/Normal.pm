@@ -1841,10 +1841,24 @@ sub register {
         my ($ctx, $count, @extra) = @_;
         return unless @extra;
         my $mark = $extra[0];
+        # Handle `` (backtick+backtick) — jump to exact last jump position
+        if ($mark eq '`' || $mark eq 'grave') {
+            return unless defined $ctx->{_last_jump_pos};
+            $_save_line_snapshot->($ctx);
+            my $vb = $ctx->{vb};
+            my $lj = $ctx->{_last_jump_pos};
+            my $saved = { line => $vb->cursor_line, col => $vb->cursor_col };
+            $vb->set_cursor($lj->{line}, $lj->{col});
+            $ctx->{_last_jump_pos} = $saved;
+            $ctx->{after_move}->($ctx) if $ctx->{after_move};
+            return;
+        }
         return unless exists $ctx->{marks}{$mark};
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
         my $m = $ctx->{marks}{$mark};
+        # Save current position as last jump position before jumping
+        $ctx->{_last_jump_pos} = { line => $vb->cursor_line, col => $vb->cursor_col };
         $vb->set_cursor($m->{line}, $m->{col});
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
@@ -1853,10 +1867,25 @@ sub register {
         my ($ctx, $count, @extra) = @_;
         return unless @extra;
         my $mark = $extra[0];
+        # Handle '' (apostrophe+apostrophe) — jump to first non-blank of last jump line
+        if ($mark eq "'" || $mark eq 'apostrophe') {
+            return unless defined $ctx->{_last_jump_pos};
+            $_save_line_snapshot->($ctx);
+            my $vb = $ctx->{vb};
+            my $lj = $ctx->{_last_jump_pos};
+            my $saved = { line => $vb->cursor_line, col => $vb->cursor_col };
+            my $col = $vb->first_nonblank_col($lj->{line});
+            $vb->set_cursor($lj->{line}, $col);
+            $ctx->{_last_jump_pos} = $saved;
+            $ctx->{after_move}->($ctx) if $ctx->{after_move};
+            return;
+        }
         return unless exists $ctx->{marks}{$mark};
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
         my $m = $ctx->{marks}{$mark};
+        # Save current position as last jump position before jumping
+        $ctx->{_last_jump_pos} = { line => $vb->cursor_line, col => $vb->cursor_col };
         my $col = $vb->first_nonblank_col($m->{line});
         $vb->set_cursor($m->{line}, $col);
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
@@ -1930,6 +1959,24 @@ sub register {
     };
 
     # ================================================================
+    #  Ctrl-G: show file info (filename, line, modified status)
+    # ================================================================
+
+    $ACTIONS->{show_file_info} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $fn = ${$ctx->{filename_ref}};
+        $fn = '[No Name]' unless defined $fn && length $fn;
+        my $line = $vb->cursor_line + 1;  # 1-based
+        my $col  = $vb->cursor_col + 1;   # 1-based
+        my $total = $vb->line_count;
+        my $pct = $total > 0 ? int(($line / $total) * 100) : 0;
+        my $mod = $vb->modified ? ' [Modified]' : '';
+        $ctx->{show_status}->(qq{"$fn"$mod  line $line of $total --$pct%-- col $col})
+            if $ctx->{show_status};
+    };
+
+    # ================================================================
     #  Font zoom
     # ================================================================
 
@@ -1978,6 +2025,7 @@ sub register {
             y => 'scroll_line_up',
             e => 'scroll_line_down',
             r => 'redo',
+            g => 'show_file_info',     # Ctrl+G: show filename/status
             l => 'cmd_no_hlsearch',    # Ctrl+L: clear search highlight
         },
         # Arrow keys are mapped to h/j/k/l in handle_normal_mode()

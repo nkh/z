@@ -209,6 +209,8 @@ sub add_vim_bindings {
         set_tab_width     => $opts{set_tab_width},
         set_theme         => $opts{set_theme},
         toggle_fullscreen => $opts{toggle_fullscreen},
+        toggle_line_numbers          => $opts{toggle_line_numbers},
+        toggle_highlight_current_line => $opts{toggle_highlight_current_line},
         # Current values for :set queries (bare :set filetype, :set theme, etc.)
         _current_theme     => $opts{current_theme},
         _current_tab_width => $opts{current_tab_width},
@@ -837,9 +839,21 @@ sub _dispatch {
         my $count = delete $ctx->{_char_action_count};
         my $char = $original_key;
         $$buf = '';
-        # Only dispatch for single-character keys; multi-char keys like
-        # 'Escape', 'Up', etc. cancel the pending char action
-        if (length($char) == 1 && exists $ACTIONS{$action_name}) {
+        # Dispatch for any key that is NOT a navigation/control key.
+        # Single-char keys (a-z, 0-9, symbols) always pass through.
+        # Multi-char GDK key names like 'apostrophe', 'grave',
+        # 'numbersign', 'semicolon', 'comma', 'asterisk', etc. are
+        # valid character inputs for mark names (m{c}), find-char
+        # (f{c}), etc.  Only cancel for navigation/control keys.
+        my %cancel_keys = map { $_ => 1 } qw(
+            Escape Return Tab BackSpace Delete Insert
+            Page_Up Page_Down Home End
+            Up Down Left Right
+            KP_Add KP_Subtract KP_Multiply KP_Divide KP_Enter
+            Shift_L Shift_R Control_L Control_R Alt_L Alt_R
+            Super_L Super_R Caps_Lock Num_Lock Scroll_Lock
+        );
+        if (!$cancel_keys{$char} && exists $ACTIONS{$action_name}) {
             my $result;
             $ctx->{vb}->begin_user_action;
             eval { $result = $ACTIONS{$action_name}->($ctx, $count, $char) };
