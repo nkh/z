@@ -195,8 +195,8 @@ trigger => 'manual',
 | `"gutter"` | Third | Gutter icons, fold indicators, action markers |
 
 Within each layer, callbacks fire in **registration order**.  There is no
-numeric priority system.  Use `$reg->set_z_index($n)` to reorder within the
-same layer without depending on registration order.
+numeric priority or z-index system — if you need a specific draw order,
+control it by registering overlays in the desired sequence.
 
 #### Colors
 
