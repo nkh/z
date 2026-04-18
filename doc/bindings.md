@@ -20,6 +20,7 @@
 | `^`         | Move to the first non-whitespace character of the line.          |
 | `gg`        | Move to the first line of the buffer.                            |
 | `G`         | Move to the last line of the buffer (or line N with count).      |
+| `gi`        | Resume insert mode at the position where insert mode was last exited. If no previous insert position exists, enters insert mode at the current cursor position (same as `i`). |
 | `Page_Up`   | Scroll up one viewport page.                                     |
 | `Page_Down` | Scroll down one viewport page.                                   |
 | `f{c}`      | Jump forward to character `c` on the current line.               |
@@ -66,6 +67,7 @@
 | `o`      | Insert a newline below and enter insert mode.                  |
 | `O`      | Insert a newline above and enter insert mode.                  |
 | `R`      | Enter replace mode (overtype characters under cursor).          |
+| `gi`     | Resume insert mode at the last insert exit position.            |
 
 ## Replace Mode
 

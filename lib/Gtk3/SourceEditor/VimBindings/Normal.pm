@@ -853,6 +853,31 @@ sub register {
         $ctx->{set_mode}->('replace');
     };
 
+    # gi: resume insert mode at the position where insert mode was last exited.
+    # If no previous insert position is recorded, behave like 'i' (insert at cursor).
+    $ACTIONS->{insert_at_last} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $pos = $ctx->{last_insert_pos};
+        if ($pos && @$pos == 2) {
+            my ($line, $col) = @$pos;
+            # Clamp to buffer bounds in case the buffer changed since.
+            my $last_line = $vb->line_count - 1;
+            $line = $last_line if $line > $last_line;
+            $line = 0 if $line < 0;
+            my $max_col = $vb->line_length($line);
+            $col = $max_col if $col > $max_col;
+            $col = 0 if $col < 0;
+            # Advance one position to the right (like 'a') because the saved
+            # position is the normal-mode cursor which is one before where
+            # text was being inserted.  Vim's gi moves to the exact position
+            # where insert was happening, which is one past the saved normal pos.
+            $col++ if $col < $max_col;
+            $vb->set_cursor($line, $col);
+        }
+        $ctx->{set_mode}->('insert');
+    };
+
     # ================================================================
     #  Editing
     # ================================================================
@@ -1515,6 +1540,7 @@ sub register {
         dead_circumflex   => 'first_nonblank',
         G             => 'file_end',
         gg            => 'file_start',
+        gi            => 'insert_at_last',
         i             => 'enter_insert',
         a             => 'enter_insert_after',
         A             => 'enter_insert_eol',

@@ -20,6 +20,10 @@ a1c5de3 Fix clipboard paste when use_clipboard=1, default use_clipboard to 1
 
 ### Submodule (P5-Gtk3-SourceEditor): latest commits
 ```
+HEAD feat: add gi command to resume insert at last exit position
+54bdc71 refactor: consolidate documentation under doc/ directory
+d3a934b feat: add +/- font zoom keys with page_size recalculation
+27924fc update .handoff: undo/redo highlight feature, test count 416
 a35da0a fix: use paragraph-background for full-width undo tint, reduce delta
 c83f487 fix: collapse selection after applying undo highlight tag
 dc6b98b fix: use GtkTextTag instead of CSS for undo/redo selection tint
@@ -41,7 +45,7 @@ Working tree: clean
 | vim_visual.t | 42 | PASS |
 | vim_dispatch.t | 55 | PASS |
 | vim_bindings.t | 11 | PASS |
-| vim_editing.t | 30 | PASS |
+| vim_editing.t | 34 | PASS |
 | vim_ex_commands.t | 21 | PASS |
 | vim_search.t | 13 | PASS |
 | vim_undo.t | 13 | PASS |
@@ -96,6 +100,13 @@ None. All requested work is complete.
     - page_size and line_height recalculated after every font change
     - Count prefix supported (e.g., `3+` increases by 3 points)
     - Numpad keys (KP_Add, KP_Subtract) also wired
+20. `gi` command: resume insert mode at last exit position
+    - `last_insert_pos` saved in $ctx when exiting insert mode (Insert.pm)
+    - `insert_at_last` action restores position and enters insert mode (Normal.pm)
+    - Clamped to buffer bounds if buffer changed since last insert
+    - Falls back to `i` behavior if no prior insert position recorded
+    - 4 tests in vim_editing.t (422 total tests, all passing)
+21. Consolidated documentation: moved `docs/keyboard-dispatch.md` to `doc/`
 
 ## Key Architectural Notes
 

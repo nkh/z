@@ -321,4 +321,82 @@ subtest 'Edit: G goes to last line' => sub {
     is($vb->cursor_line, $vb->line_count - 1, 'G goes to last line (including trailing empty)');
 };
 
+# --- gi: resume insert at last exit position ---
+subtest 'Edit: gi returns to last insert exit position' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\nfoo bar\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Enter insert mode at col 5 on line 0, then exit (Escape)
+    $vb->set_cursor(0, 5);
+    $ctx->{set_mode}->('insert');
+    # Simulate exiting insert mode
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Escape');
+    is(${$ctx->{vim_mode}}, 'normal', 'back in normal mode');
+    # After exiting, cursor moves back one (normal mode behavior)
+    # We were at col 5 in insert, escape moves back to col 4 (normal)
+
+    # Now move cursor somewhere else
+    $vb->set_cursor(1, 0);
+
+    # gi should return to line 0, col 5 (the insert position, one past normal pos)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'g', 'i');
+    is(${$ctx->{vim_mode}}, 'insert', 'gi enters insert mode');
+    is($vb->cursor_line, 0, 'gi returns to correct line');
+    is($vb->cursor_col, 5, 'gi returns to correct column (one past normal pos)');
+};
+
+subtest 'Edit: gi with no prior insert acts like i' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 2);
+
+    # No last_insert_pos set — gi should enter insert at current position
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'g', 'i');
+    is(${$ctx->{vim_mode}}, 'insert', 'gi enters insert mode');
+    is($vb->cursor_line, 0, 'gi stays on same line');
+    is($vb->cursor_col, 2, 'gi stays at same col');
+};
+
+subtest 'Edit: gi after multiple insert exits uses last position' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aa\nbb\ncc\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # First insert at line 0, col 1
+    $vb->set_cursor(0, 1);
+    $ctx->{set_mode}->('insert');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Escape');
+
+    # Second insert at line 2, col 0
+    $vb->set_cursor(2, 0);
+    $ctx->{set_mode}->('insert');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Escape');
+
+    # Move away
+    $vb->set_cursor(0, 0);
+
+    # gi should go to line 2 (last insert exit)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'g', 'i');
+    is($vb->cursor_line, 2, 'gi uses most recent insert position');
+    is(${$ctx->{vim_mode}}, 'insert', 'gi enters insert mode');
+};
+
+subtest 'Edit: gi clamps to buffer bounds' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "ab\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Insert at line 0, col 1
+    $vb->set_cursor(0, 1);
+    $ctx->{set_mode}->('insert');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Escape');
+
+    # Shrink buffer to a single short line
+    $vb->{text} = "x\n";
+
+    # gi should clamp gracefully
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'g', 'i');
+    is(${$ctx->{vim_mode}}, 'insert', 'gi enters insert mode after clamp');
+    is($vb->cursor_line, 0, 'gi clamped to line 0');
+    ok($vb->cursor_col >= 0 && $vb->cursor_col <= 1, 'gi col is within bounds');
+};
+
 done_testing;

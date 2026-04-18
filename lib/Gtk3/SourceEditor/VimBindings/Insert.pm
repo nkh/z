@@ -71,9 +71,21 @@ sub register {
                 if length($inserted) > 0;
         }
 
+        # Record position where insert mode was exited, so gi can return.
+        # We save the position AFTER moving back (the normal-mode cursor
+        # position), which is what Vim does: gi drops you at the exact
+        # position where you last exited insert mode.
+        $ctx->{last_insert_pos} = [
+            $vb->cursor_line, $vb->cursor_col
+        ];
+
         $ctx->{set_mode}->('normal');
         unless ($vb->at_line_start) {
             $vb->set_cursor($vb->cursor_line, $vb->cursor_col - 1);
+            # Update saved position to reflect the post-adjustment cursor
+            $ctx->{last_insert_pos} = [
+                $vb->cursor_line, $vb->cursor_col
+            ];
         }
     };
     
