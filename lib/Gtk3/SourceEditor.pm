@@ -85,7 +85,7 @@ sub new {
     $self->{vim_mode}      = defined $opts{vim_mode} ? $opts{vim_mode} : 1;
     $self->{force_language} = $opts{force_language};
     $self->{tab_string}    = defined $opts{tab_string} ? $opts{tab_string} : "\t";
-    $self->{block_cursor}      = defined $opts{block_cursor} ? $opts{block_cursor} : 0;
+    $self->{block_cursor}      = defined $opts{block_cursor} ? $opts{block_cursor} : 1;
     $self->{highlight_current_line} = defined $opts{highlight_current_line} ? $opts{highlight_current_line} : 1;
     $self->{use_clipboard}     = $opts{use_clipboard} // 1;
     $self->{show_line_numbers} = defined $opts{show_line_numbers} ? $opts{show_line_numbers} : 1;
@@ -316,6 +316,23 @@ sub _build_ui {
             buffer => $self->{buffer},
             view   => $self->{textview},
         );
+
+        # Wrap any user-provided on_ready callback so we can activate
+        # block cursor after bindings are fully initialised.
+        my $user_on_ready = $opts{on_ready};
+        my $wrapped_on_ready;
+        if ($self->{block_cursor}) {
+            $wrapped_on_ready = sub {
+                my ($ctx) = @_;
+                if ($ctx->{set_cursor_mode}) {
+                    $ctx->{set_cursor_mode}->('block');
+                }
+                $user_on_ready->($ctx) if $user_on_ready;
+            };
+        } else {
+            $wrapped_on_ready = $user_on_ready;
+        }
+
         Gtk3::SourceEditor::VimBindings::add_vim_bindings(
             $self->{textview},
             $self->{mode_label},
@@ -329,7 +346,7 @@ sub _build_ui {
             pos_label     => $self->{pos_label},
             scrolloff     => $self->{scrolloff},
             scroll_mode   => $opts{scroll_mode},
-            on_ready      => $opts{on_ready},
+            on_ready      => $wrapped_on_ready,
             debug_key     => $opts{debug_key},
             theme         => { fg => $fg, bg => $bg },
         );

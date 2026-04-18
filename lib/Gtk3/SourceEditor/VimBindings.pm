@@ -221,6 +221,12 @@ sub add_vim_bindings {
     # here so all search actions can share the same context.  On older
     # GtkSourceView installations the classes may not exist, so we
     # guard with can() checks and degrade silently.
+    #
+    # We also create a Gtk3::TextTag with an explicit background colour
+    # and apply it via set_match_style().  The theme's built-in
+    # "search-match" style is often invisible (transparent background),
+    # so an explicit tag guarantees visible highlighting regardless of
+    # the active theme.
     $ctx->{search_settings} = undef;
     $ctx->{search_context}  = undef;
     if ($vb->can('gtk_buffer')) {
@@ -238,6 +244,16 @@ sub add_vim_bindings {
                 $ctx->{search_context} = Gtk3::SourceView::SearchContext->new(
                     $buf, $ctx->{search_settings}
                 );
+
+                # Create a TextTag with an explicit search-match background.
+                # Use a noticeable yellow/amber colour that works on both
+                # light and dark themes.
+                my $tag = Gtk3::TextTag->new('vim-search-match');
+                $tag->set_property('background', '#ffff00');
+                $tag->set_property('background-full-height', FALSE);
+                $buf->get_tag_table->add($tag);
+                $ctx->{search_context}->set_match_style($tag);
+
                 $ctx->{search_context}->set_highlight(FALSE);
             }
             1;
