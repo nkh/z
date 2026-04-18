@@ -51,7 +51,6 @@ if (!$CAN_REAL_GTK) {
 
 # Use done_testing() — no hardcoded test count — so SKIP blocks don't
 # cause plan/ran mismatch on systems with different GtkSourceView versions.
-plan tests => 38;
 
 # ==========================================================================
 # Methods called on Gtk3::SourceView::View in SourceEditor.pm
@@ -194,3 +193,5 @@ SKIP: {
            "Gtk3::SourceView::SearchContext->can('$m')");
     }
 }
+
+done_testing();
