@@ -19,10 +19,15 @@ sub register {
         my ($ctx, $pattern) = @_;
         return unless defined $pattern && length $pattern;
         if ($ctx->{search_settings}) {
-            eval { $ctx->{search_settings}->set_search_text($pattern) };
+            eval {
+                $ctx->{search_settings}->set_search_text($pattern);
+                $ctx->{search_settings}->set_regex_enabled(FALSE);
+            };
+            warn "set_search_text failed: $@" if $@;
         }
         if ($ctx->{search_context}) {
             eval { $ctx->{search_context}->set_highlight(TRUE) };
+            warn "set_highlight(TRUE) failed: $@" if $@;
         }
     };
 

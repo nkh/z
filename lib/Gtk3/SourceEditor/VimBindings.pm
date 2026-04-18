@@ -230,6 +230,8 @@ sub add_vim_bindings {
                 $ctx->{search_settings} = Gtk3::SourceView::SearchSettings->new();
                 $ctx->{search_settings}->set_case_sensitive(FALSE);
                 $ctx->{search_settings}->set_wrap_around(TRUE);
+                $ctx->{search_settings}->set_regex_enabled(FALSE);
+                $ctx->{search_settings}->set_search_text(undef);
             }
             if (Gtk3::SourceView::SearchContext->can('new')
                 && $ctx->{search_settings}) {
@@ -239,6 +241,10 @@ sub add_vim_bindings {
                 $ctx->{search_context}->set_highlight(FALSE);
             }
             1;
+        } or do {
+            warn "SearchContext init failed: $@" if $@;
+            $ctx->{search_settings} = undef;
+            $ctx->{search_context}  = undef;
         };
     }
 
@@ -486,6 +492,9 @@ sub add_vim_bindings {
             # Update search settings in real-time
             if (length($pattern) && $ctx->{search_settings}) {
                 eval { $ctx->{search_settings}->set_search_text($pattern) };
+                warn "inc-search set_search_text failed: $@" if $@;
+            } elsif (!length($pattern) && $ctx->{search_settings}) {
+                eval { $ctx->{search_settings}->set_search_text(undef) };
             }
             if ($ctx->{search_context}) {
                 eval {
@@ -493,20 +502,40 @@ sub add_vim_bindings {
                         length($pattern) ? TRUE : FALSE
                     );
                 };
+                warn "inc-search set_highlight failed: $@" if $@;
             }
 
             # Jump to first match (incremental cursor movement)
+            # Key behavior: if the cursor is already on a match for the
+            # current pattern, stay there.  Only jump if the current
+            # position no longer matches (pattern changed and no longer
+            # covers the word under the cursor).
             if (length($pattern)) {
                 my $vb = $ctx->{vb};
-                my $result;
-                if ($is_forward) {
-                    $result = $vb->search_forward($pattern);
-                } else {
-                    $result = $vb->search_backward($pattern);
-                }
-                if ($result) {
-                    $vb->set_cursor($result->{line}, $result->{col});
-                    $ctx->{after_move}->($ctx) if $ctx->{after_move};
+                my $cl = $vb->cursor_line;
+                my $cc = $vb->cursor_col;
+                my $line_text = $vb->line_text($cl);
+
+                # Check if the current cursor position matches the pattern
+                my $cursor_on_match = (length($line_text) >= length($pattern)
+                    && index($line_text, $pattern, $cc) == $cc);
+
+                if (!$cursor_on_match) {
+                    # Search from current position to find a match.
+                    # For forward: start from cursor (col, not col+1) so
+                    # if we're at the start of a match we stay there.
+                    # For backward: start from cursor so we find a match
+                    # that includes or is before the cursor.
+                    my $result;
+                    if ($is_forward) {
+                        $result = $vb->search_forward($pattern, $cl, $cc);
+                    } else {
+                        $result = $vb->search_backward($pattern, $cl, $cc);
+                    }
+                    if ($result) {
+                        $vb->set_cursor($result->{line}, $result->{col});
+                        $ctx->{after_move}->($ctx) if $ctx->{after_move};
+                    }
                 }
             }
         });
