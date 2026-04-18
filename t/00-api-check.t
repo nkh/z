@@ -12,19 +12,43 @@
 use strict;
 use warnings;
 use Test::More;
+use FindBin qw($RealBin);
 
 # --- Try to load the REAL GTK modules ---
-# This test verifies methods against the actual Gtk3 installation.
-# It MUST skip when running with mock Gtk3 modules (headless testing).
-eval { require Gtk3; Gtk3->import; };
-if ($@ || !defined $Gtk3::Object::Introspection::VERSION || $Gtk3::VERSION eq '') {
-    plan skip_all => "Real Gtk3 not installed - cannot verify GTK API (mocks detected)";
-    exit;
+# Glib::Object::Introspection uses an INIT block that MUST run during
+# Perl's compile phase.  If we load Gtk3 at runtime (via require/eval),
+# that INIT block fires too late and produces a fatal warning.  Therefore
+# we must attempt to load Gtk3 inside a BEGIN block, after temporarily
+# removing the mock library paths from @INC.
+
+my $CAN_REAL_GTK;
+BEGIN {
+    # Save and strip mock paths from @INC so 'use Gtk3' picks up the
+    # real system module (if installed) instead of our t/lib/ mocks.
+    my @real_inc = grep { !/\bt\/lib\b/ && !/\bmock_strict\b/ } @INC;
+    @INC = @real_inc;
+
+    eval { require Gtk3; Gtk3->import; 1 };
+    my $gtk_err = $@;
+
+    eval { require Gtk3::SourceView; Gtk3::SourceView->import; 1 };
+    my $sv_err = $@;
+
+    # Restore original @INC (the test framework and other modules may
+    # need paths that were in @INC before we stripped them).
+    # FindBin's $RealBin isn't available yet in the first BEGIN, so
+    # we just add back the standard t/lib and mock_strict paths.
+    push @INC, "t/lib", "t/mock_strict";
+
+    if ($gtk_err || $sv_err) {
+        $CAN_REAL_GTK = 0;
+    } else {
+        $CAN_REAL_GTK = 1;
+    }
 }
 
-eval { require Gtk3::SourceView; Gtk3::SourceView->import; };
-if ($@ || $Gtk3::SourceView::VERSION eq '') {
-    plan skip_all => "Real Gtk3::SourceView not installed - cannot verify GTK API";
+if (!$CAN_REAL_GTK) {
+    plan skip_all => "Real Gtk3/Gtk3::SourceView not installed - cannot verify GTK API (mocks detected)";
     exit;
 }
 

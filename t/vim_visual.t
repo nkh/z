@@ -7,7 +7,7 @@ use lib ('t/lib', 'lib');
 use Gtk3::SourceEditor::VimBuffer;
 use Gtk3::SourceEditor::VimBuffer::Test;
 use Gtk3::SourceEditor::VimBindings;
-use Gtk3::Clipboard;   # Full clipboard mock for clipboard tests
+# Gtk3::Clipboard is defined in t/lib/Gtk3.pm (loaded via 'use lib t/lib')
 
 # ==========================================================================
 # Visual mode — comprehensive tests

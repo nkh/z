@@ -339,6 +339,10 @@ subtest 'Plugin with config' => sub {
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Z', 'Z');
 
     is(${$ctx->{vim_mode}}, 'normal', 'still in normal mode');
+    # $TestPluginConfig::CONFIG_VALUE is set by the plugin at register() time.
+    # The 'once' warning is expected because this variable is defined in the
+    # dynamically-loaded plugin namespace and only read here.
+    no warnings 'once';
     is($TestPluginConfig::CONFIG_VALUE, 42,
         'plugin received config value my_option = 42');
     like($vb->text, qr/CFG:42/,

@@ -97,17 +97,14 @@ is($cfg->{wrap}, 0, 'config wrap parsed');
 # ==========================================================================
 # Report any unknown method calls that were caught by strict mocks
 # ==========================================================================
-# The strict mock in Gtk3/SourceView.pm tracks unknown calls in
-# $Gtk3::SourceView::unknown_calls
+# The strict mock in Gtk3/SourceView.pm tracks unknown calls.
+# Access them via the _get_unknown() class method.
 my $failures = 0;
-{
-    no strict 'refs';
-    my $unknown = \%Gtk3::SourceView::unknown_calls;
-    for my $class (sort keys %$unknown) {
-        for my $method (sort keys %{$unknown->{$class}}) {
-            diag("STRICT MOCK: unknown method '$method' called on $class");
-            $failures++;
-        }
+my $unknown = Gtk3::SourceView::_get_unknown();
+for my $class (sort keys %$unknown) {
+    for my $method (sort keys %{$unknown->{$class}}) {
+        diag("STRICT MOCK: unknown method '$method' called on $class");
+        $failures++;
     }
 }
 
