@@ -916,6 +916,35 @@ sub register {
         }
     };
 
+    # ================================================================
+    #  Substitute character (s) — delete char under cursor, enter insert
+    # ================================================================
+
+    $ACTIONS->{substitute_char} = sub {
+        my ($ctx, $count) = @_;
+        $count ||= 1;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $len  = $vb->line_length($line);
+        my $del  = $count;
+        if ($col + $del > $len) {
+            $del = $len - $col;
+        }
+        if ($del > 0) {
+            my $text = $vb->get_range($line, $col, $line, $col + $del);
+            $vb->delete_range($line, $col, $line, $col + $del);
+            $_set_yank->($ctx, $text);
+        }
+        # Clamp cursor to end of remaining line
+        $len = $vb->line_length($line);
+        if ($col > $len) {
+            $col = $len;
+        }
+        $vb->set_cursor($line, $col);
+        $ctx->{set_mode}->('insert');
+    };
+
     $ACTIONS->{delete_line} = sub {
         my ($ctx, $count) = @_;
         $count ||= 1;
@@ -1549,6 +1578,7 @@ sub register {
         O             => 'open_above',
         R             => 'enter_replace_mode',
         x             => 'delete_char',
+        s             => 'substitute_char',
         Delete        => 'delete_char',
         BackSpace     => 'backspace',
         dd            => 'delete_line',
@@ -1556,6 +1586,7 @@ sub register {
         D             => 'delete_to_eol',
         d_dollar      => 'delete_to_eol',
         cc            => 'change_line',
+        S             => 'change_line',
         cw            => 'change_word',
         C             => 'change_to_eol',
         Y             => 'yank_line',

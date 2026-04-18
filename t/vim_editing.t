@@ -380,6 +380,65 @@ subtest 'Edit: gi after multiple insert exits uses last position' => sub {
     is(${$ctx->{vim_mode}}, 'insert', 'gi enters insert mode');
 };
 
+# --- s (substitute char) ---
+subtest 'Edit: s deletes char under cursor and enters insert mode' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 's');
+    is(${$ctx->{vim_mode}}, 'insert', 's enters insert mode');
+    is($vb->line_text(0), "ello", 's deletes char under cursor');
+    is($vb->cursor_col, 0, 'cursor at deletion point');
+};
+
+subtest 'Edit: s yanks the deleted char' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 's');
+    is(${$ctx->{yank_buf}}, "h", 's yanks the deleted character');
+};
+
+subtest 'Edit: 3s deletes 3 chars and enters insert mode' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '3', 's');
+    is(${$ctx->{vim_mode}}, 'insert', '3s enters insert mode');
+    is($vb->line_text(0), "lo", '3s deletes 3 characters');
+    is($vb->cursor_col, 0, 'cursor at start of deletion');
+};
+
+subtest 'Edit: s at end of line still enters insert mode' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "ab\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 2);  # past last char
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 's');
+    is(${$ctx->{vim_mode}}, 'insert', 's at end of line enters insert mode');
+    is($vb->line_text(0), "ab", 's at end does not delete');
+};
+
+# --- S (substitute line) ---
+subtest 'Edit: S clears line and enters insert mode' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\nfoo bar\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 3);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'S');
+    is(${$ctx->{vim_mode}}, 'insert', 'S enters insert mode');
+    is($vb->line_text(0), "", 'S clears the line content');
+    is($vb->cursor_col, 0, 'cursor at start of cleared line');
+};
+
+subtest 'Edit: S yanks the old line content' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\nworld\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'S');
+    is(${$ctx->{yank_buf}}, "hello\n", 'S yanks the old line content');
+};
+
 # --- Y (yank line, shorthand for yy) ---
 subtest 'Edit: Y yanks the current line' => sub {
     my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\nline3\n");
