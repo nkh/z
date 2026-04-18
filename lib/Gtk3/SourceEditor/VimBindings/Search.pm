@@ -1,11 +1,38 @@
 package Gtk3::SourceEditor::VimBindings::Search;
 use strict;
 use warnings;
+use Glib qw(TRUE FALSE);
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub register {
     my ($ACTIONS) = @_;
+
+    # ----------------------------------------------------------------
+    # Internal helper: enable search highlight for all matches
+    #
+    # Uses Gtk3::SourceView::SearchContext (available since 3.10) to
+    # highlight every occurrence of the pattern in the buffer.  Falls
+    # back silently on older GtkSourceView installations.
+    # ----------------------------------------------------------------
+    my $_enable_search_highlight = sub {
+        my ($ctx, $pattern) = @_;
+        return unless defined $pattern && length $pattern;
+        if ($ctx->{search_settings}) {
+            eval { $ctx->{search_settings}->set_search_text($pattern) };
+        }
+        if ($ctx->{search_context}) {
+            eval { $ctx->{search_context}->set_highlight(TRUE) };
+        }
+    };
+
+    # Internal helper: disable search highlight
+    my $_disable_search_highlight = sub {
+        my ($ctx) = @_;
+        if ($ctx->{search_context}) {
+            eval { $ctx->{search_context}->set_highlight(FALSE) };
+        }
+    };
 
     # Search next (repeat last search in same direction)
     $ACTIONS->{search_next} = sub {
@@ -18,6 +45,8 @@ sub register {
         }
         my $dir = $ctx->{search_direction} // 'forward';
         my $vb = $ctx->{vb};
+
+        $_enable_search_highlight->($ctx, $pattern);
 
         for (1 .. $count) {
             my $result;
@@ -49,6 +78,8 @@ sub register {
         my $opposite = $dir eq 'forward' ? 'backward' : 'forward';
         my $vb = $ctx->{vb};
 
+        $_enable_search_highlight->($ctx, $pattern);
+
         for (1 .. $count) {
             my $result;
             if ($opposite eq 'forward') {
@@ -74,12 +105,16 @@ sub register {
 
         unless (length $pattern) {
             $ctx->{show_status}->("Error: Empty search pattern") if $ctx->{show_status};
+            $_disable_search_highlight->($ctx);
             $ctx->{set_mode}->('normal');
             return;
         }
 
         $ctx->{search_pattern}   = $pattern;
         $ctx->{search_direction} = $direction;
+
+        # Enable highlight for all matches in the buffer
+        $_enable_search_highlight->($ctx, $pattern);
 
         my $vb = $ctx->{vb};
         my $result;
@@ -132,6 +167,8 @@ sub register {
         $ctx->{search_pattern}   = $word;
         $ctx->{search_direction} = 'forward';
 
+        $_enable_search_highlight->($ctx, $word);
+
         for (1 .. $count) {
             my $result = $vb->search_forward($word);
             if ($result) {
@@ -177,6 +214,8 @@ sub register {
         $ctx->{search_pattern}   = $word;
         $ctx->{search_direction} = 'backward';
 
+        $_enable_search_highlight->($ctx, $word);
+
         for (1 .. $count) {
             my $result = $vb->search_backward($word);
             if ($result) {
@@ -198,7 +237,7 @@ __END__
 
 =head1 NAME
 
-Gtk3::SourceEditor::VimBindings::Search - Search actions (/, ?, n, N)
+Gtk3::SourceEditor::VimBindings::Search - Search actions (/, ?, n, N, *, #)
 
 =head1 SYNOPSIS
 
@@ -208,8 +247,13 @@ Gtk3::SourceEditor::VimBindings::Search - Search actions (/, ?, n, N)
 =head1 DESCRIPTION
 
 Registers vim-style search actions into the editor's action dispatch table.
-Supports forward/backward searching, repeat last search (n), and reverse
-search (N).
+Supports forward/backward searching, repeat last search (n), reverse
+search (N), and word-under-cursor search (* and #).
+
+All search actions automatically highlight every match in the buffer via
+C<Gtk3::SourceView::SearchContext> (when available, GtkSourceView 3.10+).
+On older installations the highlight is silently skipped; search still
+works via C<Gtk3::TextIter::forward_search>.
 
 =head1 ACTIONS
 
@@ -217,17 +261,28 @@ search (N).
 
 =item search_next ($ctx, $count)
 
-Repeat the last search in the same direction.
+Repeat the last search in the same direction. Highlights all matches.
 
 =item search_prev ($ctx, $count)
 
-Repeat the last search in the opposite direction.
+Repeat the last search in the opposite direction. Highlights all matches.
 
 =item search_set_pattern ($ctx, $count, $extra)
 
 Set a new search pattern and direction, then jump to the first match.
+Highlights all matches in the buffer.
 
 C<$extra> is a hashref with C<pattern> and C<direction> keys.
+
+=item search_word_forward ($ctx, $count)
+
+Search forward for the word under the cursor (* key). Highlights all
+occurrences of the word.
+
+=item search_word_backward ($ctx, $count)
+
+Search backward for the word under the cursor (# key). Highlights all
+occurrences of the word.
 
 =back
 

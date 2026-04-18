@@ -1970,6 +1970,7 @@ sub register {
             y => 'scroll_line_up',
             e => 'scroll_line_down',
             r => 'redo',
+            l => 'cmd_no_hlsearch',    # Ctrl+L: clear search highlight
         },
         # Arrow keys are mapped to h/j/k/l in handle_normal_mode()
         # before dispatch, so they reach the h/j/k/l entries above.

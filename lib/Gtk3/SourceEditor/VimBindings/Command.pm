@@ -261,8 +261,16 @@ sub register {
     };
 
     # --- Nohlsearch ---
+    # Clears search match highlighting from the buffer via the
+    # Gtk3::SourceView::SearchContext (if available).  Also clears
+    # the stored search pattern so n/N report "No previous search".
     $ACTIONS->{cmd_no_hlsearch} = sub {
         my ($ctx) = @_;
+        # Turn off visual search highlighting
+        if ($ctx->{search_context}) {
+            eval { $ctx->{search_context}->set_highlight(FALSE) };
+        }
+        # Clear stored search pattern so n/N won't re-enable highlight
         $ctx->{search_pattern} = undef;
         $ctx->{search_direction} = undef;
         $ctx->{show_status}->("Search highlight cleared") if $ctx->{show_status};
@@ -639,6 +647,7 @@ sub _build_desc_map {
         cmd_edit          => 'open file',            cmd_read      => 'insert file',
         cmd_substitute    => 'substitute',           cmd_set       => 'set option',
         cmd_show_bindings => 'show key bindings',    cmd_browse    => 'file browser',
+        cmd_no_hlsearch  => 'clear search highlight',
         goto_line         => 'goto line N',
         toggle_scroll_lock=> 'toggle scroll lock (zx)',
     };

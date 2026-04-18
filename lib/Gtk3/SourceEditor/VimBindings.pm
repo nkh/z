@@ -214,6 +214,34 @@ sub add_vim_bindings {
     _init_utilities($ctx);
     _init_mode_setter($ctx);
 
+    # --- Search highlight infrastructure ---
+    # GtkSourceView provides Gtk3::SourceView::SearchSettings and
+    # Gtk3::SourceView::SearchContext (available since 3.10) for
+    # highlighting all search matches in the buffer.  We create them
+    # here so all search actions can share the same context.  On older
+    # GtkSourceView installations the classes may not exist, so we
+    # guard with can() checks and degrade silently.
+    $ctx->{search_settings} = undef;
+    $ctx->{search_context}  = undef;
+    if ($vb->can('gtk_buffer')) {
+        eval {
+            my $buf = $vb->gtk_buffer;
+            if (Gtk3::SourceView::SearchSettings->can('new')) {
+                $ctx->{search_settings} = Gtk3::SourceView::SearchSettings->new();
+                $ctx->{search_settings}->set_case_sensitive(FALSE);
+                $ctx->{search_settings}->set_wrap_around(TRUE);
+            }
+            if (Gtk3::SourceView::SearchContext->can('new')
+                && $ctx->{search_settings}) {
+                $ctx->{search_context} = Gtk3::SourceView::SearchContext->new(
+                    $buf, $ctx->{search_settings}
+                );
+                $ctx->{search_context}->set_highlight(FALSE);
+            }
+            1;
+        };
+    }
+
     # Set up Cairo block cursor on the text view (draw handler).
     # Starts disabled (native i-beam).  Activated by :set cursor=block.
     _setup_block_cursor($ctx);
@@ -441,6 +469,46 @@ sub add_vim_bindings {
         $cmd_entry->signal_connect('key-press-event' => sub {
             my ($w, $e) = @_;
             return handle_command_entry($ctx, eval { Gtk3::Gdk::keyval_name($e->keyval) } // '');
+        });
+
+        # --- Incremental search highlighting ---
+        # While the user types a /pattern or ?pattern, update the
+        # SearchContext in real-time so all matches are highlighted
+        # and the cursor jumps to the first match as they type.
+        $cmd_entry->signal_connect('changed' => sub {
+            my $text = $cmd_entry->get_text // '';
+            # Only activate for search entries (/ or ? prefix)
+            return unless $text =~ m{^/[^\n]*$} || $text =~ m{^\?[^\n]*$};
+
+            my $is_forward = ($text =~ m{^/});
+            my $pattern = substr($text, 1);  # strip leading / or ?
+
+            # Update search settings in real-time
+            if (length($pattern) && $ctx->{search_settings}) {
+                eval { $ctx->{search_settings}->set_search_text($pattern) };
+            }
+            if ($ctx->{search_context}) {
+                eval {
+                    $ctx->{search_context}->set_highlight(
+                        length($pattern) ? TRUE : FALSE
+                    );
+                };
+            }
+
+            # Jump to first match (incremental cursor movement)
+            if (length($pattern)) {
+                my $vb = $ctx->{vb};
+                my $result;
+                if ($is_forward) {
+                    $result = $vb->search_forward($pattern);
+                } else {
+                    $result = $vb->search_backward($pattern);
+                }
+                if ($result) {
+                    $vb->set_cursor($result->{line}, $result->{col});
+                    $ctx->{after_move}->($ctx) if $ctx->{after_move};
+                }
+            }
         });
     }
 
@@ -821,6 +889,16 @@ sub handle_command_entry {
     my $ce = $ctx->{cmd_entry};
     if (exists $ctx->{command_immediate}{$k}) {
         ${$ctx->{cmd_buf}} = '';
+        # When escaping from a search entry (/ or ? prefix), clear any
+        # incremental search highlights that were applied while typing.
+        if ($k eq 'Escape' && $ce) {
+            my $text = $ce->get_text // '';
+            if ($text =~ m{^/[^\n]*$} || $text =~ m{^\?[^\n]*$}) {
+                if ($ctx->{search_context}) {
+                    eval { $ctx->{search_context}->set_highlight(FALSE) };
+                }
+            }
+        }
         $ctx->{command_immediate}{$k}->($ctx);
         return TRUE;
     }

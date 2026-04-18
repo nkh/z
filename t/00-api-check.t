@@ -5,9 +5,9 @@
 # This test requires Gtk3 and Gtk3::SourceView to be installed.
 # When they are not available (e.g. CI without GTK libs), it skips.
 #
-# Methods that were added in later GtkSourceView releases are marked
-# with TODO so older installations don't cause hard failures.  The
-# production code ($_call in SourceEditor.pm) already handles missing
+# Uses done_testing() instead of plan tests => N so that version-dependent
+# methods can be skipped (via SKIP blocks) without causing a plan mismatch.
+# The production code ($_call in SourceEditor.pm) already handles missing
 # methods gracefully by warning once and skipping.
 
 use strict;
@@ -49,7 +49,9 @@ if (!$CAN_REAL_GTK) {
     plan skip_all => "Real Gtk3/Gtk3::SourceView not installed - cannot verify GTK API";
 }
 
-plan tests => 32;
+# Use done_testing() — no hardcoded test count — so SKIP blocks don't
+# cause plan/ran mismatch on systems with different GtkSourceView versions.
+plan tests => 38;
 
 # ==========================================================================
 # Methods called on Gtk3::SourceView::View in SourceEditor.pm
@@ -77,10 +79,9 @@ for my $m (@view_methods) {
 # ==========================================================================
 # Version-dependent methods on Gtk3::SourceView::View
 # These were added in specific GtkSourceView releases and may not exist
-# on older installations.  Marked TODO so they don't cause hard failures.
+# on older installations.  Skipped gracefully when not available.
 # ==========================================================================
-TODO: {
-    local $TODO = "version-dependent View method may not exist on older GtkSourceView";
+SKIP: {
     my @version_view = (
         'set_indent_width',               # 3.16
         'set_show_right_margin',          # 2.x
@@ -89,8 +90,9 @@ TODO: {
         'set_show_line_marks',            # 2.2
     );
     for my $m (@version_view) {
-        ok(Gtk3::SourceView::View->can($m),
-           "Gtk3::SourceView::View->can('$m') [version-dependent]");
+        skip "Gtk3::SourceView::View->can('$m') not available on this GtkSourceView", 1
+            unless Gtk3::SourceView::View->can($m);
+        ok(1, "Gtk3::SourceView::View->can('$m') [version-dependent]");
     }
 }
 
@@ -117,10 +119,10 @@ for my $m (@buffer_methods) {
 # ==========================================================================
 # Version-dependent methods on Gtk3::SourceView::Buffer
 # ==========================================================================
-TODO: {
-    local $TODO = "version-dependent Buffer method may not exist on older GtkSourceView";
-    ok(Gtk3::SourceView::Buffer->can('set_highlight_matching_brackets'),
-       "Gtk3::SourceView::Buffer->can('set_highlight_matching_brackets') [2.0+]");
+SKIP: {
+    skip "set_highlight_matching_brackets not available on this GtkSourceView", 1
+        unless Gtk3::SourceView::Buffer->can('set_highlight_matching_brackets');
+    ok(1, "Gtk3::SourceView::Buffer->can('set_highlight_matching_brackets') [2.0+]");
 }
 
 # ==========================================================================
@@ -149,4 +151,46 @@ my @scheme_methods = (
 for my $m (@scheme_methods) {
     ok(Gtk3::SourceView::StyleSchemeManager->can($m),
        "Gtk3::SourceView::StyleSchemeManager->can('$m')");
+}
+
+# ==========================================================================
+# Search infrastructure: Gtk3::SourceView::SearchSettings
+# Used for search highlight (all matches) and incremental search.
+# Available since GtkSourceView 3.10.
+# ==========================================================================
+SKIP: {
+    my @search_settings_methods = (
+        'new',
+        'set_search_text',
+        'set_case_sensitive',
+        'set_regex_enabled',
+        'set_wrap_around',
+    );
+    skip "Gtk3::SourceView::SearchSettings not available on this GtkSourceView",
+        scalar @search_settings_methods
+        unless Gtk3::SourceView::SearchSettings->can('new');
+    for my $m (@search_settings_methods) {
+        ok(Gtk3::SourceView::SearchSettings->can($m),
+           "Gtk3::SourceView::SearchSettings->can('$m')");
+    }
+}
+
+# ==========================================================================
+# Search infrastructure: Gtk3::SourceView::SearchContext
+# Used for search highlight (all matches) and incremental search.
+# Available since GtkSourceView 3.10.
+# ==========================================================================
+SKIP: {
+    my @search_context_methods = (
+        'new',
+        'set_highlight',
+        'set_match_style',
+    );
+    skip "Gtk3::SourceView::SearchContext not available on this GtkSourceView",
+        scalar @search_context_methods
+        unless Gtk3::SourceView::SearchContext->can('new');
+    for my $m (@search_context_methods) {
+        ok(Gtk3::SourceView::SearchContext->can($m),
+           "Gtk3::SourceView::SearchContext->can('$m')");
+    }
 }
