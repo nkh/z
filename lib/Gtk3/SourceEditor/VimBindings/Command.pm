@@ -255,6 +255,60 @@ sub register {
             my $val = $ctx->{_scroll_lock_active} ? 'scroll_lock'
                     : ($ctx->{_scroll_mode} // 'edge');
             $ctx->{show_status}->("scroll_mode=$val") if $ctx->{show_status};
+        } elsif ($arg =~ /^filetype\s*=\s*(.+)$/i) {
+            # Set syntax highlighting language
+            my $lang = $1;
+            $lang =~ s/^\s+|\s+$//g;
+            if ($ctx->{set_language}) {
+                my $ok = $ctx->{set_language}->($lang);
+                if ($ok) {
+                    $ctx->{_current_filetype} = $lang;
+                    $ctx->{show_status}->("filetype=$lang") if $ctx->{show_status};
+                } else {
+                    $ctx->{show_status}->("Error: unknown language '$lang'") if $ctx->{show_status};
+                }
+            } else {
+                $ctx->{show_status}->("Error: set_language not available") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^filetype$/i) {
+            # Show current filetype
+            my $ft = $ctx->{_current_filetype} // 'auto';
+            $ctx->{show_status}->("filetype=$ft") if $ctx->{show_status};
+        } elsif ($arg =~ /^tabstop\s*=\s*(\d+)$/i || $arg =~ /^tab_width\s*=\s*(\d+)$/i) {
+            # Set tab width
+            my $tw = 0 + $1;
+            if ($tw < 1 || $tw > 32) {
+                $ctx->{show_status}->("Error: tabstop out of range (1-32)") if $ctx->{show_status};
+            } elsif ($ctx->{set_tab_width}) {
+                $ctx->{set_tab_width}->($tw);
+                $ctx->{_current_tab_width} = $tw;
+                $ctx->{show_status}->("tabstop=$tw") if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: set_tab_width not available") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^tabstop$/i || $arg =~ /^tab_width$/i) {
+            # Show current tab width
+            my $tw = $ctx->{_current_tab_width} // 'unknown';
+            $ctx->{show_status}->("tabstop=$tw") if $ctx->{show_status};
+        } elsif ($arg =~ /^theme\s*=\s*(.+)$/i) {
+            # Set theme
+            my $theme = $1;
+            $theme =~ s/^\s+|\s+$//g;
+            if ($ctx->{set_theme}) {
+                my $ok = $ctx->{set_theme}->($theme);
+                if ($ok) {
+                    $ctx->{_current_theme} = $theme;
+                    $ctx->{show_status}->("theme=$theme") if $ctx->{show_status};
+                } else {
+                    $ctx->{show_status}->("Error: theme '$theme' not found") if $ctx->{show_status};
+                }
+            } else {
+                $ctx->{show_status}->("Error: set_theme not available") if $ctx->{show_status};
+            }
+        } elsif ($arg =~ /^theme$/i) {
+            # Show current theme
+            my $th = $ctx->{_current_theme} // 'unknown';
+            $ctx->{show_status}->("theme=$th") if $ctx->{show_status};
         } else {
             $ctx->{show_status}->("Error: Unknown option '$arg'") if $ctx->{show_status};
         }

@@ -1945,12 +1945,20 @@ sub register {
         Gtk3::SourceEditor::VimBindings::_zoom_font($ctx, -$count);
     };
 
+    # --- Fullscreen toggle ---
+    $ACTIONS->{toggle_fullscreen} = sub {
+        my ($ctx) = @_;
+        if ($ctx->{toggle_fullscreen}) {
+            $ctx->{toggle_fullscreen}->();
+        }
+    };
+
     # ================================================================
     #  Return the default normal-mode keymap
     # ================================================================
 
     return {
-        _immediate => [qw(Page_Up Page_Down caret asciicircum dead_circumflex Home End)],
+        _immediate => [qw(Page_Up Page_Down caret asciicircum dead_circumflex Home End F11)],
         _prefixes  => [qw(g d y c greater less z)],
         _char_actions => {
             r      => 'replace_char',
@@ -2077,6 +2085,7 @@ sub register {
         KP_Add        => 'zoom_in',
         minus         => 'zoom_out',
         KP_Subtract   => 'zoom_out',
+        F11           => 'toggle_fullscreen',
         colon         => 'enter_command',
         slash         => 'enter_search',
         question      => 'enter_search_backward',

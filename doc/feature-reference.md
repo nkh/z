@@ -116,6 +116,16 @@ Font size changes by 1 point per keypress (or N points with a count prefix:
 After each zoom, the page size and line height are recalculated from the new
 font metrics so that all scroll and paging commands adapt correctly.
 
+### Fullscreen
+
+| Key | Action |
+|-----|--------|
+| `F11` | toggle fullscreen |
+
+Toggles the parent window between fullscreen and normal mode. Requires the
+`window` option to be set in the SourceEditor constructor (the editor widget
+itself does not own the window).
+
 ### Editing
 
 | Key | Action | Key | Action |
@@ -221,8 +231,33 @@ Block I/A: type text, Escape replays on all block lines.
 | `:r <f>` | insert file | `:N` | goto line N |
 | `:[range]s/p/r/g` | substitute | `:bindings` | show keys |
 | `:set cursor=block` | block cursor | `:set cursor=ibeam` | ibeam cursor |
-| `:browse` | GTK file picker | `/pat` | fwd search |
-| `?pat` | bwd search | |
+| `:set filetype=<lang>` | set syntax language | `:set filetype` | show current filetype |
+| `:set tabstop=<N>` | set tab width (1-32) | `:set tabstop` | show current tab width |
+| `:set tab_width=<N>` | alias for tabstop | `:set theme=<name>` | change theme |
+| `:set theme` | show current theme | `:browse` | GTK file picker |
+| `/pat` | fwd search | `?pat` | bwd search |
+| `:nohlsearch` / `:noh` | clear search highlight | | |
+
+### :set filetype=\<lang\>
+
+Sets the syntax highlighting language. The argument is a GtkSourceView language ID
+(e.g. `perl`, `python`, `c`, `javascript`, `xml`, `json`, `sql`, `sh`, `html`,
+`css`, `markdown`, `ruby`, `go`, `rust`, `java`, `cpp`, etc.). If the language is
+unknown, an error is displayed. Without a value, shows the current filetype.
+
+### :set tabstop=\<N\>
+
+Sets the tab stop width in columns. Accepts values from 1 to 32. Also accepts
+`tab_width` as an alias. Without a value, shows the current tab width.
+
+### :set theme=\<name\>
+
+Changes the editor theme at runtime. The argument is a theme name that maps to a
+file in the `themes/` directory: `dark` loads `themes/theme_dark.xml`, `light`
+loads `themes/theme_light.xml`, `solarized` loads `themes/theme_solarized.xml`,
+and `default` loads `themes/default.xml`. You can also pass a full file path. The
+theme change applies the new GtkSourceStyleScheme to the buffer and updates the UI
+CSS for the mode label and command entry. Without a value, shows the current theme.
 
 Substitute uses `qr//`. Range: `%` (all), `N,M` (lines).
 Single undo group.
@@ -342,9 +377,37 @@ Per-mode key→action overrides. Special: `_immediate`, `_prefixes`,
 `get_widget()` → Gtk3::Box, `get_text()` → String,
 `get_buffer()` → SourceBuffer
 
+## 18. Runtime Configuration
+
+These methods allow changing editor settings after construction. They are
+typically called from ex-command handlers but can also be called directly by
+embedding applications.
+
+### `set_language($lang_id)`
+
+Sets the syntax highlighting language. `$lang_id` is a GtkSourceView language ID
+(e.g. `perl`, `python`, `c`, `javascript`). Returns 1 on success, 0 if the
+language is unknown.
+
+### `set_tab_width($width)`
+
+Sets the tab stop width in columns. `$width` must be a positive integer.
+Returns 1 on success.
+
+### `set_theme($theme_name)`
+
+Changes the editor theme at runtime. `$theme_name` is a short name (`dark`,
+`light`, `solarized`, `default`) or a full file path to a GtkSourceView XML
+theme file. Returns 1 on success, 0 if the theme file is not found.
+
+### `toggle_fullscreen()`
+
+Toggles the parent window between fullscreen and normal mode. No-op if no
+`window` was passed to the constructor.
+
 ---
 
-## 18. CLI Scripts
+## 19. CLI Scripts
 
 `source-editor` — standalone editor window
 `source-dialog-editor` — editor in Gtk3::Dialog
@@ -371,5 +434,42 @@ File::Slurper, Encode, Getopt::Long
 
 ## 20. Testing
 
-~290 tests across 15 files. `create_test_context(%opts)` builds
+~486 tests across 21 files. `create_test_context(%opts)` builds
 context; `simulate_keys($ctx, @keys)` feeds key sequences.
+
+For runtime configuration callbacks (`set_language`, `set_tab_width`,
+`set_theme`, `toggle_fullscreen`), test contexts accept these as closures
+in the options hash. In production, SourceEditor.pm wires real callbacks
+that call the GTK widget methods. In tests, mock callbacks capture the
+arguments and verify the dispatch chain.
+
+---
+
+## 21. GUI Test Automation (Suggested Approach)
+
+Since the editor is a GTK application, GUI tests require a display server.
+Recommended approaches:
+
+### Option A: Xvfb + Dogtail (Linux)
+- Run tests under `Xvfb` (virtual framebuffer) to avoid needing a physical display
+- Use `Dogtail` (Python library built on ATK accessibility) to probe widget states
+- Alternatively, use `xte` (from `xautomation`) to inject key events and `xwd`/`import` for screenshots
+- Integration: a test script creates an Xvfb, launches `source-editor` with a test file,
+  sends key sequences via `xte`, then captures the widget state via accessibility or screenshots
+
+### Option B: GTK::TestFixture (Perl native)
+- Use `Gtk3::Gdk::Display::open_default` with `GDK_BACKEND=x11` under Xvfb
+- Create a `Gtk3::Window`, instantiate `Gtk3::SourceEditor`, call `show_all()`, then
+  `Gtk3::main_iteration_do(FALSE)` to process pending events
+- Read widget properties (buffer text, cursor position, style scheme, tab width) directly
+  from the Perl objects without screen scraping
+- This approach requires no external tools and runs in CI without a display
+
+### Option C: Screenshot comparison (visual regression)
+- After rendering, use `$textview->draw()` to a `Cairo::ImageSurface`
+- Compare pixel output against reference screenshots using `Image::Compare`
+- Catches rendering regressions (highlighting, theme, cursor) that unit tests miss
+
+The recommended approach is **Option B** for functional tests (theme switching,
+filetype, tab width) and **Option C** for visual regression (search highlighting,
+cursor rendering, theme colors).

@@ -241,4 +241,174 @@ subtest ':noh parser' => sub {
     is($p->{cmd}, 'noh', 'command is noh');
 };
 
+# ==========================================================================
+# :set filetype= — set syntax highlighting language
+# ==========================================================================
+
+subtest 'parse :set filetype=perl' => sub {
+    my $p = Gtk3::SourceEditor::VimBindings::Command::parse_ex_command(':set filetype=perl');
+    ok($p, 'parse returns a hashref');
+    is($p->{cmd}, 'set', 'command is set');
+    is_deeply($p->{args}, ['filetype=perl'], 'filetype=perl as arg');
+};
+
+subtest ':set filetype= calls set_language callback' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer  => $vb,
+    );
+
+    # Install a mock set_language callback
+    my $captured_lang;
+    $ctx->{set_language} = sub {
+        $captured_lang = shift;
+        return 1;  # success
+    };
+
+    $ctx->{cmd_entry}->set_text(':set filetype=python');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    is($captured_lang, 'python', 'set_language called with python');
+    is(${$ctx->{vim_mode}}, 'normal', 'back in normal mode');
+
+    # Bare :set filetype shows current value
+    $ctx->{cmd_entry}->set_text(':set filetype');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+    is($ctx->{mode_label}->get_text, 'filetype=python', 'bare :set filetype shows current value');
+};
+
+subtest ':set filetype= with unknown language reports error' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_language} = sub { return 0 };  # failure
+
+    $ctx->{cmd_entry}->set_text(':set filetype=nonexistent');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+    like($ctx->{mode_label}->get_text, qr/Error.*unknown language/i,
+         'unknown language shows error');
+};
+
+# ==========================================================================
+# :set tabstop= — set tab width
+# ==========================================================================
+
+subtest 'parse :set tabstop=4' => sub {
+    my $p = Gtk3::SourceEditor::VimBindings::Command::parse_ex_command(':set tabstop=4');
+    ok($p, 'parse returns a hashref');
+    is($p->{cmd}, 'set', 'command is set');
+    is_deeply($p->{args}, ['tabstop=4'], 'tabstop=4 as arg');
+};
+
+subtest 'parse :set tab_width=8' => sub {
+    my $p = Gtk3::SourceEditor::VimBindings::Command::parse_ex_command(':set tab_width=8');
+    ok($p, 'parse returns a hashref');
+    is($p->{cmd}, 'set', 'command is set');
+    is_deeply($p->{args}, ['tab_width=8'], 'tab_width=8 as arg');
+};
+
+subtest ':set tabstop= calls set_tab_width callback' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    my $captured_tw;
+    $ctx->{set_tab_width} = sub {
+        $captured_tw = shift;
+        return 1;
+    };
+
+    $ctx->{cmd_entry}->set_text(':set tabstop=6');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    is($captured_tw, 6, 'set_tab_width called with 6');
+    is($ctx->{_current_tab_width}, 6, '_current_tab_width updated');
+
+    # Bare :set tabstop shows current value
+    $ctx->{cmd_entry}->set_text(':set tabstop');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+    is($ctx->{mode_label}->get_text, 'tabstop=6', 'bare :set tabstop shows current value');
+};
+
+subtest ':set tabstop=0 is rejected' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    my $captured_tw;
+    $ctx->{set_tab_width} = sub { $captured_tw = shift; return 1 };
+
+    $ctx->{cmd_entry}->set_text(':set tabstop=0');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+    is($captured_tw, undef, 'set_tab_width not called for 0');
+    like($ctx->{mode_label}->get_text, qr/Error.*range/i, 'out of range shows error');
+};
+
+# ==========================================================================
+# :set theme= — change editor theme
+# ==========================================================================
+
+subtest 'parse :set theme=dark' => sub {
+    my $p = Gtk3::SourceEditor::VimBindings::Command::parse_ex_command(':set theme=dark');
+    ok($p, 'parse returns a hashref');
+    is($p->{cmd}, 'set', 'command is set');
+    is_deeply($p->{args}, ['theme=dark'], 'theme=dark as arg');
+};
+
+subtest ':set theme= calls set_theme callback' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    my $captured_theme;
+    $ctx->{set_theme} = sub {
+        $captured_theme = shift;
+        return 1;  # success
+    };
+
+    $ctx->{cmd_entry}->set_text(':set theme=light');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    is($captured_theme, 'light', 'set_theme called with light');
+    is($ctx->{_current_theme}, 'light', '_current_theme updated');
+
+    # Bare :set theme shows current value
+    $ctx->{cmd_entry}->set_text(':set theme');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+    is($ctx->{mode_label}->get_text, 'theme=light', 'bare :set theme shows current value');
+};
+
+subtest ':set theme= with missing theme reports error' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_theme} = sub { return 0 };  # failure
+
+    $ctx->{cmd_entry}->set_text(':set theme=nonexistent');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+    like($ctx->{mode_label}->get_text, qr/Error.*not found/i,
+         'missing theme shows error');
+};
+
+# ==========================================================================
+# F11 fullscreen toggle
+# ==========================================================================
+
+subtest 'F11 triggers toggle_fullscreen action' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    my $fullscreen_called = 0;
+    $ctx->{toggle_fullscreen} = sub { $fullscreen_called++ };
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'F11');
+    is($fullscreen_called, 1, 'toggle_fullscreen called once');
+};
+
+subtest 'F11 does nothing without callback' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # No toggle_fullscreen callback — should not crash
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'F11');
+    is(${$ctx->{vim_mode}}, 'normal', 'still in normal mode after F11');
+};
+
 done_testing;

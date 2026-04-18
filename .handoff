@@ -1,6 +1,6 @@
 # Project Handoff — P5-Gtk3-SourceEditor
 # Maintained by AI sessions. Read this FIRST at the start of every session.
-# Last updated: 2026-04-18
+# Last updated: 2026-04-19
 
 ## Repository Structure
 - `/home/z/my-project/z` — parent repo (submodule pointer) with remote at github.com/nkh/z
@@ -10,43 +10,26 @@
   - NO remote configured (push goes through parent z repo)
   - Working directory for all coding
 
-## Current Git State (as of 2026-04-18)
-
-### Parent repo (z): latest commits
-```
-a7b2215 Fix remaining test failures in visual mode tests
-a1c5de3 Fix clipboard paste when use_clipboard=1, default use_clipboard to 1
-```
+## Current Git State (as of 2026-04-19)
 
 ### Submodule (P5-Gtk3-SourceEditor): latest commits
 ```
-HEAD feat: add gi command to resume insert at last exit position
-54bdc71 refactor: consolidate documentation under doc/ directory
-d3a934b feat: add +/- font zoom keys with page_size recalculation
-27924fc update .handoff: undo/redo highlight feature, test count 416
-a35da0a fix: use paragraph-background for full-width undo tint, reduce delta
-c83f487 fix: collapse selection after applying undo highlight tag
-dc6b98b fix: use GtkTextTag instead of CSS for undo/redo selection tint
-c5354f3 feat: tint selection colour after undo/redo to highlight restored text
-413700a fix: clear selection after undo/redo to remove stale visual highlight
-dee787f fix: replace hardcoded paths with FindBin in t/00-smoke-mock.t
-f29e86d Fix vim_plugin.t: wire PluginLoader into create_test_context()
-ee49af9 Fix vim_replace.t: advance cursor in VimBuffer::Test::replace_char()
-551373d Fix vim_completion.t: add missing use lib so Perl can locate Completion.pm
+4898388 Fix search highlighting: dedicated temp dir, force_rescan, explicit style retrieval
+82c9a50 Fix search highlighting, plugin warn message, and block cursor default
 ```
 
 Working tree: clean
 
-## Test Results (as of 2026-04-18)
+## Test Results (as of 2026-04-19)
 
 ### All passing tests (run from /home/z/my-project/P5-Gtk3-SourceEditor):
 | Test file | Tests | Status |
 |-----------|-------|--------|
+| vim_ex_commands.t | 33 | PASS |
 | vim_visual.t | 42 | PASS |
 | vim_dispatch.t | 55 | PASS |
 | vim_bindings.t | 11 | PASS |
 | vim_editing.t | 34 | PASS |
-| vim_ex_commands.t | 21 | PASS |
 | vim_search.t | 13 | PASS |
 | vim_undo.t | 13 | PASS |
 | vim_scroll.t | 20 | PASS |
@@ -60,10 +43,14 @@ Working tree: clean
 | vim_completion.t | 17 | PASS |
 | vim_replace.t | 10 | PASS |
 | vim_plugin.t | 8 | PASS |
+| vim_text_objects.t | - | PASS |
+| vim_viewport.t | - | PASS |
+
+Total: 486 tests across 21 files. All passing.
 
 ### Pre-existing failures
 
-None. All 19 test files pass.
+None. All 21 test files pass.
 
 ## Pending Tasks
 
@@ -71,51 +58,31 @@ None. All requested work is complete.
 
 ## Completed Work (across sessions)
 
-1. Clipboard paste fix: `use_clipboard=1` now correctly pastes from system clipboard
-2. Default `use_clipboard` changed to 1
-3. Undo support for `:%s/pat/rep/g`
-4. `:%s/pat/rep` (without g flag) — replace first occurrence per line
-5. Status line timeout behavior fix
-6. Comprehensive visual mode tests (42 tests, all passing)
-7. Visual mode bug fixes (gv reselect, line navigation, case ops)
-8. Search forward/backward fix (unpack tuple correctly)
-9. Word search * / # fix (non-US keyboard AltGr detection)
-10. Debug key logging (`--debug-key` option)
-11. Project handoff file (`.handoff`) added to repo for cross-session continuity
-12. Keyboard dispatch architecture documentation (`doc/keyboard-dispatch.md`)
-13. Fix vim_completion.t: add missing `use lib ('lib', 't/lib')` so Perl can locate Completion.pm
-14. Fix vim_replace.t: add cursor advance in VimBuffer::Test::replace_char() (was using substr without moving cursor)
-15. Fix vim_plugin.t: wire PluginLoader into create_test_context() so plugins are loaded, keymaps merged, and ex-commands registered
-16. Fix t/00-smoke-mock.t: replace 4 hardcoded paths with FindBin::($RealBin) for portability
-17. Fix stale visual highlight after undo/redo: clear selection (first approach)
-18. Undo/redo highlight: GtkTextTag with paragraph-background for subtle tint of restored content
-    - CSS approach failed (GtkSourceView ignores CSS selection override)
-    - `background` tag property only covers text, `paragraph-background` fills full widget width
-    - GTK selection collapsed after tag applied so native color doesn't paint over tint
-    - Delta ~5% (12/255) for subtle effect; lighter in dark theme, darker in light theme
-    - Tag auto-removed on next keypress via _clear_undo_highlight in handle_normal_mode
-19. Font zoom: `+`/`-` keys in normal mode to increase/decrease font size
-    - `_recalc_page_size` extracted as shared helper (was duplicated in two places)
-    - `_zoom_font` changes font via Pango::FontDescription, min 6pt
-    - page_size and line_height recalculated after every font change
-    - Count prefix supported (e.g., `3+` increases by 3 points)
-    - Numpad keys (KP_Add, KP_Subtract) also wired
-20. `gi` command: resume insert mode at last exit position
-    - `last_insert_pos` saved in $ctx when exiting insert mode (Insert.pm)
-    - `insert_at_last` action restores position and enters insert mode (Normal.pm)
-    - Clamped to buffer bounds if buffer changed since last insert
-    - Falls back to `i` behavior if no prior insert position recorded
-    - 4 tests in vim_editing.t (422 total tests, all passing)
-21. Consolidated documentation: moved `docs/keyboard-dispatch.md` to `doc/`
+1-21. (Previous work preserved — see previous .handoff for details)
+22. Search highlighting: Gtk3::SourceView::SearchContext + SearchSettings for match highlighting
+23. ThemeManager temp file fix: dedicated tempdir instead of random file in /tmp, force_rescan()
+24. Explicit search-match style retrieval: get_style('search-match') from buffer's scheme
+25. Plugin loader warn fix: hardcoded 'gal' replaced with actual action name, warnings suppressed in tests
+26. Block cursor default: changed to 1 (was 0 in script/source-editor), CLI option now toggle (--[no-]cursor-block)
+27. `:set filetype=<lang>` ex command: sets syntax highlighting language via GtkSourceLanguageManager
+28. `:set tabstop=<N>` ex command: sets tab width (1-32), also accepts `tab_width` as alias
+29. `:set theme=<name>` ex command: changes theme at runtime (dark, light, solarized, default, or full path)
+30. `F11` fullscreen toggle: toggles parent window between fullscreen and normal mode
+31. SourceEditor.pm runtime methods: set_language(), set_tab_width(), set_theme(), toggle_fullscreen()
+32. Bare `:set filetype`, `:set tabstop`, `:set theme` (no value) shows current value
+33. All theme XML files now include `search-match` and `cursor` style definitions
+34. GUI test automation suggestions documented (Xvfb+Dogtail, GTK::TestFixture, screenshot comparison)
+35. Documentation updated: doc/feature-reference.md sections 7, 4, 17-21
 
 ## Key Architectural Notes
 
 - **Dispatch flow**: Key event → `_dispatch` in VimBindings.pm → routes to mode handler
 - **Modes**: normal, insert, visual, visual_line, visual_block, command_line
 - **Test infrastructure**: `t/lib/` has mock GTK objects; `Gtk3::SourceEditor::VimBuffer::Test` is the mock buffer
-- **Documentation**: `doc/keyboard-dispatch.md` covers the full dispatch architecture for all modes
+- **Documentation**: `doc/feature-reference.md` covers all features, keybindings, ex-commands, runtime config
 - **prove** does NOT work from this directory; must cd into /home/z/my-project/P5-Gtk3-SourceEditor first
 - Push workflow: commit in submodule → cd to z repo → git add submodule → commit → push
+- **Runtime config callbacks**: SourceEditor.pm passes closures (`set_language`, `set_tab_width`, `set_theme`, `toggle_fullscreen`) to VimBindings via `add_vim_bindings()`. These callbacks call GTK methods on the real widgets. Tests mock these with capturing closures.
 
 ## Important Process Rules (from user — NEVER violate these)
 

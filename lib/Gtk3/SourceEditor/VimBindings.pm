@@ -204,6 +204,15 @@ sub add_vim_bindings {
         use_clipboard => $opts{use_clipboard} // 1,
         pos_label     => $opts{pos_label},
         theme         => $opts{theme},
+        # Runtime configuration callbacks (from SourceEditor)
+        set_language      => $opts{set_language},
+        set_tab_width     => $opts{set_tab_width},
+        set_theme         => $opts{set_theme},
+        toggle_fullscreen => $opts{toggle_fullscreen},
+        # Current values for :set queries (bare :set filetype, :set theme, etc.)
+        _current_theme     => $opts{current_theme},
+        _current_tab_width => $opts{current_tab_width},
+        _current_filetype  => $opts{force_language} // 'auto',
         # Scroll mode: 'edge' (default), 'center', or 'scroll_lock' (runtime toggle)
         _scroll_mode        => $opts{scroll_mode} // 'edge',
         _scroll_lock_active => 0,

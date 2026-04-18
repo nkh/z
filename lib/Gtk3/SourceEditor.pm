@@ -349,6 +349,12 @@ sub _build_ui {
             on_ready      => $wrapped_on_ready,
             debug_key     => $opts{debug_key},
             theme         => { fg => $fg, bg => $bg },
+            set_language  => sub { $self->set_language(shift) },
+            set_tab_width => sub { $self->set_tab_width(shift) },
+            set_theme     => sub { $self->set_theme(shift) },
+            toggle_fullscreen => sub { $self->toggle_fullscreen() },
+            current_theme => ($self->{_theme_name} //= ($opts{theme_file} // 'default')),
+            current_tab_width => $self->{tab_width},
         );
     } else {
         # Native Gtk3::SourceView mode -- no vim bindings, use standard GTK keybindings
@@ -381,6 +387,91 @@ sub get_text {
 sub get_buffer {
     my ($self) = @_;
     return $self->{buffer};
+}
+
+# ==========================================================================
+# Runtime configuration methods
+#
+# These allow changing editor settings after construction, e.g. via
+# ex-commands (:set filetype=, :set tabstop=, :set theme=).
+# ==========================================================================
+
+sub set_language {
+    my ($self, $lang_id) = @_;
+    return unless $lang_id && length $lang_id;
+    my $lm = Gtk3::SourceView::LanguageManager->get_default();
+    my $lang = $lm->get_language($lang_id);
+    unless ($lang) {
+        warn "Gtk3::SourceEditor::set_language: unknown language '$lang_id'\n";
+        return 0;
+    }
+    $self->{buffer}->set_language($lang);
+    $self->{buffer}->set_highlight_syntax(TRUE);
+    $self->{force_language} = $lang_id;
+    return 1;
+}
+
+sub set_tab_width {
+    my ($self, $width) = @_;
+    return unless defined $width && $width > 0;
+    $self->{textview}->set_tab_width($width);
+    $self->{tab_width} = $width;
+    return 1;
+}
+
+sub set_theme {
+    my ($self, $theme_name) = @_;
+    return unless $theme_name && length $theme_name;
+
+    # Resolve theme name to file path
+    my $theme_file;
+    if ($theme_name eq 'default') {
+        $theme_file = 'themes/default.xml';
+    } elsif ($theme_name !~ m{[/\\.]}) {
+        $theme_file = "themes/theme_$theme_name.xml";
+    } else {
+        $theme_file = $theme_name;
+    }
+
+    unless (-f $theme_file) {
+        warn "Gtk3::SourceEditor::set_theme: file '$theme_file' not found\n";
+        return 0;
+    }
+
+    my $theme_data = Gtk3::SourceEditor::ThemeManager::load(file => $theme_file);
+    my $scheme = $theme_data->{scheme};
+    my $css_provider = $theme_data->{css_provider};
+
+    # Apply new style scheme to the buffer
+    $self->{buffer}->set_style_scheme($scheme);
+
+    # Apply new CSS to the widget hierarchy (mode label, command entry)
+    if ($self->{widget} && $css_provider) {
+        Gtk3::StyleContext::add_provider_for_screen(
+            $self->{widget}->get_screen(),
+            $css_provider,
+            600,  # GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+    }
+
+    # Store new fg/bg so vim bindings can use them (e.g., for block cursor)
+    $self->{_theme_fg} = $theme_data->{fg};
+    $self->{_theme_bg} = $theme_data->{bg};
+    $self->{_theme_name} = $theme_name;
+
+    return 1;
+}
+
+sub toggle_fullscreen {
+    my ($self) = @_;
+    my $window = $self->{window};
+    return unless $window;
+
+    if ($window->get_window && $window->get_window->get_state =~ /fullscreen/) {
+        $window->unfullscreen();
+    } else {
+        $window->fullscreen();
+    }
 }
 
 1;
