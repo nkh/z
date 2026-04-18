@@ -78,7 +78,7 @@ None. All requested work is complete.
 9. Word search * / # fix (non-US keyboard AltGr detection)
 10. Debug key logging (`--debug-key` option)
 11. Project handoff file (`.handoff`) added to repo for cross-session continuity
-12. Keyboard dispatch architecture documentation (`docs/keyboard-dispatch.md`)
+12. Keyboard dispatch architecture documentation (`doc/keyboard-dispatch.md`)
 13. Fix vim_completion.t: add missing `use lib ('lib', 't/lib')` so Perl can locate Completion.pm
 14. Fix vim_replace.t: add cursor advance in VimBuffer::Test::replace_char() (was using substr without moving cursor)
 15. Fix vim_plugin.t: wire PluginLoader into create_test_context() so plugins are loaded, keymaps merged, and ex-commands registered
@@ -102,7 +102,7 @@ None. All requested work is complete.
 - **Dispatch flow**: Key event → `_dispatch` in VimBindings.pm → routes to mode handler
 - **Modes**: normal, insert, visual, visual_line, visual_block, command_line
 - **Test infrastructure**: `t/lib/` has mock GTK objects; `Gtk3::SourceEditor::VimBuffer::Test` is the mock buffer
-- **Documentation**: `docs/keyboard-dispatch.md` covers the full dispatch architecture for all modes
+- **Documentation**: `doc/keyboard-dispatch.md` covers the full dispatch architecture for all modes
 - **prove** does NOT work from this directory; must cd into /home/z/my-project/P5-Gtk3-SourceEditor first
 - Push workflow: commit in submodule → cd to z repo → git add submodule → commit → push
 
