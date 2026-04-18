@@ -248,10 +248,17 @@ sub add_vim_bindings {
                 # Create a TextTag with an explicit search-match background.
                 # Use a noticeable yellow/amber colour that works on both
                 # light and dark themes.
+                #
+                # IMPORTANT: do NOT add this tag to the buffer's tag table.
+                # The GtkSourceView docs explicitly state:
+                #   "The tag must not be added to the GtkTextTagTable."
+                # The SearchContext adds the tag to the table itself when
+                # it applies highlights (see _scan_region in the GTK source).
+                # Adding it here causes set_match_style() to silently fail
+                # via g_return_if_fail (duplicate tag name).
                 my $tag = Gtk3::TextTag->new('vim-search-match');
                 $tag->set_property('background', '#ffff00');
                 $tag->set_property('background-full-height', FALSE);
-                $buf->get_tag_table->add($tag);
                 $ctx->{search_context}->set_match_style($tag);
 
                 $ctx->{search_context}->set_highlight(FALSE);
@@ -526,6 +533,7 @@ sub add_vim_bindings {
             # current pattern, stay there.  Only jump if the current
             # position no longer matches (pattern changed and no longer
             # covers the word under the cursor).
+            $ctx->{_inc_search_found} = 0;
             if (length($pattern)) {
                 my $vb = $ctx->{vb};
                 my $cl = $vb->cursor_line;
@@ -536,7 +544,10 @@ sub add_vim_bindings {
                 my $cursor_on_match = (length($line_text) >= length($pattern)
                     && index($line_text, $pattern, $cc) == $cc);
 
-                if (!$cursor_on_match) {
+                if ($cursor_on_match) {
+                    # Cursor is already on a match — stay put, record it
+                    $ctx->{_inc_search_found} = 1;
+                } else {
                     # Search from current position to find a match.
                     # For forward: start from cursor (col, not col+1) so
                     # if we're at the start of a match we stay there.
@@ -551,6 +562,7 @@ sub add_vim_bindings {
                     if ($result) {
                         $vb->set_cursor($result->{line}, $result->{col});
                         $ctx->{after_move}->($ctx) if $ctx->{after_move};
+                        $ctx->{_inc_search_found} = 1;
                     }
                 }
             }
@@ -951,16 +963,35 @@ sub handle_command_entry {
         my $raw = $ce->get_text();
 
         # Handle search patterns (forward /pattern or backward ?pattern)
+        # If the incremental search already found and positioned on a match,
+        # just finalise the pattern without re-jumping (avoid cursor skipping
+        # to the next match).
         if ($raw =~ m{^/(.+)}) {
             my $pattern = $1;
             if (exists $ACTIONS{search_set_pattern}) {
-                $ACTIONS{search_set_pattern}->($ctx, 1, { pattern => $pattern, direction => 'forward' });
+                if ($ctx->{_inc_search_found}) {
+                    # Cursor already on the right match from incremental search.
+                    # Just store the pattern and direction, keep highlighting on.
+                    $ctx->{search_pattern}   = $pattern;
+                    $ctx->{search_direction} = 'forward';
+                    $ctx->{set_mode}->('normal');
+                } else {
+                    $ACTIONS{search_set_pattern}->($ctx, 1, { pattern => $pattern, direction => 'forward' });
+                }
+                delete $ctx->{_inc_search_found};
             }
             return TRUE;
         } elsif ($raw =~ m{^\?(.+)}) {
             my $pattern = $1;
             if (exists $ACTIONS{search_set_pattern}) {
-                $ACTIONS{search_set_pattern}->($ctx, 1, { pattern => $pattern, direction => 'backward' });
+                if ($ctx->{_inc_search_found}) {
+                    $ctx->{search_pattern}   = $pattern;
+                    $ctx->{search_direction} = 'backward';
+                    $ctx->{set_mode}->('normal');
+                } else {
+                    $ACTIONS{search_set_pattern}->($ctx, 1, { pattern => $pattern, direction => 'backward' });
+                }
+                delete $ctx->{_inc_search_found};
             }
             return TRUE;
         }
