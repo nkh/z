@@ -380,6 +380,44 @@ subtest 'Edit: gi after multiple insert exits uses last position' => sub {
     is(${$ctx->{vim_mode}}, 'insert', 'gi enters insert mode');
 };
 
+# --- D (delete to end of line, shorthand for d$) ---
+subtest 'Edit: D deletes from cursor to end of line' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 5);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'D');
+    is($vb->line_text(0), "hello", 'D deletes from cursor to end of line');
+    is($vb->cursor_col, 4, 'D clamps cursor to last char');
+};
+
+subtest 'Edit: D yanks the deleted text' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 5);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'D');
+    is(${$ctx->{yank_buf}}, " world", 'D yanks the deleted text');
+};
+
+subtest 'Edit: D on empty line is a no-op' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'D');
+    is($vb->line_text(0), "", 'D on empty line does nothing');
+};
+
+subtest 'Edit: D from mid-line deletes to end' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abc\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 1);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'D');
+    is($vb->line_text(0), "a", 'D from col 1 deletes "bc"');
+    is(${$ctx->{yank_buf}}, "bc", 'D yanks "bc"');
+};
+
 subtest 'Edit: gi clamps to buffer bounds' => sub {
     my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "ab\n");
     my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);

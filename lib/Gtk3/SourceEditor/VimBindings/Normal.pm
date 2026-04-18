@@ -1553,6 +1553,7 @@ sub register {
         BackSpace     => 'backspace',
         dd            => 'delete_line',
         dw            => 'delete_word',
+        D             => 'delete_to_eol',
         d_dollar      => 'delete_to_eol',
         cc            => 'change_line',
         cw            => 'change_word',
