@@ -253,6 +253,25 @@ sub AUTOLOAD {
 sub can { return 1 }
 
 # -------------------------------------------------------------------
+package Gtk3::SourceView::Style;
+use strict;
+use warnings;
+
+# Mock Gtk3::SourceView::Style — accepts new() and set_* / get_*
+our $AUTOLOAD;
+sub AUTOLOAD {
+    my $method = $AUTOLOAD;
+    $method =~ s/.*:://;
+    return if $method eq 'DESTROY';
+    my $self = shift;
+    return $self if $method =~ /^(set_|new|signal_connect)/;
+    return undef if $method =~ /^get_/;
+    return;
+}
+sub can { return 1 }
+sub new { return bless {}, shift }
+
+# -------------------------------------------------------------------
 package Gtk3::SourceView::Language;
 use strict;
 use warnings;

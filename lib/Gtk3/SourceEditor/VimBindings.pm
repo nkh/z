@@ -222,11 +222,13 @@ sub add_vim_bindings {
     # GtkSourceView installations the classes may not exist, so we
     # guard with can() checks and degrade silently.
     #
-    # We also create a Gtk3::TextTag with an explicit background colour
-    # and apply it via set_match_style().  The theme's built-in
-    # "search-match" style is often invisible (transparent background),
-    # so an explicit tag guarantees visible highlighting regardless of
-    # the active theme.
+    # The SearchContext looks up the "search-match" style from the
+    # active GtkSourceStyleScheme.  All bundled theme files define
+    # this style with a visible yellow/amber background.  As a
+    # fallback (e.g. when using a system theme without this style),
+    # we try to create a Gtk3::SourceView::Style object and apply it
+    # via set_match_style().  Gtk3::SourceView::Style->new() is
+    # available since GtkSourceView 3.22.
     $ctx->{search_settings} = undef;
     $ctx->{search_context}  = undef;
     if ($vb->can('gtk_buffer')) {
@@ -245,21 +247,19 @@ sub add_vim_bindings {
                     $buf, $ctx->{search_settings}
                 );
 
-                # Create a TextTag with an explicit search-match background.
-                # Use a noticeable yellow/amber colour that works on both
-                # light and dark themes.
-                #
-                # IMPORTANT: do NOT add this tag to the buffer's tag table.
-                # The GtkSourceView docs explicitly state:
-                #   "The tag must not be added to the GtkTextTagTable."
-                # The SearchContext adds the tag to the table itself when
-                # it applies highlights (see _scan_region in the GTK source).
-                # Adding it here causes set_match_style() to silently fail
-                # via g_return_if_fail (duplicate tag name).
-                my $tag = Gtk3::TextTag->new('vim-search-match');
-                $tag->set_property('background', '#ffff00');
-                $tag->set_property('background-full-height', FALSE);
-                $ctx->{search_context}->set_match_style($tag);
+                # Try to create a Gtk3::SourceView::Style as a fallback
+                # match style (available since GtkSourceView 3.22).
+                # This is used only when the theme lacks a "search-match"
+                # style definition.
+                eval {
+                    if (Gtk3::SourceView::Style->can('new')) {
+                        my $style = Gtk3::SourceView::Style->new(
+                            'background'     => '#ffff00',
+                            'background-set' => TRUE,
+                        );
+                        $ctx->{search_context}->set_match_style($style);
+                    }
+                };  # silent failure — the theme's search-match style suffices
 
                 $ctx->{search_context}->set_highlight(FALSE);
             }
@@ -628,7 +628,7 @@ sub create_test_context {
             dirs     => $opts{plugin_dirs}  // [],
             files    => $opts{plugin_files} // [],
             config   => $opts{plugin_config} // {},
-            warnings => 1,
+            warnings => 0,
         );
         # Merge plugin mode keymaps into a single override structure
         my %pkm;

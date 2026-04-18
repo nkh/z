@@ -215,6 +215,14 @@ sub get_color              { return bless { red => 0, green => 0, blue => 0 }, '
 sub get_background_color   { return bless { red => 1, green => 1, blue => 1 }, 'Gtk3::Gdk::RGBA' }
 sub DESTROY { }
 
+# --- Gtk3::SourceView::Style ---
+package Gtk3::SourceView::Style;
+use strict;
+use warnings;
+sub new { return bless {}, shift }
+sub can { return 1 }
+sub DESTROY { }
+
 # --- Gtk3::SourceView::LanguageManager ---
 package Gtk3::SourceView::LanguageManager;
 use strict;

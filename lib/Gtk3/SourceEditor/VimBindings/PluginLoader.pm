@@ -165,9 +165,9 @@ sub _load_single {
             if (exists $ACTION_OWNERS{$action}) {
                 my $prev = $ACTION_OWNERS{$action};
                 if (exists $PLUGIN_FILES{$prev}) {
-                    warn "Plugin overrides plugin: normal 'gal' -> '${action}' (was from $prev)\n";
+                    warn "Plugin overrides plugin: action '${action}' (was from $prev)\n";
                 } else {
-                    warn "Plugin overrides core: normal 'gal' -> '${action}' (was '$prev')\n";
+                    warn "Plugin overrides core: action '${action}' (was '$prev')\n";
                 }
             } else {
                 warn "Action '$action' redefined by $pkg (was core)\n";

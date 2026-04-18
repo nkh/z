@@ -13,7 +13,7 @@ my $read_only = 0;
 my $font_size = 0;
 my $wrap_enabled = 1;
 my $no_line_numbers = 0;
-my $block_cursor = 0;
+my $block_cursor = 1;
 my $highlight_current_line = 1;
 my $filename = '';
 my $help = 0;
@@ -26,7 +26,7 @@ GetOptions(
     'font-size|f=i'             => \$font_size,
     'wrap|w!'                   => \$wrap_enabled,
     'no-line-numbers|n'         => \$no_line_numbers,
-    'cursor-block|b'            => \$block_cursor,
+    'cursor-block|b!'             => \$block_cursor,
     'highlight-current-line|H!' => \$highlight_current_line,
     'help|h'                    => \$help,
     'debug-key'                  => \$debug_key,
@@ -44,7 +44,7 @@ Options:
   -f, --font-size=N            Set font point size
   -w, --[no-]wrap              Enable/disable word wrap (default: on)
   -n, --no-line-numbers        Hide line number gutter
-  -b, --cursor-block           Start with block cursor (instead of i-beam)
+  -b, --[no-]cursor-block       Enable/disable block cursor (default: on)
   -H, --[no-]highlight-current-line
                                 Highlight current line (default: on)
   -D, --debug-key              Print key event debug info to stderr
