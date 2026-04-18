@@ -31,7 +31,13 @@ sub load {
         $xml_content =~ s{(<style name="text" [^>]*\/>)}{$1\n  <style name="cursor" foreground="$fg"/>};
     }
 
-    my ($xml_fh, $tmp_file) = tempfile(SUFFIX => '.xml', UNLINK => 1);
+    # Write modified theme to a temp file.  Use CLEANUP => 1 so the
+    # OS reclaims the directory when the process exits; avoid UNLINK => 1
+    # on the filehandle itself since the StyleSchemeManager needs the file
+    # to exist on disk when it scans the search path.
+    my $tmp_dir = File::Temp::tempdir(CLEANUP => 1);
+    my $tmp_file = File::Spec->catfile($tmp_dir, "$scheme_id.xml");
+    open my $xml_fh, '>', $tmp_file or die "Cannot write $tmp_file: $!";
     print $xml_fh $xml_content;
     close $xml_fh;
 
@@ -51,9 +57,13 @@ sub load {
         return;
     };
 
-    my $theme_dir = dirname($tmp_file);
     my $manager = Gtk3::SourceView::StyleSchemeManager->get_default();
-    $_call->($manager, 'prepend_search_path', $theme_dir);
+    # Prepend our dedicated temp directory FIRST so our modified theme
+    # takes priority over any system scheme with the same ID.
+    $_call->($manager, 'prepend_search_path', $tmp_dir);
+    # Force an immediate rescan so get_scheme() finds our file without
+    # relying on the internal dirty-flag mechanism.
+    $_call->($manager, 'force_rescan');
     my $scheme = $_call->($manager, 'get_scheme', $scheme_id);
     die "Error: Could not load scheme '$scheme_id'\n" unless $scheme;
 

@@ -222,13 +222,14 @@ sub add_vim_bindings {
     # GtkSourceView installations the classes may not exist, so we
     # guard with can() checks and degrade silently.
     #
-    # The SearchContext looks up the "search-match" style from the
-    # active GtkSourceStyleScheme.  All bundled theme files define
-    # this style with a visible yellow/amber background.  As a
-    # fallback (e.g. when using a system theme without this style),
-    # we try to create a Gtk3::SourceView::Style object and apply it
-    # via set_match_style().  Gtk3::SourceView::Style->new() is
-    # available since GtkSourceView 3.22.
+    # The SearchContext highlights matches using a style obtained from
+    # two sources (in priority order):
+    #   1. A Gtk3::SourceView::Style set via set_match_style()
+    #   2. The "search-match" style from the buffer's GtkSourceStyleScheme
+    # All bundled theme files define a "search-match" style.  As an
+    # additional fallback, we explicitly retrieve the style from the
+    # buffer's scheme and pass it to set_match_style(), ensuring the
+    # SearchContext never falls back to an invisible default.
     $ctx->{search_settings} = undef;
     $ctx->{search_context}  = undef;
     if ($vb->can('gtk_buffer')) {
@@ -247,19 +248,22 @@ sub add_vim_bindings {
                     $buf, $ctx->{search_settings}
                 );
 
-                # Try to create a Gtk3::SourceView::Style as a fallback
-                # match style (available since GtkSourceView 3.22).
-                # This is used only when the theme lacks a "search-match"
-                # style definition.
-                eval {
-                    if (Gtk3::SourceView::Style->can('new')) {
-                        my $style = Gtk3::SourceView::Style->new(
-                            'background'     => '#ffff00',
-                            'background-set' => TRUE,
-                        );
-                        $ctx->{search_context}->set_match_style($style);
+                # Explicitly retrieve the "search-match" style from the
+                # buffer's active style scheme and apply it to the
+                # SearchContext via set_match_style().  This guarantees
+                # that the SearchContext uses a real style object rather
+                # than relying on an internal lookup that may fail silently.
+                if ($buf->can('get_style_scheme')) {
+                    my $scheme = $buf->get_style_scheme;
+                    if ($scheme && $scheme->can('get_style')) {
+                        my $sm_style = $scheme->get_style('search-match');
+                        if ($sm_style) {
+                            $ctx->{search_context}->set_match_style($sm_style);
+                        } else {
+                            warn "search-highlight: buffer scheme has no 'search-match' style\n";
+                        }
                     }
-                };  # silent failure — the theme's search-match style suffices
+                }
 
                 $ctx->{search_context}->set_highlight(FALSE);
             }

@@ -6,6 +6,7 @@
   <style name="line-numbers" foreground="#666666" background="#1E1E1E"/>
   <style name="bracket-match" foreground="#D3D7CF" background="#4A4A4A"/>
   <style name="search-match" background="#B58900" foreground="#1E1E1E"/>
+  <style name="cursor" foreground="#D3D7CF"/>
   <style name="def:keyword" foreground="#CC7832" bold="true"/>
   <style name="def:string" foreground="#6A8759"/>
   <style name="def:comment" foreground="#808080" italic="true"/>
