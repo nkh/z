@@ -90,6 +90,7 @@
 | Binding  | Description                                                    |
 | -------- | -------------------------------------------------------------- |
 | `Escape` | Exit to Normal mode, moving cursor back one position.          |
+| `Tab`    | Insert a tab character (or spaces, depending on editor config).|
 | `Ctrl-w` | Delete word backward (insert mode).                             |
 
 > **Note:** Ctrl keys are fully available in native GTK mode (when `vim_mode => 0`). When vim mode is enabled, Ctrl keys are suppressed in insert, replace, and command modes. In normal and visual modes, recognized Ctrl keys (Ctrl-u, Ctrl-d, Ctrl-f, Ctrl-b, Ctrl-y, Ctrl-e, Ctrl-r) are handled by the Vim layer; all others are silently consumed.
@@ -218,7 +219,7 @@ Text objects allow operating on delimited regions of text. They are used with op
 | `ci[` / `ci]` | Change text inside brackets.                                        |
 | `yi[` / `yi]` | Yank text inside brackets.                                         |
 
-> **Note:** All text objects listed above are also available with the `a` (around/outer) prefix as the corresponding `daw`/`da"`/`da(`/etc. variants, where implemented.
+> **Note:** The `a` (around/outer) variant is currently implemented only for words (`daw`). The `da"`/`da'`/`da(`/`da{`/`da[` variants are not yet implemented; use `di"`/`di'`/`di(`/`di{`/`di[` (inner) instead.
 
 ---
 
