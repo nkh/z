@@ -2,16 +2,15 @@
 title = "P5-Gtk3-SourceEditor Documentation"
 authors = ["nkh"]
 language = "en"
-multilingual = false
 src = "src"
 
-[build]
-build-dir = "book"
+# [build]
+# build-dir = "book"
 
-[output]
-html.search.enabled = true
-html.print-page.enabled = false
+# [output]
+# html.search.enabled = true
+# html.print-page.enabled = false
 
-[output.html.fold]
-enable = true
-level = 0
+# [output.html.fold]
+# enable = true
+# level = 0
