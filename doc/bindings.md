@@ -18,9 +18,12 @@
 | `0`         | Move to the beginning of the line.                               |
 | `$`         | Move to the end of the line.                                     |
 | `^`         | Move to the first non-whitespace character of the line.          |
-| `gg`        | Move to the first line of the buffer.                            |
+| `gg`        | Move to the first line of the buffer (or line N with count).      |
 | `G`         | Move to the last line of the buffer (or line N with count).      |
-| `gi`        | Resume insert mode at the position where insert mode was last exited. If no previous insert position exists, enters insert mode at the current cursor position (same as `i`). |
+| `H`         | Move to the top line of the viewport (or N lines below with count). |
+| `M`         | Move to the middle line of the viewport.                          |
+| `L`         | Move to the bottom line of the viewport (or N lines above with count). |
+| `gi`        | Resume insert mode at the last insert exit position.              |
 | `Page_Up`   | Scroll up one viewport page.                                     |
 | `Page_Down` | Scroll down one viewport page.                                   |
 | `f{c}`      | Jump forward to character `c` on the current line.               |
@@ -30,6 +33,9 @@
 | `;`         | Repeat the last f/F/t/T motion.                                  |
 | `,`         | Repeat the last f/F/t/T motion in reverse direction.             |
 | `%`         | Jump to matching bracket (`()`, `[]`, `{}`).                     |
+| `*`         | Search forward for the word under the cursor.                    |
+| `#`         | Search backward for the word under the cursor.                   |
+| `zx`        | Toggle scroll lock (freeze cursor on screen while scrolling).   |
 
 ### Ctrl-Key Navigation
 
@@ -68,6 +74,8 @@
 | `O`      | Insert a newline above and enter insert mode.                  |
 | `R`      | Enter replace mode (overtype characters under cursor).          |
 | `gi`     | Resume insert mode at the last insert exit position.            |
+| `s`      | Substitute: delete character under cursor and enter insert mode (or N chars with count). |
+| `S`      | Substitute line: clear the current line and enter insert mode (same as `cc`). |
 
 ## Replace Mode
 
@@ -82,6 +90,7 @@
 | Binding  | Description                                                    |
 | -------- | -------------------------------------------------------------- |
 | `Escape` | Exit to Normal mode, moving cursor back one position.          |
+| `Ctrl-w` | Delete word backward (insert mode).                             |
 
 > **Note:** Ctrl keys are fully available in native GTK mode (when `vim_mode => 0`). When vim mode is enabled, Ctrl keys are suppressed in insert, replace, and command modes. In normal and visual modes, recognized Ctrl keys (Ctrl-u, Ctrl-d, Ctrl-f, Ctrl-b, Ctrl-y, Ctrl-e, Ctrl-r) are handled by the Vim layer; all others are silently consumed.
 
@@ -92,24 +101,30 @@
 | Binding | Description                                                            |
 | ------- | ---------------------------------------------------------------------- |
 | `x`     | Delete the character under the cursor and place it in the yank buffer. |
+| `BackSp`| Move cursor back one position (does not delete).                           |
 | `r{c}`  | Replace a single character under the cursor with `c`.                   |
-| `BackSp`| Delete the character before the cursor.                                |
 
 ## Edit Mode (Word Operations)
 
 | Binding | Description                                                        |
 | ------- | ------------------------------------------------------------------ |
 | `dw`    | Delete from cursor to start of next word (yanked).                  |
+| `daw`   | Delete a word (including trailing whitespace, yanked).             |
+| `diw`   | Delete inner word (whitespace-preserving, yanked).                  |
 | `cw`    | Change word under the cursor (delete + enter insert mode).          |
+| `ciw`   | Change inner word (delete + enter insert mode).                     |
 | `yw`    | Yank (copy) the word under the cursor into the yank buffer.        |
+| `yiw`   | Yank (copy) the inner word under the cursor into the yank buffer.  |
 
 ## Edit Mode (Line Operations)
 
 | Binding | Description                                                              |
 | ------- | ------------------------------------------------------------------------
 | `dd`    | Delete the current line entirely and place it in the yank buffer.      |
+| `D`     | Delete from cursor to end of line (shorthand for `d$`, yanked).          |
 | `cc`    | Clear the current line content and enter insert mode (line yanked).     |
 | `C`     | Delete from cursor to end of line and enter insert mode.                |
+| `S`     | Substitute line: clear content and enter insert mode (same as `cc`).   |
 | `U`     | Restore the current line to its state before the cursor last moved to it. |
 
 ## Yank (Copy/Paste)
@@ -117,6 +132,7 @@
 | Binding | Description                                                                |
 | ------- | -------------------------------------------------------------------------- |
 | `yy`    | Yank (copy) the entire current line into the yank buffer.                  |
+| `Y`     | Yank (copy) the entire current line (shorthand for `yy`).                  |
 | `yw`    | Yank (copy) the current word into the yank buffer.                        |
 | `yiw`   | Yank (copy) the inner word under the cursor into the yank buffer.         |
 | `p`     | Paste the contents of the yank buffer after the cursor.                    |
@@ -175,7 +191,34 @@
 | `o`     | Go to other end of highlighted text.                            |
 | `gq`    | Format (word-wrap) selected lines.                              |
 
-All normal-mode navigation keys (h, j, k, l, w, b, e, 0, $, ^, G, gg, f, t, ;, %, etc.) work within visual mode to extend the selection. Ctrl-key scroll commands (Ctrl-d, Ctrl-u, Ctrl-f, Ctrl-b) also work in visual modes.
+All normal-mode navigation keys (h, j, k, l, w, b, e, 0, $, ^, G, gg, H, M, L, f, t, ;, %, etc.) work within visual mode to extend the selection. Ctrl-key scroll commands (Ctrl-d, Ctrl-u, Ctrl-f, Ctrl-b) also work in visual modes.
+
+## Text Objects
+
+Text objects allow operating on delimited regions of text. They are used with operators (`d`, `c`, `y`) and support inner (`i`) and outer (`a`) variants.
+
+| Binding  | Description                                                        |
+| -------- | ------------------------------------------------------------------ |
+| `daw`   | Delete a word and surrounding whitespace.                          |
+| `diw`   | Delete inner word (whitespace-preserving).                         |
+| `ciw`   | Change inner word.                                                 |
+| `di"`   | Delete text inside double quotes.                                   |
+| `ci"`   | Change text inside double quotes.                                   |
+| `yi"`   | Yank text inside double quotes.                                     |
+| `di'`   | Delete text inside single quotes.                                   |
+| `ci'`   | Change text inside single quotes.                                   |
+| `yi'`   | Yank text inside single quotes.                                     |
+| `di(` / `di)` | Delete text inside parentheses.                                 |
+| `ci(` / `ci)` | Change text inside parentheses.                                 |
+| `yi(` / `yi)` | Yank text inside parentheses.                                     |
+| `di{` / `di}` | Delete text inside braces.                                         |
+| `ci{` / `ci}` | Change text inside braces.                                         |
+| `yi{` / `yi}` | Yank text inside braces.                                         |
+| `di[` / `di]` | Delete text inside brackets.                                        |
+| `ci[` / `ci]` | Change text inside brackets.                                        |
+| `yi[` / `yi]` | Yank text inside brackets.                                         |
+
+> **Note:** All text objects listed above are also available with the `a` (around/outer) prefix as the corresponding `daw`/`da"`/`da(`/etc. variants, where implemented.
 
 ---
 
@@ -204,6 +247,7 @@ All normal-mode navigation keys (h, j, k, l, w, b, e, 0, $, ^, G, gg, f, t, ;, %
 | `:{number}`      | Jump to line number.                                              |
 | `:bindings`      | Show current key bindings in a dialog.                             |
 | `:browse`        | Open a GTK file chooser dialog to select a file.                   |
+| `:nohlsearch`    | Clear search highlighting (abbreviated `:noh`).                    |
 | `:set cursor=block` | Switch to block cursor.                                          |
 | `:set cursor=ibeam` | Switch to i-beam (default) cursor.                                |
 
