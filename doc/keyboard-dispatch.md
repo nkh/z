@@ -37,8 +37,8 @@ The system supports six modes, stored in `$ctx->{vim_mode}` (a scalar ref):
 
 | Mode | String value | Entry | Key source |
 |------|-------------|-------|------------|
-| Normal | `normal` | default | Normal.pm keymap |
-| Insert | `insert` | `i`, `a`, `o`, `O`, `A`, `I`, `c`, `C`, `s` | Insert.pm keymap |
+| Normal | `normal` | default | Normal.pm keymap (`D`, `Y`, `s`, `S`) |
+| Insert | `insert` | `i`, `a`, `o`, `O`, `A`, `I`, `c`, `C`, `s`, `S` | Insert.pm keymap (`Ctrl-w`) |
 | Visual (char) | `visual` | `v` | Visual.pm + navigation_keys |
 | Visual (line) | `visual_line` | `V` | same keymap as visual |
 | Visual (block) | `visual_block` | Ctrl-V | same keymap as visual |
@@ -220,6 +220,10 @@ All other keys are handled by GTK's entry widget natively (typing the command).
 3. Check `_immediate` keys → if match, clear `cmd_buf` and fire.
 4. Otherwise, call `_dispatch(normal_dispatch, normal_prefixes, normal_char_actions)`.
 
+Viewport line motions (`H`, `M`, `L`) are included in the normal keymap. They
+move the cursor to the top, middle, and bottom of the visible area respectively,
+with optional numeric prefix for offset from the edge.
+
 ### `handle_insert_mode($ctx, $key)`
 
 Does NOT use `_dispatch` — numeric accumulation would swallow digits before
@@ -267,6 +271,82 @@ Returns TRUE unconditionally (Ctrl keys are always consumed).
    - Ex commands → parsed by `parse_ex_command()`, looked up in `%ex_cmds`.
 3. Return FALSE for all other keys (let GTK handle typing into the entry).
 
+## Text Objects
+
+Text objects extend Vim operators (delete, yank, change) to act on semantic
+units rather than motions. The syntax is `operator + modifier + object type`:
+
+- **Modifier**: `i` (inner) selects the object without surrounding delimiters;
+  `a` (around) includes the delimiters.
+- **Operator**: `d` (delete), `c` (change), `y` (yank).
+- **Object type**: `w` (word), `"`, `'`, `(`, `{`, `[`.
+
+### Infrastructure
+
+Text object ranges are computed by helper closures that return `($start, $end)`
+bounds for the requested region. These closures are defined in Normal.pm and
+used by operator actions to determine the text to operate on:
+
+- **Word ranges**: `_inner_word_bound` / `_a_word_bound` — scan forward and
+  backward for word boundaries using the buffer's word character class.
+- **Quote ranges**: `_quote_bound($char)` — find the nearest matching pair of
+  `$char` on the current line, handling nested escaped quotes.
+- **Bracket ranges**: `_bracket_bound($open, $close)` — find the matching
+  bracket pair, accounting for nesting depth.
+
+### Keymap Entries
+
+Text objects require explicit keymap entries using GDK key names for characters
+that don't map cleanly to single ASCII keys (quotes, brackets). Each combination
+of operator, modifier, and object type is a separate entry:
+
+| Key sequence | GDK key name | Action |
+|-------------|-------------|--------|
+| `diw` | `diw` | Delete inner word |
+| `daw` | `daw` | Delete a word (around) |
+| `ciw` | `ciw` | Change inner word |
+| `di"` | `diquotedbl` | Delete inner double quotes |
+| `da"` | `daquotedbl` | Delete around double quotes |
+| `ci"` | `ciquotedbl` | Change inner double quotes |
+| `di'` | `diapostrophe` | Delete inner single quotes |
+| `da'` | `daapostrophe` | Delete around single quotes |
+| `ci'` | `ciapostrophe` | Change inner single quotes |
+| `di(` | `diparenleft` | Delete inner parentheses |
+| `da(` | `daparenleft` | Delete around parentheses |
+| `ci(` | `ciparenleft` | Change inner parentheses |
+| `di{` | `dibraceleft` | Delete inner braces |
+| `da{` | `dabraceleft` | Delete around braces |
+| `ci{` | `cibraceleft` | Change inner braces |
+| `di[` | `dibracketleft` | Delete inner brackets |
+| `da[` | `dabracketleft` | Delete around brackets |
+| `ci[` | `cibracketleft` | Change inner brackets |
+
+Yank variants (`yiw`, `yaw`, `yi"`, `ya"`, etc.) follow the same pattern.
+
+Because these use GDK key names for quote/bracket characters, `_derive_prefixes`
+cannot auto-generate prefixes from them. All required prefixes (`di`, `da`, `ci`,
+`yi`, `ya`, etc.) are declared explicitly in `_prefixes`.
+
+## Insert Mode Ctrl-Key Dispatch
+
+Insert mode supports a `_ctrl` keymap table for Ctrl-key combinations. This
+differs from normal/visual mode ctrl-key handling:
+
+- **Normal/Visual modes**: Ctrl keys are looked up in the mode's ctrl dispatch
+  table, which is built from `_ctrl` entries in the keymap. Unrecognised Ctrl
+  keys return TRUE (consumed but ignored).
+- **Insert/Replace modes**: The `key-press-event` handler previously suppressed
+  all Ctrl keys unconditionally to prevent GTK's native Ctrl-C/V/Z handling.
+  Now, it first checks the insert mode `_ctrl` table; if a match is found, the
+  action is executed. Only unrecognised Ctrl keys are suppressed.
+
+Currently supported insert mode Ctrl keys:
+
+| Key | Action | Description |
+|-----|--------|-------------|
+| `Ctrl-w` | `delete_word_backward` | Delete word before cursor |
+| `Ctrl-u` | `delete_to_line_start` | Delete from cursor to start of line |
+
 ## Ex-Command Dispatch
 
 Ex commands are parsed by `Command::parse_ex_command($raw)`, which extracts:
@@ -278,6 +358,23 @@ Ex commands are parsed by `Command::parse_ex_command($raw)`, which extracts:
 The parsed command is looked up in `%ex_cmds` (the ex-command hash, populated by
 `Command::register()`), which maps command names to action names. The action is
 then executed from the global `%ACTIONS` registry.
+
+## Ex Commands
+
+The following ex commands are registered by `Command::register()`:
+
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `:w` | `:write` | Save file |
+| `:q` | `:quit` | Close view |
+| `:wq` | `:x` | Save and close |
+| `:q!` | | Force close without saving |
+| `:s` | | Substitute (search and replace) |
+| `%s` | | Substitute across entire buffer |
+| `:nohlsearch` | `:noh` | Clear search highlighting |
+
+The `:nohlsearch` and `:noh` commands remove the current search highlight
+without affecting the search pattern or direction.
 
 ## Mode Transitions
 
