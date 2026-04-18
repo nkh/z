@@ -181,4 +181,64 @@ subtest 'browse command registered in ex_cmds' => sub {
     is($ctx->{ex_cmds}{browse}, 'cmd_browse', ':browse maps to cmd_browse action');
 };
 
+# ==========================================================================
+# :nohlsearch / :noh — clear search highlighting
+# ==========================================================================
+
+subtest ':nohlsearch clears search_pattern' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\nhello again\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Set up a search pattern
+    $ctx->{search_pattern} = 'hello';
+    $ctx->{search_direction} = 'forward';
+
+    # Execute :nohlsearch
+    $ctx->{cmd_entry}->set_text(':nohlsearch');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    ok(!defined $ctx->{search_pattern}, ':nohlsearch clears search_pattern');
+    is(${$ctx->{vim_mode}}, 'normal', 'back in normal mode');
+};
+
+subtest ':noh clears search_pattern' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{search_pattern} = 'world';
+
+    $ctx->{cmd_entry}->set_text(':noh');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    ok(!defined $ctx->{search_pattern}, ':noh clears search_pattern');
+};
+
+subtest 'After :noh, n reports no previous search' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{search_pattern} = 'test';
+    $ctx->{cmd_entry}->set_text(':noh');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    # Now n should report no previous search
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    my $label = $ctx->{mode_label};
+    my $mode_text = $label->get_text;
+    like($mode_text, qr/Error.*No previous search/i, 'n reports no previous search after :noh');
+};
+
+subtest ':nohlsearch parser' => sub {
+    my $p = Gtk3::SourceEditor::VimBindings::Command::parse_ex_command(':nohlsearch');
+    ok($p, 'parse returns a hashref');
+    is($p->{cmd}, 'nohlsearch', 'command is nohlsearch');
+    is_deeply($p->{args}, [], 'no args');
+};
+
+subtest ':noh parser' => sub {
+    my $p = Gtk3::SourceEditor::VimBindings::Command::parse_ex_command(':noh');
+    ok($p, 'parse returns a hashref');
+    is($p->{cmd}, 'noh', 'command is noh');
+};
+
 done_testing;

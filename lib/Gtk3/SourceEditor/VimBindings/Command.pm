@@ -260,6 +260,14 @@ sub register {
         }
     };
 
+    # --- Nohlsearch ---
+    $ACTIONS->{cmd_no_hlsearch} = sub {
+        my ($ctx) = @_;
+        $ctx->{search_pattern} = undef;
+        $ctx->{search_direction} = undef;
+        $ctx->{show_status}->("Search highlight cleared") if $ctx->{show_status};
+    };
+
     return {
         bindings => 'cmd_show_bindings',
         browse   => 'cmd_browse',
@@ -270,6 +278,8 @@ sub register {
         r        => 'cmd_read',
         s        => 'cmd_substitute',
         set      => 'cmd_set',
+        nohlsearch => 'cmd_no_hlsearch',
+        noh      => 'cmd_no_hlsearch',
     };
 }
 
