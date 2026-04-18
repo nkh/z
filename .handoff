@@ -47,7 +47,7 @@ Working tree: clean
 | vim_undo.t | 13 | PASS |
 | vim_scroll.t | 20 | PASS |
 | vim_find_char.t | 26 | PASS |
-| vim_ctrl_keys.t | 11 | PASS |
+| vim_ctrl_keys.t | 13 | PASS |
 | vim_marks.t | 8 | PASS |
 | editor_config.t | 17 | PASS |
 | vim_buffer.t | 24 | PASS |
@@ -90,6 +90,12 @@ None. All requested work is complete.
     - GTK selection collapsed after tag applied so native color doesn't paint over tint
     - Delta ~5% (12/255) for subtle effect; lighter in dark theme, darker in light theme
     - Tag auto-removed on next keypress via _clear_undo_highlight in handle_normal_mode
+19. Font zoom: `+`/`-` keys in normal mode to increase/decrease font size
+    - `_recalc_page_size` extracted as shared helper (was duplicated in two places)
+    - `_zoom_font` changes font via Pango::FontDescription, min 6pt
+    - page_size and line_height recalculated after every font change
+    - Count prefix supported (e.g., `3+` increases by 3 points)
+    - Numpad keys (KP_Add, KP_Subtract) also wired
 
 ## Key Architectural Notes
 

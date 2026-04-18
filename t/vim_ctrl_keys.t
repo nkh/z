@@ -167,4 +167,42 @@ subtest 'Ctrl-d works in visual mode' => sub {
     is(${$ctx->{vim_mode}}, 'visual', 'Still in visual mode after Ctrl-d');
 };
 
+# ==========================================================================
+# Font zoom: + and - keys
+#
+# In the test backend there is no GTK view, so zoom is a no-op.
+# Verify that the keys are wired correctly and don't crash, and that
+# the buffer content is unchanged.
+# ==========================================================================
+
+subtest '+ and - keys do not crash in test mode' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\nfoo bar\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 0);
+
+    # zoom_in via '+'
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'plus');
+    is($vb->text, "hello world\nfoo bar\n", 'text unchanged after zoom in');
+    is(${$ctx->{vim_mode}}, 'normal', 'still in normal mode after +');
+
+    # zoom_out via '-'
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'minus');
+    is($vb->text, "hello world\nfoo bar\n", 'text unchanged after zoom out');
+    is(${$ctx->{vim_mode}}, 'normal', 'still in normal mode after -');
+
+    # cursor unaffected
+    is($vb->cursor_line, 0, 'cursor line unchanged');
+    is($vb->cursor_col, 0, 'cursor col unchanged');
+};
+
+subtest 'count prefix with zoom keys' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "test\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # 3+ should call zoom_in with count=3 (no-op in test mode)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '3', 'plus');
+    is($vb->text, "test\n", 'text unchanged after 3+');
+    is(${$ctx->{vim_mode}}, 'normal', 'still in normal mode after 3+');
+};
+
 done_testing;

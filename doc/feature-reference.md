@@ -100,7 +100,21 @@ font's line height.  A `size-allocate` signal handler on the text view
 recalculates this value on every widget resize, ensuring the page size stays
 accurate even when the initial computation runs before the widget is fully
 realized.  The fallback default is 20 lines when no widget metrics are
-available (e.g., in test contexts).
+available (e.g., in test contexts).  The page size is also recalculated
+whenever the font size changes (via the `+`/`-` zoom keys), so scroll commands
+remain accurate after zooming.
+
+### Font Zoom
+
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `+` | increase font size | `-` | decrease font size |
+| `KP_Add` | numpad + | `KP_Subtract` | numpad - |
+
+Font size changes by 1 point per keypress (or N points with a count prefix:
+`3+` increases by 3, `5-` decreases by 5).  The minimum font size is 6 points.
+After each zoom, the page size and line height are recalculated from the new
+font metrics so that all scroll and paging commands adapt correctly.
 
 ### Editing
 

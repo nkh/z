@@ -226,26 +226,7 @@ sub add_vim_bindings {
     # The size-allocate handler below corrects this once the widget gets
     # its actual allocation.
     if ($textview && !$ctx->{page_size}) {
-        eval {
-            my $vr = $textview->get_visible_rect();
-            my $line_height = 20;  # fallback
-            my $pango_ctx = $textview->get_pango_context();
-            if ($pango_ctx) {
-                my $metrics = $pango_ctx->get_metrics(
-                    $textview->get_pango_context()->get_font_description(),
-                    undef
-                );
-                if ($metrics && $metrics->get_height > 0) {
-                    # Pango metrics are in Pango units (1/1024 of a device unit);
-                    # get_height includes ascent + descent.
-                    $line_height = int($metrics->get_height() / 1024 + 0.5) || 20;
-                }
-            }
-            $ctx->{page_size} = int($vr->{height} / $line_height) || 20;
-            # Store line height for use by Ctrl-E / Ctrl-Y
-            $ctx->{_line_height} = $line_height;
-        };
-        $ctx->{page_size} //= 20;
+        _recalc_page_size($ctx);
     }
     $ctx->{page_size} //= 20;
 
@@ -259,22 +240,7 @@ sub add_vim_bindings {
         $textview->signal_connect('size-allocate' => sub {
             my ($w, $alloc) = @_;
             return unless $alloc->{height} > 0;
-            eval {
-                my $line_height = 20;
-                my $pango_ctx = $textview->get_pango_context();
-                if ($pango_ctx) {
-                    my $metrics = $pango_ctx->get_metrics(
-                        $textview->get_pango_context()->get_font_description(),
-                        undef
-                    );
-                    if ($metrics && $metrics->get_height > 0) {
-                        $line_height = int($metrics->get_height() / 1024 + 0.5) || 20;
-                    }
-                }
-                my $ps = int($alloc->{height} / $line_height) || 20;
-                $ctx->{page_size} = $ps;
-                $ctx->{_line_height} = $line_height;
-            };
+            _recalc_page_size($ctx);
         });
     }
 
@@ -912,6 +878,63 @@ sub handle_command_entry {
 # ==========================================================================
 # Initialisation helpers
 # ==========================================================================
+
+# _recalc_page_size($ctx) -- recalculate page_size and _line_height from
+# the current font metrics and visible rect.  Called after font changes
+# and on widget resize.
+sub _recalc_page_size {
+    my ($ctx) = @_;
+    my $view = $ctx->{gtk_view};
+    return unless $view;
+    eval {
+        my $vr = $view->get_visible_rect;
+        my $line_height = 20;
+        my $pango_ctx = $view->get_pango_context;
+        if ($pango_ctx) {
+            my $metrics = $pango_ctx->get_metrics(
+                $pango_ctx->get_font_description,
+                undef
+            );
+            if ($metrics && $metrics->get_height > 0) {
+                $line_height = int($metrics->get_height / 1024 + 0.5) || 20;
+            }
+        }
+        my $ps = int($vr->{height} / $line_height) || 20;
+        $ctx->{page_size} = $ps;
+        $ctx->{_line_height} = $line_height;
+    };
+}
+
+# _zoom_font($ctx, $delta) -- change font size by $delta points and
+# recalculate page_size / line_height.  Tracks current font size in
+# $ctx->{_font_size}.  The minimum font size is 6.
+sub _zoom_font {
+    my ($ctx, $delta) = @_;
+    my $view = $ctx->{gtk_view};
+    return unless $view && $view->can('modify_font');
+    eval {
+        use Pango;
+        my $pango_ctx = $view->get_pango_context;
+        return unless $pango_ctx;
+        my $fd = $pango_ctx->get_font_description;
+        return unless $fd;
+        my $size = $fd->get_size;
+        # Pango::FontDescription::get_size returns Pango units (points * 1024).
+        # For absolute sizes (the normal case), convert to points.
+        my $family = $fd->get_family;
+        $ctx->{_font_family} //= $family;
+        my $old_points = ($size / 1024) || 10;
+        my $new_points = $old_points + $delta;
+        $new_points = 6 if $new_points < 6;  # minimum
+        my $new_fd = Pango::FontDescription->from_string(
+            ($ctx->{_font_family} // $family) . " $new_points"
+        );
+        $view->modify_font($new_fd);
+        $ctx->{_font_size} = $new_points;
+    };
+    _recalc_page_size($ctx);
+}
+
 sub _init_utilities {
     my ($ctx) = @_;
     my $vb = $ctx->{vb};

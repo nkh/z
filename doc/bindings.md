@@ -42,6 +42,17 @@
 | `Ctrl-y`  | Scroll viewport up one line (cursor stays).                     |
 | `Ctrl-r`  | Redo the last undone operation.                                 |
 
+### Font Zoom
+
+| Binding       | Description                                                    |
+| ------------- | -------------------------------------------------------------- |
+| `+`           | Increase font size by 1 point (or N with count prefix: `3+`). |
+| `-`           | Decrease font size by 1 point (or N with count prefix: `3-`). |
+| `KP_Add`      | Numpad `+`: same as `+`.                                        |
+| `KP_Subtract` | Numpad `-`: same as `-`.                                        |
+
+> **Note:** Zooming automatically recalculates the page size (lines per viewport) so that Ctrl-d/u/f/b continue scrolling the correct number of lines at the new font size. The minimum font size is 6 points.
+
 ---
 
 ## Insert Mode Entry

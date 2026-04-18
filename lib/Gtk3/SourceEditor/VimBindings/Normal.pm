@@ -1448,6 +1448,22 @@ sub register {
     };
 
     # ================================================================
+    #  Font zoom
+    # ================================================================
+
+    $ACTIONS->{zoom_in} = sub {
+        my ($ctx, $count) = @_;
+        $count ||= 1;
+        Gtk3::SourceEditor::VimBindings::_zoom_font($ctx, $count);
+    };
+
+    $ACTIONS->{zoom_out} = sub {
+        my ($ctx, $count) = @_;
+        $count ||= 1;
+        Gtk3::SourceEditor::VimBindings::_zoom_font($ctx, -$count);
+    };
+
+    # ================================================================
     #  Return the default normal-mode keymap
     # ================================================================
 
@@ -1537,6 +1553,10 @@ sub register {
         comma             => 'find_repeat_reverse',
         percent           => 'percent_motion',
         zx            => 'toggle_scroll_lock',
+        plus          => 'zoom_in',
+        KP_Add        => 'zoom_in',
+        minus         => 'zoom_out',
+        KP_Subtract   => 'zoom_out',
         colon         => 'enter_command',
         slash         => 'enter_search',
         question      => 'enter_search_backward',
