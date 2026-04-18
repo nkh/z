@@ -1558,6 +1558,7 @@ sub register {
         cc            => 'change_line',
         cw            => 'change_word',
         C             => 'change_to_eol',
+        Y             => 'yank_line',
         yy            => 'yank_line',
         yw            => 'yank_word',
         yiw           => 'yank_inner_word',

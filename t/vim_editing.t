@@ -380,6 +380,34 @@ subtest 'Edit: gi after multiple insert exits uses last position' => sub {
     is(${$ctx->{vim_mode}}, 'insert', 'gi enters insert mode');
 };
 
+# --- Y (yank line, shorthand for yy) ---
+subtest 'Edit: Y yanks the current line' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line1\nline2\nline3\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(1, 0);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Y');
+    is(${$ctx->{yank_buf}}, "line2\n", 'Y yanks the current line');
+    is($vb->cursor_line, 1, 'cursor stays on current line');
+};
+
+subtest 'Edit: 3Y yanks 3 lines' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aa\nbb\ncc\ndd\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, '3', 'Y');
+    is(${$ctx->{yank_buf}}, "aa\nbb\ncc\n", '3Y yanks 3 lines');
+    is($vb->cursor_line, 0, 'cursor stays on original line');
+};
+
+subtest 'Edit: Y does not change buffer content' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\nworld\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Y');
+    is($vb->text, "hello\nworld\n", 'Y does not modify buffer');
+};
+
 # --- D (delete to end of line, shorthand for d$) ---
 subtest 'Edit: D deletes from cursor to end of line' => sub {
     my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
