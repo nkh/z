@@ -374,7 +374,9 @@ sub add_vim_bindings {
             if ($vim_mode eq 'normal'
                 || $vim_mode eq 'visual'
                 || $vim_mode eq 'visual_line'
-                || $vim_mode eq 'visual_block') {
+                || $vim_mode eq 'visual_block'
+                || $vim_mode eq 'insert'
+                || $vim_mode eq 'replace') {
                 # Look up action name for debug output
                 my $action = undef;
                 if ($ctx->{_debug_key}) {
@@ -578,7 +580,8 @@ sub simulate_keys {
         my $mode = ${$ctx->{vim_mode}};
         # Handle Ctrl-key combinations (e.g., 'Control-d', 'Control-u')
         if ($k =~ /^Control-(.+)$/ && ($mode eq 'normal' || $mode eq 'visual'
-            || $mode eq 'visual_line' || $mode eq 'visual_block')) {
+            || $mode eq 'visual_line' || $mode eq 'visual_block'
+            || $mode eq 'insert' || $mode eq 'replace')) {
             handle_ctrl_key($ctx, $k);
             next;
         }

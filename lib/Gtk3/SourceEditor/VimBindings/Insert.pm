@@ -114,10 +114,38 @@ sub register {
         # past the inserted character, so no explicit move is needed.
     };
     
+    # Delete word backward in insert mode (Ctrl-w)
+    $ACTIONS->{insert_delete_word_backward} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        return if $col == 0 && $line == 0;
+        
+        my $text = $vb->line_text($line);
+        my $start = $col;
+        
+        # If on whitespace, skip it first
+        while ($start > 0 && substr($text, $start - 1, 1) =~ /\s/) {
+            $start--;
+        }
+        # Then skip the word backward
+        while ($start > 0 && substr($text, $start - 1, 1) =~ /\S/) {
+            $start--;
+        }
+        
+        return if $start == $col;  # nothing to delete
+        
+        $vb->delete_range($line, $start, $line, $col);
+    };
+    
     return {
         _immediate => ['Escape', 'Tab'],
         _prefixes  => [],
         _char_actions => {},
+        _ctrl => {
+            w => 'insert_delete_word_backward',
+        },
         Escape => 'exit_to_normal',
         Tab    => 'insert_tab',
     };

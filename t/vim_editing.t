@@ -524,4 +524,52 @@ subtest 'Edit: gi clamps to buffer bounds' => sub {
     ok($vb->cursor_col >= 0 && $vb->cursor_col <= 1, 'gi col is within bounds');
 };
 
+# --- Ctrl-w in insert mode (delete word backward) ---
+subtest 'Edit: Ctrl-w deletes word backward in insert mode' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Enter insert mode and type "hello world"
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    $vb->insert_text("hello world");
+    is($vb->line_text(0), "hello world", 'text inserted');
+
+    # Ctrl-w should delete "world" (last word)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Control-w');
+    is($vb->line_text(0), "hello ", 'Ctrl-w deletes word backward');
+    is($vb->cursor_col, 6, 'cursor at correct position after Ctrl-w');
+};
+
+subtest 'Edit: Ctrl-w at start of line does nothing' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    # Don't type anything, Ctrl-w at start should be no-op
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Control-w');
+    is($vb->line_text(0), "", 'Ctrl-w at start of line does nothing');
+    is(${$ctx->{vim_mode}}, 'insert', 'still in insert mode');
+};
+
+subtest 'Edit: Ctrl-w deletes through whitespace to word start' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    $vb->insert_text("foo   bar");
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Control-w');
+    is($vb->line_text(0), "foo   ", 'Ctrl-w deletes back to word start');
+};
+
+subtest 'Edit: Ctrl-w on first word of line' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    $vb->insert_text("hello");
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Control-w');
+    is($vb->line_text(0), "", 'Ctrl-w deletes first word');
+    is($vb->cursor_col, 0, 'cursor at column 0');
+};
+
 done_testing;
