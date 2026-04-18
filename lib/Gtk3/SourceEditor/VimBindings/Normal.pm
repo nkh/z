@@ -310,6 +310,109 @@ sub register {
     };
 
     # ================================================================
+    #  Viewport line motions: H / M / L
+    # ================================================================
+
+    $ACTIONS->{viewport_top} = sub {
+        my ($ctx, $count) = @_;
+        $count = 1 unless $count && $count > 0;
+        $_save_line_snapshot->($ctx);
+        my $vb = $ctx->{vb};
+        my ($top_line, $bot_line) = $_visible_lines->($ctx);
+        # Fallback: use viewport_lines override or page_size
+        if (!defined $top_line && $ctx->{viewport_lines}) {
+            ($top_line, $bot_line) = @{$ctx->{viewport_lines}};
+        }
+        if (!defined $top_line) {
+            my $ps = $ctx->{page_size} // 20;
+            my $cur = $vb->cursor_line;
+            my $top = int($cur - $ps / 2);
+            $top = 0 if $top < 0;
+            my $last = $vb->line_count - 1;
+            my $bot = $top + $ps - 1;
+            $bot = $last if $bot > $last;
+            ($top_line, $bot_line) = ($top, $bot);
+        }
+        my $target = $top_line + $count - 1;
+        my $last = $vb->line_count - 1;
+        $target = $last if $target > $last;
+        $target = $bot_line if $target > $bot_line;
+        my $col = $vb->first_nonblank_col($target);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($target, $col);
+        } else {
+            $vb->set_cursor($target, $col);
+        }
+        $ctx->{desired_col} = $col;
+        $ctx->{after_move}->($ctx) if $ctx->{after_move};
+    };
+
+    $ACTIONS->{viewport_middle} = sub {
+        my ($ctx) = @_;
+        $_save_line_snapshot->($ctx);
+        my $vb = $ctx->{vb};
+        my ($top_line, $bot_line) = $_visible_lines->($ctx);
+        if (!defined $top_line && $ctx->{viewport_lines}) {
+            ($top_line, $bot_line) = @{$ctx->{viewport_lines}};
+        }
+        if (!defined $top_line) {
+            my $ps = $ctx->{page_size} // 20;
+            my $cur = $vb->cursor_line;
+            my $top = int($cur - $ps / 2);
+            $top = 0 if $top < 0;
+            my $last = $vb->line_count - 1;
+            my $bot = $top + $ps - 1;
+            $bot = $last if $bot > $last;
+            ($top_line, $bot_line) = ($top, $bot);
+        }
+        my $target = int(($top_line + $bot_line) / 2);
+        my $col = $vb->first_nonblank_col($target);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($target, $col);
+        } else {
+            $vb->set_cursor($target, $col);
+        }
+        $ctx->{desired_col} = $col;
+        $ctx->{after_move}->($ctx) if $ctx->{after_move};
+    };
+
+    $ACTIONS->{viewport_bottom} = sub {
+        my ($ctx, $count) = @_;
+        $count = 1 unless $count && $count > 0;
+        $_save_line_snapshot->($ctx);
+        my $vb = $ctx->{vb};
+        my ($top_line, $bot_line) = $_visible_lines->($ctx);
+        if (!defined $top_line && $ctx->{viewport_lines}) {
+            ($top_line, $bot_line) = @{$ctx->{viewport_lines}};
+        }
+        if (!defined $top_line) {
+            my $ps = $ctx->{page_size} // 20;
+            my $cur = $vb->cursor_line;
+            my $top = int($cur - $ps / 2);
+            $top = 0 if $top < 0;
+            my $last = $vb->line_count - 1;
+            my $bot = $top + $ps - 1;
+            $bot = $last if $bot > $last;
+            ($top_line, $bot_line) = ($top, $bot);
+        }
+        my $target = $bot_line - $count + 1;
+        my $top = 0;
+        $target = $top if $target < $top;
+        $target = $top_line if $target < $top_line;
+        my $col = $vb->first_nonblank_col($target);
+        my $mode = ${$ctx->{vim_mode}};
+        if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
+            $vb->move_cursor($target, $col);
+        } else {
+            $vb->set_cursor($target, $col);
+        }
+        $ctx->{desired_col} = $col;
+        $ctx->{after_move}->($ctx) if $ctx->{after_move};
+    };
+
+    # ================================================================
     #  Ctrl-Key Scroll and Paging (C5) -- Ctrl-u/d/f/b/y/e
     # ================================================================
 
@@ -1570,6 +1673,9 @@ sub register {
         G             => 'file_end',
         gg            => 'file_start',
         gi            => 'insert_at_last',
+        H             => 'viewport_top',
+        M             => 'viewport_middle',
+        L             => 'viewport_bottom',
         i             => 'enter_insert',
         a             => 'enter_insert_after',
         A             => 'enter_insert_eol',
