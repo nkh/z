@@ -1238,6 +1238,299 @@ sub register {
         $_set_yank->($ctx, substr($text, $start, $end - $start)) if $end > $start;
     };
 
+    # ================================================================
+    #  Text object helpers
+    # ================================================================
+
+    # Find inner word range: returns ($line, $start_col, $line, $end_col)
+    my $_inner_word_range = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $text = $vb->line_text($line);
+        my $start = $col;
+        while ($start > 0 && substr($text, $start - 1, 1) =~ /\S/) { $start--; }
+        my $end = $col;
+        while ($end < length($text) && substr($text, $end, 1) =~ /\S/) { $end++; }
+        return ($line, $start, $line, $end);
+    };
+
+    # Find a-word range: word + trailing whitespace
+    my $_a_word_range = sub {
+        my ($ctx) = @_;
+        my ($line, $start, undef, $end) = $_inner_word_range->($ctx);
+        my $text = $ctx->{vb}->line_text($line);
+        while ($end < length($text) && substr($text, $end, 1) =~ /\s/) { $end++; }
+        return ($line, $start, $line, $end);
+    };
+
+    # Find inner quote range: between matching quotes
+    # Returns ($line, $start_col, $line, $end_col) or empty list
+    my $_inner_quote_range = sub {
+        my ($ctx, $quote_char) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $text = $vb->line_text($line);
+
+        # Find the pair of quotes surrounding the cursor
+        my $open_idx = -1;
+        my $close_idx = -1;
+
+        # Scan for the opening quote (going backward from cursor)
+        my $depth = 0;
+        for my $c (reverse 0 .. $col) {
+            if (substr($text, $c, 1) eq $quote_char) {
+                $depth++;
+                $open_idx = $c;
+                last;
+            }
+        }
+        return () if $open_idx < 0;
+
+        # Scan for the closing quote (going forward from after the open quote)
+        for my $c ($open_idx + 1 .. length($text) - 1) {
+            if (substr($text, $c, 1) eq $quote_char) {
+                $close_idx = $c;
+                last;
+            }
+        }
+        return () if $close_idx < 0;
+
+        return ($line, $open_idx + 1, $line, $close_idx);
+    };
+
+    # Find inner bracket range: between matching bracket pair
+    # Returns ($line, $start_col, $end_line, $end_col) or empty list
+    my $_inner_bracket_range = sub {
+        my ($ctx, $open_char, $close_char) = @_;
+        my $vb = $ctx->{vb};
+        my ($line, $col) = ($vb->cursor_line, $vb->cursor_col);
+        my $total_lines = $vb->line_count;
+
+        # Find the opening bracket that encloses cursor
+        my ($found_line, $found_col);
+        my $depth = 0;
+        my $c_line = $line;
+        my $c_col = $col;
+        while ($c_line >= 0) {
+            my $text = $vb->line_text($c_line);
+            while ($c_col >= 0) {
+                my $ch = substr($text, $c_col, 1);
+                if ($ch eq $close_char) {
+                    $depth++;
+                } elsif ($ch eq $open_char) {
+                    if ($depth == 0) {
+                        $found_line = $c_line;
+                        $found_col = $c_col;
+                        last;
+                    }
+                    $depth--;
+                }
+                $c_col--;
+            }
+            last if defined $found_line;
+            $c_line--;
+            last if $c_line < 0;
+            $c_col = length($vb->line_text($c_line)) - 1;
+        }
+        return () unless defined $found_line;
+
+        # Find the matching closing bracket
+        $depth = 1;
+        $c_line = $found_line;
+        $c_col = $found_col + 1;
+        my ($end_line, $end_col);
+        while ($c_line < $total_lines) {
+            my $text = $vb->line_text($c_line);
+            while ($c_col < length($text)) {
+                my $ch = substr($text, $c_col, 1);
+                if ($ch eq $open_char) {
+                    $depth++;
+                } elsif ($ch eq $close_char) {
+                    $depth--;
+                    if ($depth == 0) {
+                        return ($found_line, $found_col + 1, $c_line, $c_col);
+                    }
+                }
+                $c_col++;
+            }
+            $c_line++;
+            $c_col = 0;
+        }
+        return ();
+    };
+
+    # --- daw (delete a word) ---
+    $ACTIONS->{delete_a_word} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my ($sl, $sc, $el, $ec) = $_a_word_range->($ctx);
+        return if $sc >= $ec;  # nothing to delete
+        $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+        $vb->delete_range($sl, $sc, $el, $ec);
+        my $len = $vb->line_length($sl);
+        if ($sc >= $len && $len > 0) {
+            $vb->set_cursor($sl, $len - 1);
+        } elsif ($len == 0) {
+            $vb->set_cursor($sl, 0);
+        }
+    };
+
+    # --- diw (delete inner word) ---
+    $ACTIONS->{delete_inner_word} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my ($sl, $sc, $el, $ec) = $_inner_word_range->($ctx);
+        return if $sc >= $ec;  # nothing to delete
+        $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+        $vb->delete_range($sl, $sc, $el, $ec);
+        my $len = $vb->line_length($sl);
+        if ($sc >= $len && $len > 0) {
+            $vb->set_cursor($sl, $len - 1);
+        } elsif ($len == 0) {
+            $vb->set_cursor($sl, 0);
+        }
+    };
+
+    # --- ciw (change inner word) ---
+    $ACTIONS->{change_inner_word} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my ($sl, $sc, $el, $ec) = $_inner_word_range->($ctx);
+        $vb->delete_range($sl, $sc, $el, $ec);
+        $vb->set_cursor($sl, $sc);
+        $ctx->{set_mode}->('insert');
+    };
+
+    # --- di" (delete inner double quote) ---
+    $ACTIONS->{delete_inner_doublequote} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my @range = $_inner_quote_range->($ctx, '"');
+        return unless @range;
+        my ($sl, $sc, $el, $ec) = @range;
+        return if $sc >= $ec;
+        $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+        $vb->delete_range($sl, $sc, $el, $ec);
+        my $len = $vb->line_length($sl);
+        if ($sc >= $len && $len > 0) {
+            $vb->set_cursor($sl, $len - 1);
+        } elsif ($len == 0) {
+            $vb->set_cursor($sl, 0);
+        }
+    };
+
+    # --- ci" (change inner double quote) ---
+    $ACTIONS->{change_inner_doublequote} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my @range = $_inner_quote_range->($ctx, '"');
+        return unless @range;
+        my ($sl, $sc, $el, $ec) = @range;
+        $vb->delete_range($sl, $sc, $el, $ec);
+        $vb->set_cursor($sl, $sc);
+        $ctx->{set_mode}->('insert');
+    };
+
+    # --- yi" (yank inner double quote) ---
+    $ACTIONS->{yank_inner_doublequote} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my @range = $_inner_quote_range->($ctx, '"');
+        return unless @range;
+        my ($sl, $sc, $el, $ec) = @range;
+        return if $sc >= $ec;
+        $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+    };
+
+    # --- di' (delete inner single quote) ---
+    $ACTIONS->{delete_inner_singlequote} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my @range = $_inner_quote_range->($ctx, "'");
+        return unless @range;
+        my ($sl, $sc, $el, $ec) = @range;
+        return if $sc >= $ec;
+        $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+        $vb->delete_range($sl, $sc, $el, $ec);
+        my $len = $vb->line_length($sl);
+        if ($sc >= $len && $len > 0) {
+            $vb->set_cursor($sl, $len - 1);
+        } elsif ($len == 0) {
+            $vb->set_cursor($sl, 0);
+        }
+    };
+
+    # --- ci' (change inner single quote) ---
+    $ACTIONS->{change_inner_singlequote} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my @range = $_inner_quote_range->($ctx, "'");
+        return unless @range;
+        my ($sl, $sc, $el, $ec) = @range;
+        $vb->delete_range($sl, $sc, $el, $ec);
+        $vb->set_cursor($sl, $sc);
+        $ctx->{set_mode}->('insert');
+    };
+
+    # --- yi' (yank inner single quote) ---
+    $ACTIONS->{yank_inner_singlequote} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my @range = $_inner_quote_range->($ctx, "'");
+        return unless @range;
+        my ($sl, $sc, $el, $ec) = @range;
+        return if $sc >= $ec;
+        $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+    };
+
+    # Helper to create delete/change/yank inner bracket actions
+    my $_make_bracket_actions = sub {
+        my ($open, $close, $name) = @_;
+        $ACTIONS->{"delete_inner_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_inner_bracket_range->($ctx, $open, $close);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            return if $sl == $el && $sc >= $ec;
+            $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+            $vb->delete_range($sl, $sc, $el, $ec);
+            my $len = $vb->line_length($sl);
+            if ($sc >= $len && $len > 0) {
+                $vb->set_cursor($sl, $len - 1);
+            } elsif ($len == 0) {
+                $vb->set_cursor($sl, 0);
+            }
+        };
+        $ACTIONS->{"change_inner_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_inner_bracket_range->($ctx, $open, $close);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            $vb->delete_range($sl, $sc, $el, $ec);
+            $vb->set_cursor($sl, $sc);
+            $ctx->{set_mode}->('insert');
+        };
+        $ACTIONS->{"yank_inner_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_inner_bracket_range->($ctx, $open, $close);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            return if $sl == $el && $sc >= $ec;
+            $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+        };
+    };
+
+    # Create bracket text object actions for ( ) { } [ ]
+    $_make_bracket_actions->('(', ')', 'paren');
+    $_make_bracket_actions->('{', '}', 'brace');
+    $_make_bracket_actions->('[', ']', 'bracket');
+
     $ACTIONS->{replace_char} = sub {
         my ($ctx, $count, @extra) = @_;
         return unless @extra;
@@ -1689,6 +1982,33 @@ sub register {
         BackSpace     => 'backspace',
         dd            => 'delete_line',
         dw            => 'delete_word',
+        daw           => 'delete_a_word',
+        diw           => 'delete_inner_word',
+        ciw           => 'change_inner_word',
+        diquotedbl    => 'delete_inner_doublequote',
+        ciquotedbl    => 'change_inner_doublequote',
+        yiquotedbl    => 'yank_inner_doublequote',
+        diapostrophe  => 'delete_inner_singlequote',
+        ciapostrophe  => 'change_inner_singlequote',
+        yiapostrophe  => 'yank_inner_singlequote',
+        diparenleft   => 'delete_inner_paren',
+        diparenright  => 'delete_inner_paren',
+        ciparenleft   => 'change_inner_paren',
+        ciparenright  => 'change_inner_paren',
+        yiparenleft   => 'yank_inner_paren',
+        yiparenright  => 'yank_inner_paren',
+        dibraceleft   => 'delete_inner_brace',
+        dibraceright  => 'delete_inner_brace',
+        cibraceleft   => 'change_inner_brace',
+        cibraceright  => 'change_inner_brace',
+        yibraceleft   => 'yank_inner_brace',
+        yibraceright  => 'yank_inner_brace',
+        dibracketleft  => 'delete_inner_bracket',
+        dibracketright => 'delete_inner_bracket',
+        cibacketleft  => 'change_inner_bracket',
+        cibrackright => 'change_inner_bracket',
+        yibracketleft  => 'yank_inner_bracket',
+        yibracketright => 'yank_inner_bracket',
         D             => 'delete_to_eol',
         d_dollar      => 'delete_to_eol',
         cc            => 'change_line',
