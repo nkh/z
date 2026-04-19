@@ -819,8 +819,68 @@ if ($mode eq 'list') {
 # Image comparison (pure Perl/GdkPixbuf)
 # ==========================================================================
 
+sub generate_diff_image {
+    my ($file_a, $file_b, $diff_path) = @_;
+    my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
+    my $pix_b = Gtk3::Gdk::Pixbuf->new_from_file($file_b);
+    return unless $pix_a && $pix_b;
+
+    my $w = $pix_a->get_width;
+    my $h = $pix_a->get_height;
+    return if $w != $pix_b->get_width || $h != $pix_b->get_height;
+
+    my $rowstride_a = $pix_a->get_rowstride;
+    my $rowstride_b = $pix_b->get_rowstride;
+    my $n_channels  = $pix_a->get_n_channels;
+    my $pixels_a    = $pix_a->get_pixels;
+    my $pixels_b    = $pix_b->get_pixels;
+
+    # Paint golden image onto a Cairo surface as the base
+    my $diff_surface = Cairo::ImageSurface->create('argb32', $w, $h);
+    my $diff_cr = Cairo::Context->create($diff_surface);
+    $diff_cr->set_source_pixbuf($pix_a, 0, 0);
+    $diff_cr->paint;
+
+    # Modify pixels directly: blend differing pixels with magenta
+    my $diff_data   = $diff_surface->get_data;
+    my $diff_stride = $diff_surface->get_stride;
+
+    for my $y (0 .. $h - 1) {
+        for my $x (0 .. $w - 1) {
+            my $off_a = $y * $rowstride_a + $x * $n_channels;
+            my $off_b = $y * $rowstride_b + $x * $n_channels;
+            my $d = 0;
+            for my $c (0 .. $n_channels - 1) {
+                $d += abs(ord(substr($pixels_a, $off_a + $c, 1))
+                        - ord(substr($pixels_b, $off_b + $c, 1)));
+            }
+            if ($d > 0) {
+                # Blend with magenta (255, 0, 255) at 60% opacity
+                my $pix_off = $y * $diff_stride + $x * 4;
+                my $bg_r = ord(substr($diff_data, $pix_off + 0, 1));
+                my $bg_g = ord(substr($diff_data, $pix_off + 1, 1));
+                my $bg_b = ord(substr($diff_data, $pix_off + 2, 1));
+                my $blend = 0.6;
+                my $r = int($bg_r * (1 - $blend) + 255 * $blend);
+                my $g = int($bg_g * (1 - $blend));
+                my $b = int($bg_b * (1 - $blend) + 255 * $blend);
+                substr($diff_data, $pix_off + 0, 1) = chr($r);
+                substr($diff_data, $pix_off + 1, 1) = chr($g);
+                substr($diff_data, $pix_off + 2, 1) = chr($b);
+                substr($diff_data, $pix_off + 3, 1) = chr(255);
+            }
+        }
+    }
+    $diff_surface->mark_dirty;
+
+    # Save to file via GdkPixbuf
+    my $diff_pixbuf = Gtk3::Gdk::pixbuf_get_from_surface(
+        $diff_surface, 0, 0, $w, $h);
+    $diff_pixbuf->savev($diff_path, 'png', [], []) if $diff_pixbuf;
+}
+
 sub compare_images {
-    my ($file_a, $file_b) = @_;
+    my ($file_a, $file_b, $diff_path) = @_;
     return { match => 1, diff_pct => 0 } if compare($file_a, $file_b) == 0;
 
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
@@ -1069,7 +1129,19 @@ for my $t (@tests) {
         if ($fail) {
             my $d1 = sprintf("%.2f%%", ($r1->{diff_pct} // 0) * 100);
             my $d2 = sprintf("%.2f%%", ($r2->{diff_pct} // 0) * 100);
-            print "FAIL (_1: $d1, _2: $d2)\n";
+            print "FAIL (_1: $d1, _2: $d2)";
+            # Generate diff images to visually inspect the differences
+            if (!$r1->{match}) {
+                my $dp = "$diffs_dir/${name}_1_diff.png";
+                generate_diff_image($golden_1, $output_1, $dp);
+                print "\n  diff: $dp";
+            }
+            if (!$r2->{match}) {
+                my $dp = "$diffs_dir/${name}_2_diff.png";
+                generate_diff_image($golden_2, $output_2, $dp);
+                print "\n  diff: $dp";
+            }
+            print "\n";
             $failed++;
             push @failures, {
                 name => $name,
@@ -1094,7 +1166,10 @@ for my $t (@tests) {
 
         if (!$r->{match}) {
             my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
-            print "FAIL ($d)\n";
+            print "FAIL ($d)";
+            my $dp = "$diffs_dir/${name}_diff.png";
+            generate_diff_image($golden_png, $output_png, $dp);
+            print "\n  diff: $dp\n";
             $failed++;
             push @failures, { name => $name, diff_pct => $r->{diff_pct} };
         } else {
