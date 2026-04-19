@@ -541,3 +541,84 @@ sub search_forward {
 
     return { line => $match_start->get_line, col => $match_start->get_line_offset };
 }
+
+# ----------------------------------------------------------------
+# search_backward
+# ----------------------------------------------------------------
+
+sub search_backward {
+    my ( $self, $pattern, $start_line, $start_col ) = @_;
+    $start_line //= $self->_iter->get_line;
+    $start_col  //= $self->_iter->get_line_offset - 1;
+
+    my $str = ref($pattern) ? "$pattern" : $pattern;
+    return undef unless defined $str && length $str;
+
+    # Clamp start_col
+    my $max_col = $self->line_length($start_line);
+    $start_col = $max_col     if $start_col > $max_col;
+    $start_col = $max_col - 1 if $start_col >= $max_col && $max_col > 0;
+    $start_col = 0            if $start_col < 0;
+
+    # --- Try Perl regex first (supports full Perl regex syntax) ---
+    my $re = eval { qr/$str/ };
+    if ($re) {
+        my $total = $self->line_count;
+        for my $offset ( 0 .. $total - 1 ) {
+            my $ln   = ( $start_line - $offset + $total ) % $total;
+            my $text = $self->line_text($ln);
+            my $from;
+            if ( $offset == 0 ) {
+                $from = $start_col >= 0 ? $start_col : 0;
+            } else {
+                $from = length($text) - 1;
+            }
+            while ( $from >= 0 ) {
+                my $sub = substr( $text, 0, $from + 1 );
+                if ( $sub =~ /$re/ ) {
+                    return { line => $ln, col => $-[0] };
+                }
+                $from--;
+            }
+        }
+        return undef;
+    }
+
+    # --- Fallback: literal GTK search ---
+    my $buf = $self->{_buffer};
+    my $found = $buf->get_iter_at_line_offset( $start_line, $start_col );
+    my ( $success, $match_start, $match_end ) =
+      eval { $found->backward_search( $str, 'visible-only' ) };
+
+    if ( !$success ) {
+        # Wrap: try from end of buffer
+        $found = $buf->get_end_iter;
+        ( $success, $match_start, $match_end ) =
+          eval { $found->backward_search( $str, 'visible-only' ) };
+    }
+
+    if ( !$success ) {
+        # Fallback: Perl literal search through buffer lines.
+        my $total = $self->line_count;
+        for my $offset ( 0 .. $total - 1 ) {
+            my $ln   = ( $start_line - $offset + $total ) % $total;
+            my $text = $self->line_text($ln);
+            my $from;
+            if ( $offset == 0 ) {
+                $from = $start_col >= 0 ? $start_col : 0;
+            } else {
+                $from = length($text) - 1;
+            }
+            while ( $from >= 0 ) {
+                my $pos = rindex( $text, $str, $from );
+                if ( $pos >= 0 ) {
+                    return { line => $ln, col => $pos };
+                }
+                $from = $pos - 1;
+            }
+        }
+        return undef;
+    }
+
+    return { line => $match_start->get_line, col => $match_start->get_line_offset };
+}

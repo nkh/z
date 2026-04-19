@@ -36,8 +36,17 @@ use lib "$RealBin/../../lib";
 # Ensure CWD is the project root so relative theme paths work
 chdir("$RealBin/../..") or warn "Cannot chdir to project root: $!";
 
-use Getopt::Long qw(:config no_ignore_case bundling);
+# Start debug timer BEFORE GTK init so we capture full startup time
 use Time::HiRes qw(time);
+my $debug      = 0;
+my $debug_t0   = Time::HiRes::time();
+sub _dbg {
+    return unless $debug;
+    my $elapsed = sprintf("%.3f", Time::HiRes::time() - $debug_t0);
+    printf STDERR "[debug %7s ms] %s\n", $elapsed, join(" ", @_);
+}
+
+use Getopt::Long qw(:config no_ignore_case bundling);
 use Glib ('TRUE', 'FALSE');
 use Gtk3 '-init';
 use Gtk3::SourceEditor;
@@ -58,7 +67,6 @@ my %opt = (
     code           => undef,
     file           => undef,
     widget_only    => 0,
-    debug          => 0,
 );
 
 GetOptions(
@@ -76,17 +84,10 @@ GetOptions(
     'code=s'            => \$opt{code},
     'file=s'            => \$opt{file},
     'widget-only'       => \$opt{widget_only},
-    'debug'             => \$opt{debug},
+    'debug'             => \$debug,
 ) or die "Usage: $0 --macro FILE --macro-run 'NAME' [options]\n";
 
-# --- Debug helper ---
-my $t0 = Time::HiRes::time();
-sub _dbg {
-    return unless $opt{debug};
-    my $elapsed = sprintf("%.3f", Time::HiRes::time() - $t0);
-    printf STDERR "[debug %7s ms] %s\n", $elapsed, join(" ", @_);
-}
-_dbg("script start");
+_dbg("GTK init done");
 
 # Parse size
 my ($win_w, $win_h) = (800, 400);
@@ -96,7 +97,7 @@ if ($opt{size} =~ /^(\d+)x(\d+)$/) {
 
 # --- Build editor ---
 my %editor_opts = (
-    debug                 => $opt{debug},
+    debug                 => $debug,
     font_size             => $opt{font_size},
     show_line_numbers     => $opt{line_numbers},
     highlight_current_line => $opt{cursor_line},

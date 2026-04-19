@@ -556,8 +556,21 @@ sub add_vim_bindings {
                 my $line_text = $vb->line_text($cl);
 
                 # Check if the current cursor position matches the pattern
-                my $cursor_on_match = (length($line_text) >= length($pattern)
-                    && index($line_text, $pattern, $cc) == $cc);
+                # Use regex match so incremental search works with patterns
+                # like \d+, \w+, etc. (not just literal substrings).
+                my $cursor_on_match = 0;
+                if (length($line_text) > 0) {
+                    my $re = eval { qr/$pattern/ };
+                    if ($re) {
+                        my $text_after = length($line_text) > $cc
+                            ? substr($line_text, $cc) : '';
+                        $cursor_on_match = ($text_after =~ /$re/ && $-[0] == 0) ? 1 : 0;
+                    } else {
+                        # Non-regex: use literal index
+                        $cursor_on_match = (length($line_text) >= length($pattern)
+                            && index($line_text, $pattern, $cc) == $cc) ? 1 : 0;
+                    }
+                }
 
                 if ($cursor_on_match) {
                     # Cursor is already on a match — stay put, record it
