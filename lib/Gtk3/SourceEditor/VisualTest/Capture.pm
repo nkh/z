@@ -3,6 +3,7 @@ package Gtk3::SourceEditor::VisualTest::Capture;
 use strict;
 use warnings;
 use Exporter 'import';
+use Glib;
 
 our @EXPORT_OK = qw(
     capture_window
