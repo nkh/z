@@ -56,6 +56,7 @@
 
 use strict;
 use warnings;
+use utf8;
 use FindBin qw($RealBin);
 use lib "$RealBin/../../lib";
 
@@ -269,23 +270,25 @@ LIMIT 10;
 SQL
 
 my $UNICODE_SAMPLE = <<'UNICODE';
-use utf8;
-use strict;
-
 # Latin-1 Supplement
-my $french = "caf\x{00E9} r\x{00E9}sum\x{00E9}";
-my $deutsch = "\x{00FC}ber";
+my $french = "café résumé";
+my $deutsch = "über";
 
 # Greek
-my $greek = "\x{03B1}\x{03B2}\x{03B3}\x{03B4}\x{03B5}";
+my $greek = "αβγδε";
 
 # Box drawing
-my $box = "\x{250C}\x{2500}\x{2510}\n"
-        . "\x{2502}    \x{2502}\n"
-        . "\x{2514}\x{2500}\x{2518}\n";
+my $box = "┌─┐\n"
+        . "│    │\n"
+        . "└─┘\n";
 
 # Currency
-my $price = "\x{20AC}19.99";
+my $price = "€19.99";
+
+# Misc symbols
+my $math = "±×÷";
+my $quotes = "«»“”";
+my $scand = "åøæ";
 UNICODE
 
 # ==========================================================================
@@ -540,22 +543,24 @@ DESC
     { name => 'visual_unicode_content', desc => 'Unicode content',
       language => 'perl', code => $UNICODE_SAMPLE,
       description => <<'DESC',
-Edge case: Unicode characters (accented, Greek, box drawing, currency)
+Edge case: Unicode characters rendered in the editor
 
-The editor receives UTF-8 encoded text via File::Slurper::read_text().
-How each character renders depends on the font's glyph coverage:
+The test loads a Perl source file containing actual UTF-8 characters
+(accented Latin, Greek, box drawing, currency, math symbols, Scandinavian).
+The file is written via binmode(:encoding(UTF-8)) and read by
+File::Slurper::read_text(), so the editor receives proper UTF-8 bytes.
 
-- Latin-1 Supplement (e-acute, u-umlaut): usually supported by
-  monospace fonts and renders as the real character.
-- Greek letters (alpha beta gamma delta epsilon): may show as
-  replacement glyphs (two-box tofu) if the font lacks coverage.
-- Box drawing (U+250C U+2500 U+2510 etc.): require a font with box
-  drawing glyphs; many monospace fonts only support a subset.
-- Currency (euro sign U+20AC): usually supported.
+Characters included:
+- Latin-1 Supplement: \x{e9} (e-acute), \x{fc} (u-umlaut)
+- Greek: \x{3b1}-\x{3b5} (alpha through epsilon)
+- Box drawing: \x{250c}\x{2500}\x{2510} \x{2502} \x{2514}\x{2500}\x{2518}
+- Currency: \x{20ac} (euro sign)
+- Math: \x{b1} (plus-minus), \x{d7} (multiply), \x{f7} (divide)
+- Quotation marks: \x{ab}\x{bb} (guillemets), \x{201c}\x{201d} (smart quotes)
+- Scandinavian: \x{e5} (a-ring), \x{f8} (o-slash), \x{e6} (ae ligature)
 
-The purpose of this test is to verify that the editor passes through
-UTF-8 bytes correctly to GTK/Pango without double-encoding or
-truncation.  Glyph substitution is a font issue, not an editor bug.
+Glyph coverage depends on the configured font.  The golden image captures
+the rendering for the default system monospace font.
 DESC
     },
 
