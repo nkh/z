@@ -19,17 +19,16 @@ our @EXPORT_OK = qw(
 
 our $VERSION = '0.01';
 
-our $CAPTURE_TOOL  = undef;    # auto-detect if undef
+our $CAPTURE_TOOL  = undef;
 our $CAPTURE_DELAY = 800;     # ms
 our $LOG_FILE      = '/tmp/visual_test.log';
 
-# Load Time::HiRes early
 BEGIN {
     eval { require Time::HiRes; Time::HiRes->import(qw(time sleep)) };
 }
 
 # ----------------------------------------------------------------
-# _log( $message )
+# _log
 # ----------------------------------------------------------------
 sub _log {
     my ($msg) = @_;
@@ -43,16 +42,14 @@ sub _log {
 }
 
 # ----------------------------------------------------------------
-# detect_capture_tools()
+# detect_capture_tools
 # ----------------------------------------------------------------
 sub detect_capture_tools {
     my @tools;
-    push @tools, { name => 'import',       desc => 'ImageMagick import' }     if _command_exists('import');
-    push @tools, { name => 'scrot',        desc => 'scrot' }                  if _command_exists('scrot');
-    push @tools, { name => 'xwd+convert',  desc => 'xwd + ImageMagick convert' }
+    push @tools, { name => 'import',      desc => 'ImageMagick import' }     if _command_exists('import');
+    push @tools, { name => 'scrot',       desc => 'scrot' }                  if _command_exists('scrot');
+    push @tools, { name => 'xwd+convert', desc => 'xwd + ImageMagick convert' }
         if _command_exists('xwd') && _command_exists('convert');
-    _log("detect_capture_tools: " . scalar(@tools) . " tools: "
-         . join(", ", map { $_->{name} } @tools));
     return @tools;
 }
 
@@ -60,40 +57,34 @@ sub detect_capture_tools {
 # capture_editor( $editor, $output_path, %opts )
 #
 # Strategy:
-#   1. Create GTK window, show_all()
-#   2. Flush GDK display to send X protocol requests to server
-#      (without this, show_all() just buffers requests internally)
-#   3. Sleep to let X server + WM process MapWindow + render
-#   4. Get window XID (from GDK or xdotool)
-#   5. External capture (import -window $xid)
-#   6. Clean up
-#
-# Key insight: GTK buffers X requests. show_all() queues MapWindow
-# but doesn't send it. gdk_display_flush() forces the send.
-# Without the main loop, this is the ONLY way to get the window
-# onto the X server.
+#   1. Create window, show_all(), flush GDK
+#   2. Prevent WM from closing the window (delete-event handler)
+#   3. Enter Gtk3->main() with two Glib::Timeout sources:
+#      a) heartbeat (every 100ms) — proves main loop is alive
+#      b) capture (after $delay ms) — does the screenshot + main_quit
+#   4. If main() returns without capture firing, something called
+#      main_quit() prematurely — log and die with diagnostics
 # ----------------------------------------------------------------
 sub capture_editor {
     my ($editor, $output_path, %opts) = @_;
-    _log("=== capture_editor start ===");
-    _log("output: $output_path");
-    die "editor is required" unless $editor;
-    die "output_path is required" unless defined $output_path;
+    _log("=== capture_editor START ===");
+    _log("output=$output_path");
+    die "editor is required"  unless $editor;
+    die "output_path required" unless defined $output_path;
 
     my $widget = $editor->get_widget();
     die "Cannot get editor widget" unless $widget;
 
     my ($w, $h) = @{ $opts{size} || [800, 600] };
-    my $delay = $opts{delay} // $CAPTURE_DELAY // 800;
-    _log("size=${w}x${h}, delay=${delay}ms, DISPLAY=" . ($ENV{DISPLAY} // 'unset'));
+    my $delay   = $opts{delay} // $CAPTURE_DELAY // 800;
+    _log("size=${w}x${h} delay=${delay}ms DISPLAY=" . ($ENV{DISPLAY} // 'unset'));
 
     # Detect capture tool
     my $tool = $opts{tool} // $CAPTURE_TOOL;
     if (!defined $tool) {
         my @available = detect_capture_tools();
         unless (@available) {
-            die "No screenshot capture tool available.\n"
-              . "Install ImageMagick (import/convert), scrot, or x11-apps (xwd).\n";
+            die "No capture tool available. Install ImageMagick, scrot, or xwd.\n";
         }
         $tool = $available[0]->{name};
     }
@@ -101,104 +92,117 @@ sub capture_editor {
 
     my $tmp_path = "/tmp/vt_capture_$$.png";
 
-    # --- Diagnostics: check GTK display connection ---
-    _log("Checking GTK display...");
+    # --- Diagnostics ---
     my $gdk_display = eval { Gtk3::Gdk::Display::get_default() };
-    _log("GdkDisplay: " . (defined $gdk_display ? ref($gdk_display) . " OK" : "UNDEF"));
-    if ($gdk_display) {
-        my $dname = eval { $gdk_display->get_name() };
-        _log("Display name: " . ($dname // 'unknown'));
-    }
+    _log("GdkDisplay: " . (defined $gdk_display ? ref($gdk_display) : "UNDEF"));
 
     # --- Create window ---
-    _log("Creating GTK window...");
+    _log("Creating window...");
     my $window = Gtk3::Window->new('toplevel');
     $window->set_title("visual_test_capture_$$");
     $window->set_default_size($w, $h);
     $window->set_position('center');
 
+    # Prevent window manager from closing the window during capture
+    $window->signal_connect(delete_event => sub {
+        _log("delete-event received — ignoring");
+        return TRUE;    # do NOT destroy
+    });
+
     eval { $window->add($widget) };
-    if ($@) {
-        _log("FATAL: window->add() failed: $@");
-        die "window->add() failed: $@\n";
-    }
-    _log("Widget added to window");
+    if ($@) { _log("FATAL add: $@"); die "add failed: $@\n"; }
 
     eval { $window->show_all() };
-    if ($@) {
-        _log("FATAL: show_all() failed: $@");
-        die "show_all() failed: $@\n";
-    }
-    _log("show_all() called");
+    if ($@) { _log("FATAL show_all: $@"); die "show_all failed: $@\n"; }
 
-    # --- Window state diagnostics ---
-    _log("Window state: realized=" . ($window->get_realized() ? 'Y' : 'N')
-         . " mapped=" . ($window->get_mapped() ? 'Y' : 'N')
+    _log("Window: realized=" . ($window->get_realized() ? 'Y' : 'N')
          . " visible=" . ($window->get_visible() ? 'Y' : 'N'));
 
-    # --- Force realize if not yet realized ---
-    if (!$window->get_realized()) {
-        _log("Calling realize()...");
-        eval { $window->realize() };
-        _log("realize() error: $@") if $@;
-        _log("After realize: realized=" . ($window->get_realized() ? 'Y' : 'N'));
-    }
+    # Realize if needed
+    $window->realize() unless $window->get_realized();
 
-    # --- Flush GDK display to send buffered X requests ---
-    # This is THE critical step. Without it, X MapWindow is never sent.
-    my $flush_ok = 0;
+    # --- Flush GDK display ---
     if ($gdk_display) {
-        # Try method call: $display->flush()
-        eval { $gdk_display->flush(); $flush_ok = 1 };
-        if ($flush_ok) {
-            _log("GDK display flush: OK (via method)");
-        } else {
-            _log("GDK display flush via method failed: $@");
-            # Try function call: Gtk3::Gdk::Display::flush($display)
-            eval { Gtk3::Gdk::Display::flush($gdk_display); $flush_ok = 1 };
-            if ($flush_ok) {
-                _log("GDK display flush: OK (via function)");
-            } else {
-                _log("GDK display flush via function also failed: $@");
-            }
-        }
-    }
-    _log("Flush result: " . ($flush_ok ? "OK" : "FAILED — window may not appear on screen"));
-
-    # --- Sleep to let X server and WM process the window ---
-    _log("Sleeping ${delay}ms for X server + WM...");
-    Time::HiRes::sleep($delay / 1000);
-
-    # --- Get window XID ---
-    my $xid = _get_window_xid($window);
-
-    # If GDK couldn't give us an XID, try xdotool
-    if (!defined $xid && _command_exists('xdotool')) {
-        _log("Trying xdotool to find window...");
-        my $title = "visual_test_capture_$$";
-        my $found = `xdotool search --name '$title' 2>/dev/null`;
-        chomp $found;
-        if ($found) {
-            # xdotool may return multiple XIDs (one line each); take the last (top-level)
-            my @ids = split /\n/, $found;
-            $xid = $ids[-1];
-            _log("xdotool found XID: $xid");
-        } else {
-            _log("xdotool found nothing");
-        }
+        my $flush_ok = eval { $gdk_display->flush(); 1 };
+        _log("flush: " . ($flush_ok ? "OK" : "FAIL: $@"));
     }
 
-    _log("Capture target: " . (defined $xid ? "window $xid" : "root"));
-
-    # --- Capture ---
+    # --- Set up main loop with timeouts ---
+    my $callback_fired = 0;
     my $capture_error;
-    eval { _external_capture($tmp_path, $tool, $xid) };
-    $capture_error = $@ if $@;
-    _log("Capture error: $capture_error") if $capture_error;
+    my $heartbeat_count = 0;
 
-    # --- Cleanup ---
+    # Heartbeat: fires every 100ms to prove the main loop is alive
+    my $heartbeat_id = Glib::Timeout->add(100, sub {
+        $heartbeat_count++;
+        _log("heartbeat #$heartbeat_count (main running)");
+        return TRUE;    # keep repeating
+    });
+
+    # Capture timeout: fires once after $delay ms
+    my $capture_id = Glib::Timeout->add($delay, sub {
+        _log("CAPTURE TIMEOUT FIRED after ${delay}ms");
+        $callback_fired = 1;
+
+        # Remove heartbeat
+        eval { Glib::Source->remove($heartbeat_id) };
+
+        # Get window XID
+        my $xid = _get_window_xid($window);
+        if (!defined $xid && _command_exists('xdotool')) {
+            my $found = `xdotool search --name 'visual_test_capture_$$' 2>/dev/null`;
+            chomp $found;
+            my @ids = split /\n/, $found;
+            $xid = $ids[-1] if @ids;
+            _log("xdotool XID: " . ($xid // 'none'));
+        }
+
+        eval { _external_capture($tmp_path, $tool, $xid) };
+        $capture_error = $@;
+        _log("capture error: $capture_error") if $capture_error;
+
+        Gtk3->main_quit();
+        return FALSE;
+    });
+
+    _log("Entering Gtk3->main() (main_level=" . Gtk3::main_level() . ")...");
+
+    Gtk3->main();
+
+    _log("Gtk3->main() returned. heartbeat=$heartbeat_count callback=$callback_fired");
+
+    # Clean up heartbeat if main loop exited without capture
+    unless ($callback_fired) {
+        eval { Glib::Source->remove($heartbeat_id) };
+    }
+
+    # --- Diagnostics if callback didn't fire ---
+    unless ($callback_fired) {
+        _log("ERROR: capture timeout never fired! main loop returned prematurely.");
+        _log("This means something called Gtk3->main_quit() before our timeout.");
+        _log("Trying non-main-loop approach as fallback...");
+
+        # Fallback: just sleep and capture (works if flush succeeded)
+        _log("Fallback: sleeping ${delay}ms then capturing root...");
+        Time::HiRes::sleep($delay / 1000);
+
+        my $xid = _get_window_xid($window);
+        if (!defined $xid && _command_exists('xdotool')) {
+            my $found = `xdotool search --name 'visual_test_capture_$$' 2>/dev/null`;
+            chomp $found;
+            my @ids = split /\n/, $found;
+            $xid = $ids[-1] if @ids;
+            _log("fallback xdotool XID: " . ($xid // 'none'));
+        }
+
+        eval { _external_capture($tmp_path, $tool, $xid) };
+        $capture_error = $@;
+        _log("fallback capture error: $capture_error") if $capture_error;
+    }
+
+    # --- Cleanup window ---
     eval { $window->remove($widget); $window->destroy() };
-    _log("Cleanup warning: $@") if $@;
+    _log("cleanup warning: $@") if $@;
 
     die $capture_error if $capture_error;
 
@@ -206,7 +210,7 @@ sub capture_editor {
         _log("FATAL: file not created at $tmp_path");
         die "Screenshot file not created: $tmp_path\n";
     }
-    _log("Temp file: " . (-s $tmp_path) . " bytes");
+    _log("File: " . (-s $tmp_path) . " bytes");
 
     # Move to final path
     my $out_dir = $output_path;
@@ -223,7 +227,7 @@ sub capture_editor {
 }
 
 # ----------------------------------------------------------------
-# capture_editor_state( $editor, $name, $output_dir, %opts )
+# capture_editor_state
 # ----------------------------------------------------------------
 sub capture_editor_state {
     my ($editor, $name, $output_dir, %opts) = @_;
@@ -236,27 +240,19 @@ sub capture_editor_state {
 
 # ----------------------------------------------------------------
 # capture_window / capture_widget / save_screenshot
-# (for already-mapped windows — not used in current test flow)
 # ----------------------------------------------------------------
 sub capture_window {
     my ($window, $output_path) = @_;
-    die "window is required" unless $window;
-    die "output_path is required" unless defined $output_path;
     my $gdk_window = $window->get_window();
-    die "Cannot get GdkWindow" unless $gdk_window;
     my $pixbuf = _window_to_pixbuf($gdk_window,
         $gdk_window->get_width(), $gdk_window->get_height());
-    die "Failed to capture screenshot" unless $pixbuf;
     $pixbuf->save($output_path, 'png');
     return $output_path;
 }
 
 sub capture_widget {
     my ($widget, $output_path, %opts) = @_;
-    die "widget is required" unless $widget;
-    die "output_path is required" unless defined $output_path;
     my $gdk_window = $widget->get_window();
-    die "Cannot get GdkWindow" unless $gdk_window;
     my $root = $gdk_window->get_screen()->get_root_window();
     my $pixbuf = _window_to_pixbuf($root,
         $root->get_width(), $root->get_height());
@@ -265,55 +261,32 @@ sub capture_widget {
     my ($x, $y) = ($alloc->x - $pad, $alloc->y - $pad);
     my ($w, $h) = ($alloc->width + 2*$pad, $alloc->height + 2*$pad);
     $pixbuf = $pixbuf->new_subpixbuf($x, $y, $w, $h) if $x >= 0 && $y >= 0;
-    die "Failed to capture widget screenshot" unless $pixbuf;
     $pixbuf->save($output_path, 'png');
     return $output_path;
 }
 
 sub save_screenshot {
     my ($pixbuf, $output_path) = @_;
-    die "pixbuf and output_path required" unless $pixbuf && $output_path;
     $pixbuf->save($output_path, 'png');
     return $output_path;
 }
 
 # ==================================================================
-# Internal helpers
+# Internal
 # ==================================================================
 
 sub _get_window_xid {
     my ($window) = @_;
-
     my $gdk_window = eval { $window->get_window() };
-    unless ($gdk_window) {
-        _log("_get_xid: get_window() returned undef");
-        return undef;
+    return undef unless $gdk_window;
+
+    for my $try (
+        sub { $gdk_window->get_xid() },
+        sub { $gdk_window->{xid} },
+    ) {
+        my $xid = eval { $try->() };
+        return "$xid" if defined $xid && $xid;
     }
-
-    _log("_get_xid: GdkWindow type=" . ref($gdk_window));
-
-    # Method: get_xid()
-    my $xid = eval { $gdk_window->get_xid() };
-    if (defined $xid && $xid) {
-        _log("_get_xid: XID via get_xid(): $xid");
-        return "$xid";
-    }
-
-    # Property: {xid}
-    $xid = eval { $gdk_window->{xid} };
-    if (defined $xid && $xid) {
-        _log("_get_xid: XID via hash: $xid");
-        return "$xid";
-    }
-
-    # Method: get_window() on the GdkWindow itself (nested)
-    $xid = eval { $gdk_window->get_window(); $gdk_window->get_xid() };
-    if (defined $xid && $xid) {
-        _log("_get_xid: XID via nested call: $xid");
-        return "$xid";
-    }
-
-    _log("_get_xid: all methods failed");
     return undef;
 }
 
@@ -322,34 +295,24 @@ sub _external_capture {
 
     my $display = $ENV{DISPLAY} // ':0';
     my $target  = defined $xid ? $xid : 'root';
-    _log("_capture: tool=$tool target=$target display=$display path=$output_path");
-
-    my ($efh, $err_file) = tempfile(SUFFIX => '.stderr', UNLINK => 1);
-    close $efh;
+    _log("_capture: tool=$tool target=$target");
 
     my $ret;
-
     if ($tool eq 'import') {
-        # Capture specific window or root
         my @cmd = ('import', '-display', $display, '-window', $target, $output_path);
         _log("_capture: " . join(" ", @cmd));
         $ret = system(@cmd);
         _log("_capture: exit=$ret");
-
-        # If specific window failed, try root
         if ($ret != 0 && defined $xid) {
             _log("_capture: window failed, trying root");
             @cmd = ('import', '-display', $display, '-window', 'root', $output_path);
-            _log("_capture: " . join(" ", @cmd));
             $ret = system(@cmd);
             _log("_capture: root exit=$ret");
         }
     }
     elsif ($tool eq 'scrot') {
-        my @cmd = ('scrot', '-o', $output_path);
-        _log("_capture: " . join(" ", @cmd));
-        $ret = system(@cmd);
-        _log("_capture: exit=$ret");
+        $ret = system('scrot', '-o', $output_path);
+        _log("_capture: scrot exit=$ret");
     }
     elsif ($tool eq 'xwd+convert') {
         my ($xfh, $xwd_file) = tempfile(SUFFIX => '.xwd', UNLINK => 1);
@@ -363,16 +326,12 @@ sub _external_capture {
     }
 
     if ($ret != 0) {
-        my $err = _read_file($err_file);
-        chomp $err; $err =~ s/\n/ /g;
-        die "Capture '$tool' failed (exit $ret): $err\n";
+        die "Capture '$tool' failed (exit $ret)\n";
     }
     unless (-f $output_path && -s $output_path) {
-        my $err = _read_file($err_file);
-        chomp $err; $err =~ s/\n/ /g;
-        die "Capture exited OK but file not created: $output_path. $err\n";
+        die "Capture exited OK but file not created: $output_path\n";
     }
-    _log("_capture: OK, " . (-s $output_path) . " bytes");
+    _log("_capture: OK " . (-s $output_path) . " bytes");
 }
 
 sub _read_file {
@@ -402,8 +361,7 @@ sub _window_to_pixbuf {
         my $pixbuf = eval { $method->($gdk_window, $width, $height) };
         return $pixbuf if $pixbuf;
     }
-
-    die "No method available to capture screenshot from GdkWindow";
+    die "No method to capture screenshot from GdkWindow";
 }
 
 sub _command_exists {
@@ -422,15 +380,12 @@ Gtk3::SourceEditor::VisualTest::Capture - Screenshot capture for GTK widgets
 
 =head1 SYNOPSIS
 
-    use Gtk3::SourceEditor::VisualTest::Capture
-        qw(capture_editor_state detect_capture_tools);
-
     capture_editor_state($editor, 'dark_theme', 't/visual/output',
         size => [800, 400]);
 
 =head1 LOGGING
 
-All operations are logged to C</tmp/visual_test.log> with timestamps.
+All operations logged to F</tmp/visual_test.log>.
 
 =head1 AUTHOR
 
