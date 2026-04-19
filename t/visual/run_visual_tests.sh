@@ -8,6 +8,7 @@
 #   ./t/visual/run_visual_tests.sh --accept     # Accept all failing as new golden
 #   ./t/visual/run_visual_tests.sh --update NAME # Accept specific test
 #   ./t/visual/run_visual_tests.sh --threshold 0.005  # Set diff threshold
+#   ./t/visual/run_visual_tests.sh --tool scrot # Use specific capture tool
 #   ./t/visual/run_visual_tests.sh --list       # List golden images
 #   ./t/visual/run_visual_tests.sh --clean      # Remove output/diff files
 #
@@ -30,6 +31,7 @@ THRESHOLD="${VISUAL_TEST_THRESHOLD:-0.01}"
 MODE="test"  # test | init | accept | update
 
 TARGET_NAME=""
+TOOL_NAME=""
 
 # --- Parse arguments ---
 for arg in "$@"; do
@@ -52,6 +54,10 @@ for arg in "$@"; do
         --threshold)
             shift
             THRESHOLD="${1:-0.01}"
+            ;;
+        --tool)
+            shift
+            TOOL_NAME="${1:-}"
             ;;
         *)
             TARGET_NAME="$arg"
@@ -127,6 +133,9 @@ case "$MODE" in
         echo "Golden:    $GOLDEN_DIR"
         echo "Output:    $OUTPUT_DIR"
         echo "Diffs:     $DIFFS_DIR"
+        if [ -n "$TOOL_NAME" ]; then
+            echo "Tool:      $TOOL_NAME"
+        fi
         echo "---"
 
         # Export for the Perl test script
@@ -138,6 +147,9 @@ case "$MODE" in
         if [ -n "$TARGET_NAME" ]; then
             export VISUAL_TEST_TARGET="$TARGET_NAME"
         fi
+        if [ -n "$TOOL_NAME" ]; then
+            export VISUAL_TEST_TOOL="$TOOL_NAME"
+        fi
 
         # Run the Perl test harness
         cd "$BASE_DIR"
@@ -147,7 +159,7 @@ case "$MODE" in
 
     *)
         echo "Unknown mode: $MODE"
-        echo "Usage: $0 [--init|--accept|--update|--list|--clean] [--threshold N]"
+        echo "Usage: $0 [--init|--accept|--update|--list|--clean] [--threshold N] [--tool TOOL]"
         exit 1
         ;;
 esac

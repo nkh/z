@@ -28,7 +28,7 @@ use lib "$RealBin/../../lib";
 use lib "$RealBin/../../t/lib";
 
 use Gtk3::SourceEditor::VisualTest::Environment qw(with_xvfb xvfb_start gtk_init xvfb_stop);
-use Gtk3::SourceEditor::VisualTest::Capture qw(capture_editor_state);
+use Gtk3::SourceEditor::VisualTest::Capture qw(capture_editor_state detect_capture_tools);
 use Gtk3::SourceEditor::VisualTest::Compare qw(compare_screenshots is_visual_match);
 use Gtk3::SourceEditor::VisualTest::Golden qw(init_golden_suite golden_path list_golden_images accept_candidate);
 
@@ -38,6 +38,30 @@ use Gtk3::SourceEditor::VisualTest::Golden qw(init_golden_suite golden_path list
 my $mode      = $ENV{VISUAL_TEST_MODE}        // 'test';
 my $threshold = $ENV{VISUAL_TEST_THRESHOLD}   // 0.01;
 my $target    = $ENV{VISUAL_TEST_TARGET}       // '';
+my $tool_pref = $ENV{VISUAL_TEST_TOOL};
+
+# ----------------------------------------------------------------
+# Detect capture tools (no GTK needed) — skip early if none found
+# ----------------------------------------------------------------
+my @available_tools = detect_capture_tools();
+if ($tool_pref) {
+    # User requested a specific tool: check it exists
+    my %ok = map { $_ => 1 } @available_tools;
+    unless ($ok{$tool_pref}) {
+        print "SKIP: requested tool '$tool_pref' not found.\n";
+        print "Available tools: " . join(", ", @available_tools) . "\n";
+        exit 0;
+    }
+} elsif (!@available_tools) {
+    print "SKIP: No screenshot capture tool found.\n";
+    print "Install at least one of:\n";
+    print "  - ImageMagick  (provides 'import' and 'convert')\n";
+    print "  - scrot\n";
+    print "  - x11-apps     (provides 'xwd')\n";
+    print "  - xdotool\n";
+    print "Tests skipped.\n";
+    exit 0;
+}
 
 my $dirs = init_golden_suite(
     base_dir   => $ENV{VISUAL_TEST_BASE} // '.',
@@ -394,6 +418,7 @@ sub run_single_test {
         $captured = capture_editor_state(
             $editor, $name, $output_dir,
             size => [800, 400],
+            ($tool_pref ? (tool => $tool_pref) : ()),
         );
     };
     if ($@) {
@@ -451,6 +476,8 @@ sub run_single_test {
 
 sub main {
     print "Starting visual test suite...\n";
+    printf "Capture tool: %s\n",
+        $tool_pref // ($available_tools[0] // 'none');
 
     my $passed  = 0;
     my $failed  = 0;

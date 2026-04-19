@@ -3,6 +3,8 @@ package Gtk3::SourceEditor::VisualTest::Capture;
 use strict;
 use warnings;
 use Exporter 'import';
+use File::Temp qw(tempfile);
+use Glib ('TRUE', 'FALSE');
 
 our @EXPORT_OK = qw(
     capture_window
@@ -10,22 +12,68 @@ our @EXPORT_OK = qw(
     capture_editor
     capture_editor_state
     save_screenshot
+    detect_capture_tools
 );
 
 our $VERSION = '0.01';
 
 # ----------------------------------------------------------------
+# Configurable capture settings
+#
+# $CAPTURE_TOOL  - preferred tool name, or undef for auto-detect
+# $CAPTURE_DELAY - milliseconds to wait in the main loop before
+#                  capturing (gives GTK time to render)
+# ----------------------------------------------------------------
+our $CAPTURE_TOOL  = undef;   # auto-detect if undef
+our $CAPTURE_DELAY = 300;    # ms
+
+# ----------------------------------------------------------------
+# detect_capture_tools()
+#
+# Returns an ordered list of available capture tool names.
+# Order matters: best tools first.
+#
+#   xdotool+import  - capture specific window via xdotool + ImageMagick
+#   import          - capture root window via ImageMagick
+#   scrot           - capture root window via scrot
+#   xwd+convert     - capture root window via xwd + ImageMagick convert
+#
+# Does NOT require GTK to be initialized.
+# ----------------------------------------------------------------
+sub detect_capture_tools {
+    my @tools;
+    my %has = (
+        import  => _command_exists('import'),
+        scrot   => _command_exists('scrot'),
+        xdotool => _command_exists('xdotool'),
+        xwd     => _command_exists('xwd'),
+        convert => _command_exists('convert'),
+    );
+
+    push @tools, 'xdotool+import' if $has{xdotool} && $has{import};
+    push @tools, 'import'         if $has{import};
+    push @tools, 'scrot'          if $has{scrot};
+    push @tools, 'xwd+convert'    if $has{xwd} && $has{convert};
+
+    return @tools;
+}
+
+# ----------------------------------------------------------------
 # capture_editor( $editor, $output_path, %opts )
 #
 # Capture a screenshot of a Gtk3::SourceEditor instance.
-# Creates a temporary window, forces it to map, captures,
-# then cleans up.
+#
+# Strategy: enter the real GTK main loop so the window renders
+# properly, then use an external tool (import/scrot/xwd) to
+# capture pixels from the X display.
 #
 # Options:
 #   size     => [ $width, $height ]  - window size (default: 800x600)
-#   timeout  => $seconds             - max wait for mapping (default: 5)
+#   delay    => $milliseconds        - render wait (default: $CAPTURE_DELAY)
+#   tool     => $tool_name           - capture tool (default: auto-detect)
 #
 # Returns the output path on success.
+# Dies if no capture tool is available.
 # ----------------------------------------------------------------
 sub capture_editor {
     my ($editor, $output_path, %opts) = @_;
@@ -36,66 +84,59 @@ sub capture_editor {
     die "Cannot get editor widget" unless $widget;
 
     my ($w, $h) = @{ $opts{size} || [800, 600] };
-    my $timeout_ms = ($opts{timeout} // 5) * 1000;
+    my $delay = $opts{delay} // $CAPTURE_DELAY // 300;
 
-    # Create a fresh temporary window
+    # Determine which capture tool to use
+    my $tool = $opts{tool} // $CAPTURE_TOOL;
+    if (!defined $tool) {
+        my @available = detect_capture_tools();
+        unless (@available) {
+            die "No screenshot capture tool available.\n"
+              . "Install at least one of:\n"
+              . "  - ImageMagick  (provides 'import' and 'convert')\n"
+              . "  - scrot\n"
+              . "  - x11-apps     (provides 'xwd')\n"
+              . "  - xdotool      (for precise window capture)\n";
+        }
+        $tool = $available[0];
+    }
+
+    # Create a temporary window with a unique title.
+    # The title is used by xdotool to find this exact window.
+    my $capture_id = sprintf("vt_cap_%d_%d", $$, time());
+
     my $window = Gtk3::Window->new('toplevel');
+    $window->set_title($capture_id);
     $window->set_default_size($w, $h);
     $window->add($widget);
     $window->show_all();
 
-    # Force the window to map: realize creates the GdkWindow,
-    # present maps it on screen, flush processes the X round-trip.
-    $window->realize();
-    $window->present();
-    Gtk3::Gdk::flush();
+    my $capture_error;
 
-    # Let GTK process pending events so the window is fully rendered
-    for (1..50) { Gtk3::main_iteration() }
+    # Schedule screenshot via a Glib timeout.
+    # This lets the real GTK main loop run: the window maps,
+    # renders, and the X server processes the frame.
+    Glib::Timeout->add($delay, sub {
+        eval { _external_capture($capture_id, $output_path, $tool) };
+        $capture_error = $@ if $@;
+        Gtk3->main_quit();
+        return FALSE;   # one-shot: don't repeat
+    });
 
-    my $gdk_window = $window->get_window();
+    # Block here until the timeout fires and captures the screenshot.
+    Gtk3->main();
 
-    # Safety net: if for some reason we still don't have a GdkWindow,
-    # poll with main_iteration for up to timeout_ms milliseconds.
-    my $iterations = 0;
-    while (!$gdk_window && $iterations < $timeout_ms) {
-        Gtk3::main_iteration();
-        $gdk_window = eval { $window->get_window() };
-        $iterations++;
-    }
-
-    my $error;
-    my $result;
-
-    if (!$gdk_window) {
-        $error = "Cannot get GdkWindow from widget after "
-               . int($timeout_ms / 1000) . "s (tried $iterations extra iterations)";
-    } else {
-        # Let rendering fully settle before capture
-        for (1..20) { Gtk3::main_iteration() }
-
-        eval {
-            my $pw = $gdk_window->get_width();
-            my $ph = $gdk_window->get_height();
-            my $pixbuf = _window_to_pixbuf($gdk_window, $pw, $ph);
-            die "Failed to capture screenshot: no pixbuf returned" unless $pixbuf;
-            $pixbuf->save($output_path, 'png');
-            $result = $output_path;
-        };
-        $error = $@ if $@;
-    }
-
-    # Cleanup: remove widget from window before destroying,
-    # so the widget can be reused if needed.
+    # Cleanup: reparent the widget out of the window before destroying
+    # so the editor can be reused if the caller holds a reference.
     eval {
         $window->remove($widget);
         $window->destroy();
     };
-    warn "Cleanup warning: $@" if $@;
 
-    die $error if $error;
-    die "capture_editor: no result" unless $result;
-    return $result;
+    die $capture_error if $capture_error;
+    die "Screenshot file not created: $output_path\n"
+        unless -f $output_path && -s $output_path;
+    return $output_path;
 }
 
 # ----------------------------------------------------------------
@@ -112,7 +153,10 @@ sub capture_editor_state {
 
 # ----------------------------------------------------------------
 # capture_window( $gtk_window, $output_path )
-# Window must already be mapped.
+#
+# Capture a pre-mapped window via GdkPixbuf.
+# (Only works if the window is already realized and mapped,
+#  e.g. inside a running Gtk3->main loop.)
 # ----------------------------------------------------------------
 sub capture_window {
     my ($window, $output_path) = @_;
@@ -129,7 +173,8 @@ sub capture_window {
 
 # ----------------------------------------------------------------
 # capture_widget( $gtk_widget, $output_path, %opts )
-# Widget must already be mapped.
+#
+# Capture a pre-mapped widget region via GdkPixbuf.
 # ----------------------------------------------------------------
 sub capture_widget {
     my ($widget, $output_path, %opts) = @_;
@@ -166,11 +211,72 @@ sub save_screenshot {
 # Internal
 # ==================================================================
 
+# ----------------------------------------------------------------
+# _external_capture( $window_title, $output_path, $tool )
+#
+# Capture the X display to a PNG file using an external tool.
+#
+# Supported tools:
+#   xdotool+import  - find window by title, capture it
+#   import          - capture root window
+#   scrot           - capture root window
+#   xwd+convert     - capture root window via XWD + ImageMagick
+# ----------------------------------------------------------------
+sub _external_capture {
+    my ($window_title, $output_path, $tool) = @_;
+
+    my $display = $ENV{DISPLAY} // ':0';
+
+    if ($tool eq 'xdotool+import') {
+        # Find the specific window by its unique title
+        my $wid = `xdotool --display "$display" search --name "$window_title" 2>/dev/null`;
+        chomp $wid;
+        my @ids = split /\s+/, $wid;
+        $wid = $ids[-1] if @ids;   # most specific child window
+        die "xdotool: window '$window_title' not found on display $display\n"
+            unless $wid && $wid =~ /^0x[0-9a-f]+$/;
+
+        my $ret = system('import', '-display', $display,
+                         '-window', $wid, $output_path);
+        die "import failed for window $wid (exit $ret)\n" if $ret != 0;
+    }
+    elsif ($tool eq 'import') {
+        my $ret = system('import', '-display', $display,
+                         '-window', 'root', $output_path);
+        die "import failed (exit $ret)\n" if $ret != 0;
+    }
+    elsif ($tool eq 'scrot') {
+        my $ret = system('scrot', '-o', $output_path);
+        die "scrot failed (exit $ret)\n" if $ret != 0;
+    }
+    elsif ($tool eq 'xwd+convert') {
+        my ($fh, $tmpfile) = tempfile(SUFFIX => '.xwd', UNLINK => 1);
+        close $fh;
+        my $ret = system('xwd', '-display', $display,
+                         '-root', '-out', $tmpfile);
+        die "xwd failed (exit $ret)\n" if $ret != 0;
+        $ret = system('convert', $tmpfile, $output_path);
+        die "convert failed (exit $ret)\n" if $ret != 0;
+    }
+    else {
+        die "Unknown capture tool: '$tool'. "
+          . "Use one of: xdotool+import, import, scrot, xwd+convert\n";
+    }
+
+    die "Capture tool completed but output file is missing: $output_path\n"
+        unless -f $output_path && -s $output_path;
+}
+
+# ----------------------------------------------------------------
+# _window_to_pixbuf( $gdk_window, $width, $height )
+#
+# Extract pixels via GdkPixbuf (for capture_window / capture_widget).
+# Only works when the window is already fully mapped and viewable.
+# ----------------------------------------------------------------
 sub _window_to_pixbuf {
     my ($gdk_window, $width, $height) = @_;
 
     # Method 1: pixbuf_get_from_surface (GTK3 with Cairo backend)
-    # This is the cleanest method - no critical warnings.
     if ($gdk_window->can('pixbuf_get_from_surface')) {
         my $pixbuf = eval {
             my $surface = $gdk_window->get_surface();
@@ -182,7 +288,6 @@ sub _window_to_pixbuf {
     }
 
     # Method 2: Gtk3::Gdk::pixbuf_get_from_window (procedural)
-    # Requires the window to be viewable (mapped + visible).
     my $pixbuf = eval {
         Gtk3::Gdk::pixbuf_get_from_window(
             $gdk_window, 0, 0, $width, $height);
@@ -199,6 +304,17 @@ sub _window_to_pixbuf {
     die "No method available to capture screenshot from GdkWindow";
 }
 
+# ----------------------------------------------------------------
+# _command_exists( $name )
+#
+# Check if an external command is available on $PATH.
+# ----------------------------------------------------------------
+sub _command_exists {
+    my ($cmd) = @_;
+    return 0 unless defined $cmd && $cmd =~ /^[a-zA-Z0-9_-]+$/;
+    return system("command -v '$cmd' >/dev/null 2>&1") == 0;
+}
+
 1;
 
 __END__
@@ -209,16 +325,50 @@ Gtk3::SourceEditor::VisualTest::Capture - Screenshot capture for GTK widgets
 
 =head1 SYNOPSIS
 
-    use Gtk3::SourceEditor::VisualTest::Capture qw(capture_editor_state);
+    use Gtk3::SourceEditor::VisualTest::Capture
+        qw(capture_editor_state detect_capture_tools);
 
+    # Check what tools are available
+    my @tools = detect_capture_tools();
+    die "No tools" unless @tools;
+
+    # Capture an editor state to a file
     capture_editor_state($editor, 'dark_theme', 't/visual/output',
         size => [800, 400]);
 
-=head1 DESCRIPTION
+=head1 CAPTURE TOOLS
 
-Captures screenshots of Gtk3::SourceEditor instances.  Uses
-realize(), present(), and Gdk::flush() to force window mapping
-before capture, with a main_iteration() polling fallback.
+Screenshots are taken by external tools that read from the X display,
+not by extracting pixels from GDK internals.  The following tools
+are supported (checked in order of preference):
+
+=over 4
+
+=item * C<xdotool+import> (best) -- finds the exact window by title,
+captures only that window via ImageMagick's C<import>.
+
+=item * C<import> -- captures the full root window via ImageMagick.
+
+=item * C<scrot> -- captures the full root window via scrot.
+
+=item * C<xwd+convert> -- captures via X C<xwd> and converts to PNG
+with ImageMagick's C<convert>.
+
+=back
+
+=head1 CONFIGURATION
+
+=over 4
+
+=item C<$Gtk3::SourceEditor::VisualTest::Capture::CAPTURE_TOOL>
+
+Preferred capture tool name, or C<undef> for auto-detection (default).
+
+=item C<$Gtk3::SourceEditor::VisualTest::Capture::CAPTURE_DELAY>
+
+Milliseconds to wait in the GTK main loop before capturing (default 300).
+
+=back
 
 =head1 AUTHOR
 
