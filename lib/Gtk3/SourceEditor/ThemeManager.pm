@@ -61,10 +61,18 @@ sub load {
     # Prepend our dedicated temp directory FIRST so our modified theme
     # takes priority over any system scheme with the same ID.
     $_call->($manager, 'prepend_search_path', $tmp_dir);
-    # Force an immediate rescan so get_scheme() finds our file without
-    # relying on the internal dirty-flag mechanism.
-    $_call->($manager, 'force_rescan');
+    # Avoid force_rescan() — it scans every search path on disk
+    # (system GtkSourceView dirs contain 50+ .lang/.xml files).
+    # GtkSourceView automatically detects that a new search path was
+    # prepended and rescans just that directory on the next get_scheme()
+    # call, making force_rescan unnecessary.
     my $scheme = $_call->($manager, 'get_scheme', $scheme_id);
+    # Fallback: if the automatic rescan didn't pick it up (older GTK),
+    # try a single force_rescan.
+    unless ($scheme) {
+        $_call->($manager, 'force_rescan');
+        $scheme = $_call->($manager, 'get_scheme', $scheme_id);
+    }
     die "Error: Could not load scheme '$scheme_id'\n" unless $scheme;
 
     my $ui_css = qq{

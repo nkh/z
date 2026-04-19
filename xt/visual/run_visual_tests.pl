@@ -4,7 +4,7 @@
 #
 # HOW IT WORKS
 # ============
-# Each test is defined by a Perl macro file in macros/.  The macro takes
+# Each test is defined by a Perl macro file in xt/visual/macros/.  The macro takes
 # one or two snapshots: a single snapshot for static tests, or _1 and _2
 # for action tests (before/after an editor action).
 #
@@ -91,7 +91,7 @@ my $golden_dir = "$RealBin/golden";
 my $output_dir = "$RealBin/output";
 my $diffs_dir  = "$RealBin/diffs";
 my $script     = "$RealBin/snapshot_editor.pl";
-my $macros_dir = "$RealBin/../../macros";
+my $macros_dir = "$RealBin/macros";
 
 make_path($golden_dir, $output_dir, $diffs_dir);
 
@@ -294,7 +294,7 @@ UNICODE
 # Each test is a hash with:
 #   name        - unique identifier used for golden files and --target
 #   desc        - one-line description shown in test output
-#   macro       - macro file path (relative to macros/)
+#   macro       - macro file path (relative to xt/visual/macros/)
 #   is_action   - 1 if test produces _1 and _2 snapshots, 0 if single snapshot
 #   (editor options): theme, language, code, line_numbers, cursor_line, vim_mode
 #   description - human-readable text written to golden/<name>.txt during --init

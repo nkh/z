@@ -150,19 +150,19 @@ Visual tests verify the editor's rendered appearance by taking PNG screenshots o
 
 ### How Visual Tests Work
 
-Each visual test is defined by a **macro file** in `macros/`.  A macro is a Perl script that returns a coderef receiving a `$ctx` (context) object.  The context provides methods for injecting keystrokes, taking snapshots, and querying editor state.
+Each visual test is defined by a **macro file** in `xt/visual/macros/`.  A macro is a Perl script that returns a coderef receiving a `$ctx` (context) object.  The context provides methods for injecting keystrokes, taking snapshots, and querying editor state.
 
 The test runner (`xt/visual/run_visual_tests.pl`) iterates over the test definitions, launches `xt/visual/snapshot_editor.pl` with the appropriate macro, and compares the output PNGs against golden images.
 
 **Macro file example** (single-step test):
 ```perl
-# macros/visual_dark_theme
+# xt/visual/macros/visual_dark_theme
 sub { my ($ctx) = @_; $ctx->snapshot() }
 ```
 
 **Macro file example** (action test with _1 and _2 snapshots):
 ```perl
-# macros/visual_delete_line
+# xt/visual/macros/visual_delete_line
 sub {
     my ($ctx) = @_;
     $ctx->snapshot('1');
@@ -242,7 +242,7 @@ perl xt/visual/snapshot_editor.pl \
 
 # Run a specific visual test macro
 perl xt/visual/snapshot_editor.pl \
-    --macro macros/visual_delete_line \
+    --macro xt/visual/macros/visual_delete_line \
     --macro-run 'visual_delete_line' \
     --snapshot-dir /tmp/test \
     --theme dark --language perl \
@@ -256,7 +256,7 @@ perl xt/visual/snapshot_editor.pl \
 |------|-------------|
 | `xt/visual/run_visual_tests.pl` | Test runner (golden init, comparison, reporting) |
 | `xt/visual/snapshot_editor.pl` | Snapshot utility (creates editor window, runs macro) |
-| `macros/visual_*.pl` | Macro files for each visual test |
+| `xt/visual/macros/visual_*.pl` | Macro files for each visual test |
 | `xt/visual/golden/*.png` | Golden reference images |
 | `xt/visual/golden/*.txt` | Human-readable description of each test |
 | `xt/visual/output/` | Current test output PNGs |
