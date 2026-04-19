@@ -43,7 +43,8 @@
 #
 # OPTIONS
 # =======
-#   --init               Create golden images
+#   --init               Create (or overwrite) all golden images
+#   --init-missing       Create golden images only for tests missing them
 #   --accept             Alias for --init
 #   --test               Compare against golden (default)
 #   --list               List test names
@@ -75,6 +76,7 @@ my $verbose   = 0;
 
 GetOptions(
     'init'            => sub { $mode = 'init' },
+    'init-missing'    => sub { $mode = 'init-missing' },
     'accept'          => sub { $mode = 'init' },
     'test'            => sub { $mode = 'test' },
     'list'            => sub { $mode = 'list' },
@@ -82,7 +84,7 @@ GetOptions(
     'threshold=f'     => \$threshold,
     'snapshot-delay=i'=> \$delay,
     'verbose|v'       => \$verbose,
-) or die "Usage: $0 [--init|--test|--list] [--target NAME] [--threshold N] [--verbose]\n";
+) or die "Usage: $0 [--init|--init-missing|--test|--list] [--target NAME] [--threshold N] [--verbose]\n";
 
 # --- Directories ---
 my $golden_dir = "$RealBin/golden";
@@ -913,8 +915,9 @@ sub write_description {
 # Run tests
 # ==========================================================================
 
-my $label = $mode eq 'init' ? 'initializing golden images'
-           :                   'comparing against golden';
+my $label = $mode eq 'init'         ? 'initializing golden images'
+           : $mode eq 'init-missing' ? 'initializing missing golden images'
+           :                          'comparing against golden';
 if ($target) {
     $label .= " (target: $target)";
 }
@@ -924,6 +927,21 @@ my $passed = 0;
 my $failed = 0;
 my $skipped = 0;
 my @failures;
+
+# ==========================================================================
+# Check whether all expected golden files already exist for a test
+# ==========================================================================
+
+sub has_all_goldens {
+    my ($t) = @_;
+    my $name = $t->{name};
+    if ($t->{is_action}) {
+        return (-f "$golden_dir/${name}_1.png" && -s _
+             && -f "$golden_dir/${name}_2.png" && -s _);
+    } else {
+        return (-f "$golden_dir/${name}.png" && -s _);
+    }
+}
 
 TEST:
 for my $t (@tests) {
@@ -951,6 +969,13 @@ for my $t (@tests) {
         $golden_png = "$golden_dir/${name}.png";
     }
 
+    # --- init-missing: skip tests that already have golden images ---
+    if ($mode eq 'init-missing' && has_all_goldens($t)) {
+        print "SKIP (exists)\n";
+        $skipped++;
+        next TEST;
+    }
+
     # --- Run snapshot_editor.pl with macro ---
     my @cmd = build_cmd($t);
     my $rc = run_child(@cmd);
@@ -964,7 +989,7 @@ for my $t (@tests) {
     }
 
     # --- Init mode: copy to golden + write description ---
-    if ($mode eq 'init') {
+    if ($mode eq 'init' || $mode eq 'init-missing') {
         if ($is_action) {
             unless (-f $output_1 && -s $output_1) {
                 print "FAIL (no _1 output)\n"; $failed++;

@@ -53,6 +53,9 @@ sub key {
         or $self->die("key: no GdkWindow available");
 
     my ($keyval, $hw_keycode) = $self->_resolve_key($name);
+    my $ev_time = Gtk3::get_current_event_time() || 0;
+    my $ev_str = (length($name) == 1 && ord($name) >= 32 && ord($name) < 127)
+                 ? $name : '';
 
     eval {
         my $ev_press = Gtk3::Gdk::Event->new('key-press');
@@ -60,20 +63,25 @@ sub key {
         $ev_press->keyval($keyval);
         $ev_press->state(0);
         $ev_press->send_event(1);
-        $ev_press->time(Gtk3::get_current_event_time() || 0);
-        $ev_press->string(
-            (length($name) == 1 && ord($name) >= 32 && ord($name) < 127)
-                ? $name : ''
-        );
-        $view->signal_emit('key-press-event', $ev_press);
+        $ev_press->time($ev_time);
+        $ev_press->string($ev_str);
+
+        # Use $widget->event() instead of signal_emit.  This runs the full
+        # GTK event processing chain: first the GtkWidget::event signal
+        # (where vim bindings intercept navigation keys), then the specific
+        # key-press-event signal.  signal_emit('key-press-event') would
+        # skip the event signal entirely, causing arrow keys and other
+        # navigation keys to be processed by GtkTextView instead of vim.
+        $view->event($ev_press);
 
         my $ev_release = Gtk3::Gdk::Event->new('key-release');
         $ev_release->window($gdk_win);
         $ev_release->keyval($keyval);
         $ev_release->state(0);
         $ev_release->send_event(1);
-        $ev_release->time(Gtk3::get_current_event_time() || 0);
-        $view->signal_emit('key-release-event', $ev_release);
+        $ev_release->time($ev_time);
+
+        $view->event($ev_release);
     };
     if ($@) {
         warn "Macro::Context::key: failed to emit key '$name': $@\n";
