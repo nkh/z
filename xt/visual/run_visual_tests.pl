@@ -838,7 +838,7 @@ sub generate_diff_image {
     # Paint golden image onto a Cairo surface as the base
     my $diff_surface = Cairo::ImageSurface->create('argb32', $w, $h);
     my $diff_cr = Cairo::Context->create($diff_surface);
-    $diff_cr->set_source_pixbuf($pix_a, 0, 0);
+    Gtk3::Gdk::cairo_set_source_pixbuf($diff_cr, $pix_a, 0, 0);
     $diff_cr->paint;
 
     # Modify pixels directly: blend differing pixels with magenta
