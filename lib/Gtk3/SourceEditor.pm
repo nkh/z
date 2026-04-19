@@ -460,10 +460,10 @@ sub snapshot {
     # --- Step 3: optionally crop to widget area ---
     if ($opts{widget_only}) {
         my $alloc = $widget->get_allocation();
-        my $sx = $alloc->x;
-        my $sy = $alloc->y;
-        my $sw = $alloc->width;
-        my $sh = $alloc->height;
+        my $sx = $alloc->{x};
+        my $sy = $alloc->{y};
+        my $sw = $alloc->{width};
+        my $sh = $alloc->{height};
         if ($sx >= 0 && $sy >= 0 && $sw > 0 && $sh > 0
             && $sx + $sw <= $w && $sy + $sh <= $h) {
             $pixbuf = $pixbuf->new_subpixbuf($sx, $sy, $sw, $sh);
