@@ -108,12 +108,6 @@ sub gtk_init {
     require Gtk3;
     Gtk3->import('-init');
 
-    # Verify we can connect
-    my $display = Gtk3::Gdk::Display::get_default();
-    unless ($display) {
-        die "GTK3 cannot connect to display $ENV{DISPLAY}";
-    }
-
     return 1;
 }
 
