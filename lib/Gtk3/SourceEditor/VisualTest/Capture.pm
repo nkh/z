@@ -18,12 +18,12 @@ our $VERSION = '0.01';
 # capture_editor( $editor, $output_path, %opts )
 #
 # Capture a screenshot of a Gtk3::SourceEditor instance.
-# Creates a temporary window, waits for it to map, captures,
+# Creates a temporary window, forces it to map, captures,
 # then cleans up.
 #
 # Options:
 #   size     => [ $width, $height ]  - window size (default: 800x600)
-#   timeout  => $seconds             - max wait (default: 5)
+#   timeout  => $seconds             - max wait for mapping (default: 5)
 #
 # Returns the output path on success.
 # ----------------------------------------------------------------
@@ -35,27 +35,32 @@ sub capture_editor {
     my $widget = $editor->get_widget();
     die "Cannot get editor widget" unless $widget;
 
-    my $timeout = ($opts{timeout} // 5) * 1_000;  # iterations (~1ms each)
+    my ($w, $h) = @{ $opts{size} || [800, 600] };
+    my $timeout_ms = ($opts{timeout} // 5) * 1000;
 
     # Create a fresh temporary window
     my $window = Gtk3::Window->new('toplevel');
-    my ($w, $h) = @{ $opts{size} || [800, 600] };
     $window->set_default_size($w, $h);
     $window->add($widget);
     $window->show_all();
 
-    # Wait for GdkWindow by processing the event loop.
-    # Only use Gtk3::main_iteration() and Gtk3::events_pending()
-    # which are core functions available on all Perl-GTK3 installs.
-    my $gdk_window;
+    # Force the window to map: realize creates the GdkWindow,
+    # present maps it on screen, flush processes the X round-trip.
+    $window->realize();
+    $window->present();
+    Gtk3::Gdk::flush();
+
+    # Let GTK process pending events so the window is fully rendered
+    for (1..50) { Gtk3::main_iteration() }
+
+    my $gdk_window = $window->get_window();
+
+    # Safety net: if for some reason we still don't have a GdkWindow,
+    # poll with main_iteration for up to timeout_ms milliseconds.
     my $iterations = 0;
-    while ($iterations < $timeout) {
-        # Process one event; blocks briefly if queue is empty
+    while (!$gdk_window && $iterations < $timeout_ms) {
         Gtk3::main_iteration();
-
-        $gdk_window = $window->get_window();
-        last if $gdk_window;
-
+        $gdk_window = eval { $window->get_window() };
         $iterations++;
     }
 
@@ -64,25 +69,29 @@ sub capture_editor {
 
     if (!$gdk_window) {
         $error = "Cannot get GdkWindow from widget after "
-               . int($timeout / 1000) . "s (tried $iterations iterations)";
+               . int($timeout_ms / 1000) . "s (tried $iterations extra iterations)";
     } else {
-        # Let rendering settle
-        for (1..10) { Gtk3::main_iteration() }
+        # Let rendering fully settle before capture
+        for (1..20) { Gtk3::main_iteration() }
 
         eval {
             my $pw = $gdk_window->get_width();
             my $ph = $gdk_window->get_height();
             my $pixbuf = _window_to_pixbuf($gdk_window, $pw, $ph);
-            die "Failed to capture screenshot" unless $pixbuf;
+            die "Failed to capture screenshot: no pixbuf returned" unless $pixbuf;
             $pixbuf->save($output_path, 'png');
             $result = $output_path;
         };
         $error = $@ if $@;
     }
 
-    # Cleanup
-    eval { $window->remove($widget) };
-    eval { $window->destroy() };
+    # Cleanup: remove widget from window before destroying,
+    # so the widget can be reused if needed.
+    eval {
+        $window->remove($widget);
+        $window->destroy();
+    };
+    warn "Cleanup warning: $@" if $@;
 
     die $error if $error;
     die "capture_editor: no result" unless $result;
@@ -160,9 +169,8 @@ sub save_screenshot {
 sub _window_to_pixbuf {
     my ($gdk_window, $width, $height) = @_;
 
-    # Try all known methods, each wrapped in eval for safety
-
-    # Method 1: pixbuf_get_from_surface (GTK3 with Cairo)
+    # Method 1: pixbuf_get_from_surface (GTK3 with Cairo backend)
+    # This is the cleanest method - no critical warnings.
     if ($gdk_window->can('pixbuf_get_from_surface')) {
         my $pixbuf = eval {
             my $surface = $gdk_window->get_surface();
@@ -173,14 +181,15 @@ sub _window_to_pixbuf {
         return $pixbuf if $pixbuf;
     }
 
-    # Method 2: Gtk3::Gdk::pixbuf_get_from_window
+    # Method 2: Gtk3::Gdk::pixbuf_get_from_window (procedural)
+    # Requires the window to be viewable (mapped + visible).
     my $pixbuf = eval {
         Gtk3::Gdk::pixbuf_get_from_window(
             $gdk_window, 0, 0, $width, $height);
     };
     return $pixbuf if $pixbuf;
 
-    # Method 3: Gtk3::Gdk::Pixbuf->get_from_window
+    # Method 3: Gtk3::Gdk::Pixbuf->get_from_window (OO form)
     $pixbuf = eval {
         Gtk3::Gdk::Pixbuf->get_from_window(
             $gdk_window, 0, 0, $width, $height);
@@ -207,9 +216,9 @@ Gtk3::SourceEditor::VisualTest::Capture - Screenshot capture for GTK widgets
 
 =head1 DESCRIPTION
 
-Captures screenshots of Gtk3::SourceEditor instances.  Uses only
-core Gtk3 functions (main_iteration, events_pending) that are
-available on all Perl-GTK3 installations.
+Captures screenshots of Gtk3::SourceEditor instances.  Uses
+realize(), present(), and Gdk::flush() to force window mapping
+before capture, with a main_iteration() polling fallback.
 
 =head1 AUTHOR
 
