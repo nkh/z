@@ -18,7 +18,7 @@ our @EXPORT_OK = qw(
 our $VERSION = '0.01';
 
 # ----------------------------------------------------------------
-# Configurable capture settings
+# Configurable settings
 #
 # $CAPTURE_TOOL  - preferred tool name, or undef for auto-detect
 # $CAPTURE_DELAY - milliseconds to wait in the main loop before
@@ -30,30 +30,23 @@ our $CAPTURE_DELAY = 300;    # ms
 # ----------------------------------------------------------------
 # detect_capture_tools()
 #
-# Returns an ordered list of available capture tool names.
-# Order matters: best tools first.
-#
-#   xdotool+import  - capture specific window via xdotool + ImageMagick
-#   import          - capture root window via ImageMagick
-#   scrot           - capture root window via scrot
-#   xwd+convert     - capture root window via xwd + ImageMagick convert
+# Returns a list of available capture methods. Each is a hashref:
+#   { name => 'import', desc => 'ImageMagick import' }
 #
 # Does NOT require GTK to be initialized.
 # ----------------------------------------------------------------
 sub detect_capture_tools {
     my @tools;
-    my %has = (
-        import  => _command_exists('import'),
-        scrot   => _command_exists('scrot'),
-        xdotool => _command_exists('xdotool'),
-        xwd     => _command_exists('xwd'),
-        convert => _command_exists('convert'),
-    );
 
-    push @tools, 'xdotool+import' if $has{xdotool} && $has{import};
-    push @tools, 'import'         if $has{import};
-    push @tools, 'scrot'          if $has{scrot};
-    push @tools, 'xwd+convert'    if $has{xwd} && $has{convert};
+    if (_command_exists('import')) {
+        push @tools, { name => 'import', desc => 'ImageMagick import' };
+    }
+    if (_command_exists('scrot')) {
+        push @tools, { name => 'scrot', desc => 'scrot' };
+    }
+    if (_command_exists('xwd') && _command_exists('convert')) {
+        push @tools, { name => 'xwd+convert', desc => 'xwd + ImageMagick convert' };
+    }
 
     return @tools;
 }
@@ -95,18 +88,14 @@ sub capture_editor {
               . "Install at least one of:\n"
               . "  - ImageMagick  (provides 'import' and 'convert')\n"
               . "  - scrot\n"
-              . "  - x11-apps     (provides 'xwd')\n"
-              . "  - xdotool      (for precise window capture)\n";
+              . "  - x11-apps     (provides 'xwd')\n";
         }
-        $tool = $available[0];
+        $tool = $available[0]->{name};
     }
 
-    # Create a temporary window with a unique title.
-    # The title is used by xdotool to find this exact window.
-    my $capture_id = sprintf("vt_cap_%d_%d", $$, time());
-
+    # Create a temporary window
     my $window = Gtk3::Window->new('toplevel');
-    $window->set_title($capture_id);
+    $window->set_title("visual_test_capture");
     $window->set_default_size($w, $h);
     $window->add($widget);
     $window->show_all();
@@ -117,7 +106,7 @@ sub capture_editor {
     # This lets the real GTK main loop run: the window maps,
     # renders, and the X server processes the frame.
     Glib::Timeout->add($delay, sub {
-        eval { _external_capture($capture_id, $output_path, $tool) };
+        eval { _external_capture($output_path, $tool) };
         $capture_error = $@ if $@;
         Gtk3->main_quit();
         return FALSE;   # one-shot: don't repeat
@@ -127,7 +116,6 @@ sub capture_editor {
     Gtk3->main();
 
     # Cleanup: reparent the widget out of the window before destroying
-    # so the editor can be reused if the caller holds a reference.
     eval {
         $window->remove($widget);
         $window->destroy();
@@ -153,10 +141,7 @@ sub capture_editor_state {
 
 # ----------------------------------------------------------------
 # capture_window( $gtk_window, $output_path )
-#
-# Capture a pre-mapped window via GdkPixbuf.
-# (Only works if the window is already realized and mapped,
-#  e.g. inside a running Gtk3->main loop.)
+# Window must already be mapped.
 # ----------------------------------------------------------------
 sub capture_window {
     my ($window, $output_path) = @_;
@@ -173,8 +158,7 @@ sub capture_window {
 
 # ----------------------------------------------------------------
 # capture_widget( $gtk_widget, $output_path, %opts )
-#
-# Capture a pre-mapped widget region via GdkPixbuf.
+# Widget must already be mapped.
 # ----------------------------------------------------------------
 sub capture_widget {
     my ($widget, $output_path, %opts) = @_;
@@ -212,109 +196,74 @@ sub save_screenshot {
 # ==================================================================
 
 # ----------------------------------------------------------------
-# _external_capture( $window_title, $output_path, $tool )
+# _external_capture( $output_path, $tool )
 #
-# Capture the X display to a PNG file using an external tool.
+# Capture the X display root window to a PNG file.
+#
+# All tools capture the root window because that is the most
+# reliable approach on Xvfb (no window manager). The editor
+# window will be at (0,0) with the exact size we set.
 #
 # Supported tools:
-#   xdotool+import  - find window by title, capture it
-#   import          - capture root window
-#   scrot           - capture root window
-#   xwd+convert     - capture root window via XWD + ImageMagick
+#   import       - ImageMagick: import -window root
+#   scrot        - scrot (captures root automatically)
+#   xwd+convert  - xwd -root + convert to PNG
 # ----------------------------------------------------------------
 sub _external_capture {
-    my ($window_title, $output_path, $tool) = @_;
+    my ($output_path, $tool) = @_;
 
     my $display = $ENV{DISPLAY} // ':0';
 
-    if ($tool eq 'xdotool+import') {
-        # Find the specific window by its unique title
-        my $wid = `xdotool --display "$display" search --name "$window_title" 2>/dev/null`;
-        chomp $wid;
-        my @ids = split /\s+/, $wid;
-        $wid = $ids[0] if @ids;   # top-level window (most reliable for import)
+    # Write stderr to a temp file so we can report it on failure
+    my ($efh, $err_file) = tempfile(SUFFIX => '.stderr', UNLINK => 1);
+    close $efh;
 
-        if (!$wid || $wid !~ /^0x[0-9a-f]+$/) {
-            warn "visual_test: xdotool could not find window '$window_title', "
-               . "falling back to root capture\n";
-            $tool = 'import';
-        }
-        else {
-            # Try capturing the specific window first
-            my $ret = _run_cmd('import', '-display', $display,
-                               '-window', $wid, $output_path);
-            if ($ret != 0) {
-                warn "visual_test: import -window $wid failed (exit $ret), "
-                   . "falling back to root capture\n";
-                $tool = 'import';
-            }
-            elsif (!-f $output_path || !-s $output_path) {
-                warn "visual_test: import -window $wid produced no file, "
-                   . "falling back to root capture\n";
-                $tool = 'import';
-            }
-        }
-    }
+    my $ret;
 
     if ($tool eq 'import') {
-        my $ret = _run_cmd('import', '-display', $display,
-                           '-window', 'root', $output_path);
-        die "import -window root failed (exit $ret)\n" if $ret != 0;
+        $ret = system("import -display $display -window root '$output_path' 2>'$err_file'");
     }
     elsif ($tool eq 'scrot') {
-        my $ret = _run_cmd('scrot', '-o', $output_path);
-        die "scrot failed (exit $ret)\n" if $ret != 0;
+        $ret = system("scrot -o '$output_path' 2>'$err_file'");
     }
     elsif ($tool eq 'xwd+convert') {
-        my ($fh, $tmpfile) = tempfile(SUFFIX => '.xwd', UNLINK => 1);
-        close $fh;
-        my $ret = _run_cmd('xwd', '-display', $display,
-                           '-root', '-out', $tmpfile);
+        my ($xfh, $xwd_file) = tempfile(SUFFIX => '.xwd', UNLINK => 1);
+        close $xfh;
+        $ret = system("xwd -display $display -root -out '$xwd_file' 2>'$err_file'");
         die "xwd failed (exit $ret)\n" if $ret != 0;
-        $ret = _run_cmd('convert', $tmpfile, $output_path);
-        die "convert failed (exit $ret)\n" if $ret != 0;
+        $ret = system("convert '$xwd_file' '$output_path' 2>'$err_file'");
     }
     else {
         die "Unknown capture tool: '$tool'. "
-          . "Use one of: xdotool+import, import, scrot, xwd+convert\n";
+          . "Use one of: import, scrot, xwd+convert\n";
     }
 
-    die "Capture tool completed but output file is missing: $output_path\n"
-        unless -f $output_path && -s $output_path;
+    if ($ret != 0) {
+        my $err = _read_file($err_file);
+        chomp $err;
+        $err =~ s/\n/ /g;
+        die "Capture tool '$tool' failed (exit $ret). $err\n";
+    }
+
+    unless (-f $output_path && -s $output_path) {
+        my $err = _read_file($err_file);
+        chomp $err;
+        $err =~ s/\n/ /g;
+        die "Capture tool '$tool' exited OK but file not created: $output_path. $err\n";
+    }
 }
 
 # ----------------------------------------------------------------
-# _run_cmd( @cmd )
-#
-# Run an external command, capture stderr, and return the exit code.
-# Stderr is printed on failure so the user can see what went wrong.
+# _read_file( $path ) - slurp a file, return empty string on error
 # ----------------------------------------------------------------
-sub _run_cmd {
-    my @cmd = @_;
-    my $stderr = '';
-    my $pid = open(my $fh, '-|');
-    if (!defined $pid) {
-        die "Failed to fork: $!\n";
-    }
-    elsif ($pid == 0) {
-        # Child: redirect stderr to stdout
-        open(STDERR, '>&', \*STDOUT);
-        exec(@cmd);
-        exit 127;   # if exec fails
-    }
-    # Parent: read output
+sub _read_file {
+    my ($path) = @_;
+    return '' unless -f $path;
+    open my $fh, '<', $path or return '';
     local $/;
-    $stderr = <$fh> // '';
+    my $data = <$fh>;
     close $fh;
-    my $ret = $?;
-
-    if ($ret != 0) {
-        chomp $stderr;
-        warn "  command: " . join(" ", @cmd) . "\n";
-        warn "  stderr:  $stderr\n" if length $stderr;
-    }
-
-    return $ret;
+    return $data // '';
 }
 
 # ----------------------------------------------------------------
@@ -326,7 +275,6 @@ sub _run_cmd {
 sub _window_to_pixbuf {
     my ($gdk_window, $width, $height) = @_;
 
-    # Method 1: pixbuf_get_from_surface (GTK3 with Cairo backend)
     if ($gdk_window->can('pixbuf_get_from_surface')) {
         my $pixbuf = eval {
             my $surface = $gdk_window->get_surface();
@@ -337,14 +285,12 @@ sub _window_to_pixbuf {
         return $pixbuf if $pixbuf;
     }
 
-    # Method 2: Gtk3::Gdk::pixbuf_get_from_window (procedural)
     my $pixbuf = eval {
         Gtk3::Gdk::pixbuf_get_from_window(
             $gdk_window, 0, 0, $width, $height);
     };
     return $pixbuf if $pixbuf;
 
-    # Method 3: Gtk3::Gdk::Pixbuf->get_from_window (OO form)
     $pixbuf = eval {
         Gtk3::Gdk::Pixbuf->get_from_window(
             $gdk_window, 0, 0, $width, $height);
@@ -356,8 +302,6 @@ sub _window_to_pixbuf {
 
 # ----------------------------------------------------------------
 # _command_exists( $name )
-#
-# Check if an external command is available on $PATH.
 # ----------------------------------------------------------------
 sub _command_exists {
     my ($cmd) = @_;
@@ -378,31 +322,24 @@ Gtk3::SourceEditor::VisualTest::Capture - Screenshot capture for GTK widgets
     use Gtk3::SourceEditor::VisualTest::Capture
         qw(capture_editor_state detect_capture_tools);
 
-    # Check what tools are available
     my @tools = detect_capture_tools();
     die "No tools" unless @tools;
 
-    # Capture an editor state to a file
     capture_editor_state($editor, 'dark_theme', 't/visual/output',
         size => [800, 400]);
 
 =head1 CAPTURE TOOLS
 
-Screenshots are taken by external tools that read from the X display,
-not by extracting pixels from GDK internals.  The following tools
-are supported (checked in order of preference):
+All tools capture the X root window. On Xvfb the editor window
+will be at position (0,0) with the size specified in C<size>.
 
 =over 4
 
-=item * C<xdotool+import> (best) -- finds the exact window by title,
-captures only that window via ImageMagick's C<import>.
+=item * C<import> -- ImageMagick's C<import -window root>
 
-=item * C<import> -- captures the full root window via ImageMagick.
+=item * C<scrot> -- captures root window automatically
 
-=item * C<scrot> -- captures the full root window via scrot.
-
-=item * C<xwd+convert> -- captures via X C<xwd> and converts to PNG
-with ImageMagick's C<convert>.
+=item * C<xwd+convert> -- C<xwd -root> + ImageMagick C<convert> to PNG
 
 =back
 

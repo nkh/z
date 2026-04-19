@@ -44,12 +44,13 @@ my $tool_pref = $ENV{VISUAL_TEST_TOOL};
 # Detect capture tools (no GTK needed) — skip early if none found
 # ----------------------------------------------------------------
 my @available_tools = detect_capture_tools();
+my %tool_names = map { $_->{name} => $_->{desc} } @available_tools;
+
 if ($tool_pref) {
     # User requested a specific tool: check it exists
-    my %ok = map { $_ => 1 } @available_tools;
-    unless ($ok{$tool_pref}) {
+    unless ($tool_names{$tool_pref}) {
         print "SKIP: requested tool '$tool_pref' not found.\n";
-        print "Available tools: " . join(", ", @available_tools) . "\n";
+        print "Available tools: " . join(", ", sort keys %tool_names) . "\n";
         exit 0;
     }
 } elsif (!@available_tools) {
@@ -58,7 +59,6 @@ if ($tool_pref) {
     print "  - ImageMagick  (provides 'import' and 'convert')\n";
     print "  - scrot\n";
     print "  - x11-apps     (provides 'xwd')\n";
-    print "  - xdotool\n";
     print "Tests skipped.\n";
     exit 0;
 }
@@ -477,7 +477,7 @@ sub run_single_test {
 sub main {
     print "Starting visual test suite...\n";
     printf "Capture tool: %s\n",
-        $tool_pref // ($available_tools[0] // 'none');
+        $tool_pref // ($available_tools[0]{name} // 'none');
 
     my $passed  = 0;
     my $failed  = 0;

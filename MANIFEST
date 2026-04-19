@@ -34,7 +34,6 @@ script/source-editor-cursor-demo
 script/test-syntax-colors.pl
 script/test_lang_color.pl
 script/check-api-methods.pl
-api-registry/full_api.json
 t/editor_config.t
 t/00-smoke-mock.t
 t/00-api-check.t
@@ -43,7 +42,6 @@ t/lib/Gtk3.pm
 t/lib/Gtk3/Gdk.pm
 t/lib/Gtk3/MessageDialog.pm
 t/lib/Gtk3/CellRendererText.pm
-t/lib/Gtk3/Clipboard.pm
 t/lib/Gtk3/CssProvider.pm
 t/lib/Gtk3/FileChooserDialog.pm
 t/lib/Gtk3/SourceView.pm
