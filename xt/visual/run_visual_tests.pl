@@ -78,13 +78,13 @@ GetOptions(
     'init'            => sub { $mode = 'init' },
     'init-missing'    => sub { $mode = 'init-missing' },
     'accept'          => sub { $mode = 'init' },
-    'test'            => sub { $mode = 'test' },
+    'test:s'          => sub { if (defined $_[1] && length $_[1]) { $target = $_[1] } else { $mode = 'test' } },
     'list'            => sub { $mode = 'list' },
     'target=s'        => \$target,
     'threshold=f'     => \$threshold,
     'snapshot-delay=i'=> \$delay,
     'verbose|v'       => \$verbose,
-) or die "Usage: $0 [--init|--init-missing|--test|--list] [--target NAME] [--threshold N] [--verbose]\n";
+) or die "Usage: $0 [--init|--init-missing|--test|--list] [--test NAME|--target NAME] [--threshold N] [--verbose]\n";
 
 # --- Directories ---
 my $golden_dir = "$RealBin/golden";
@@ -870,7 +870,24 @@ sub build_cmd {
     push @cmd, '--line-numbers', $t->{line_numbers} if defined $t->{line_numbers};
     push @cmd, '--cursor-line', $t->{cursor_line}  if defined $t->{cursor_line};
     push @cmd, '--vim-mode',   $t->{vim_mode}      if defined $t->{vim_mode};
-    push @cmd, '--code',       $t->{code}          if defined $t->{code};
+
+    # Write code content to a temp file instead of passing via --code on the
+    # command line.  Command-line arguments go through the locale encoding
+    # which can mangle Unicode characters (e.g. box-drawing chars, accented
+    # letters).  Using --file lets snapshot_editor.pl read via
+    # File::Slurper::read_text() which correctly handles UTF-8.
+    if (defined $t->{code}) {
+        require File::Temp;
+        my $tmp = File::Temp->new(TEMPLATE => 'snapshot_code_XXXX',
+                                  DIR      => $output_dir,
+                                  SUFFIX   => '.pl',
+                                  UNLINK   => 0);
+        binmode($tmp, ':encoding(UTF-8)');
+        print $tmp $t->{code};
+        close $tmp;
+        push @cmd, '--file', $tmp->filename;
+        push @tmp_files, $tmp->filename;  # cleaned up at END
+    }
     return @cmd;
 }
 
@@ -910,6 +927,10 @@ sub write_description {
     }
     close $fh;
 }
+
+# --- Temp-file tracking for code content ---
+my @tmp_files;
+END { unlink for @tmp_files }
 
 # ==========================================================================
 # Run tests

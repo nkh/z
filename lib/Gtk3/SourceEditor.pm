@@ -430,76 +430,95 @@ sub snapshot {
     my $widget     = $self->{widget};
     my $textview   = $self->{textview};
 
-    # --- Step 0: ensure rendering is complete ---
-    # GTK uses double-buffered rendering.  After simulate_keys() updates
-    # selection marks, the redraw is queued but may not have been committed
-    # to the GdkWindow surface yet.  Without synchronisation here the
-    # captured pixels can be stale (e.g. a visual-mode selection that is
-    # one character short of where it should be).
+    # --- Pre-capture: ensure GTK has processed all pending state ---
     eval {
-        # 1. Drain any pending GTK events (layout, redraw requests, etc.)
         while (Gtk3::events_pending()) { Gtk3::main_iteration() }
-        # 2. Request a fresh paint pass and wait for it
-        $textview->queue_draw();
-        while (Gtk3::events_pending()) { Gtk3::main_iteration() }
-        # 3. Flush the GDK connection so the X server has committed the
-        #    latest surface contents (matters for X11; harmless on Wayland)
-        Gtk3::Gdk::flush();
     };
 
-    # --- Step 1: obtain a GdkWindow ---
-    # Walk up to the toplevel window to get a mapped GdkWindow
-    my $toplevel = $widget;
-    while ($toplevel && !$toplevel->isa('Gtk3::Window')) {
-        $toplevel = eval { $toplevel->get_parent() };
-    }
-    die "snapshot: cannot find parent Gtk3::Window\n" unless $toplevel;
-
-    my $gdk_win = $toplevel->get_window();
-    die "snapshot: toplevel has no GdkWindow (window not mapped?)\n"
-        unless $gdk_win;
-
-    my $w = $gdk_win->get_width();
-    my $h = $gdk_win->get_height();
-
-    # --- Step 2: extract pixels via GdkPixbuf ---
+    # --- Strategy A: render widget directly to a Cairo surface ---
+    # This bypasses the GdkWindow surface entirely, avoiding double-
+    # buffering and X-server sync issues that cause stale pixels
+    # (e.g. visual-mode selections that are one character short).
     my $pixbuf;
 
-    # Try pixbuf_get_from_surface (GTK 3.x with Cairo backend)
-    if (!$pixbuf && $gdk_win->can('pixbuf_get_from_surface')) {
-        $pixbuf = eval {
-            my $surface = $gdk_win->get_surface();
-            return undef unless $surface;
-            $gdk_win->pixbuf_get_from_surface($surface, 0, 0, $w, $h);
-        };
-    }
-
-    # Try Gdk::pixbuf_get_from_window
-    if (!$pixbuf) {
-        $pixbuf = eval {
-            Gtk3::Gdk::pixbuf_get_from_window($gdk_win, 0, 0, $w, $h);
-        };
-    }
-
-    # Try Gdk::Pixbuf->get_from_window
-    if (!$pixbuf) {
-        $pixbuf = eval {
-            Gtk3::Gdk::Pixbuf->get_from_window($gdk_win, 0, 0, $w, $h);
-        };
-    }
-
-    die "snapshot: all pixel-extraction methods failed\n" unless $pixbuf;
-
-    # --- Step 3: optionally crop to widget area ---
     if ($opts{widget_only}) {
         my $alloc = $widget->get_allocation();
-        my $sx = $alloc->{x};
-        my $sy = $alloc->{y};
-        my $sw = $alloc->{width};
-        my $sh = $alloc->{height};
-        if ($sx >= 0 && $sy >= 0 && $sw > 0 && $sh > 0
-            && $sx + $sw <= $w && $sy + $sh <= $h) {
-            $pixbuf = $pixbuf->new_subpixbuf($sx, $sy, $sw, $sh);
+        my $w = $alloc->{width};
+        my $h = $alloc->{height};
+
+        if ($w > 0 && $h > 0) {
+            $pixbuf = eval {
+                my $surface = Cairo::ImageSurface->create('argb32', $w, $h);
+                my $cr = Cairo::Context->create($surface);
+
+                # gtk_widget_draw() (GTK 3.0+) renders the widget and
+                # its children to the given Cairo context synchronously.
+                # This bypasses the GdkWindow surface entirely, avoiding
+                # double-buffering and X-server sync issues that cause
+                # stale pixels.
+                $widget->draw($cr);
+
+                Gtk3::Gdk::pixbuf_get_from_surface($surface, 0, 0, $w, $h);
+            };
+        }
+    }
+
+    # --- Strategy B: read from the GdkWindow surface (fallback) ---
+    if (!$pixbuf) {
+        # Flush pending draws to the window surface
+        eval {
+            $textview->queue_draw();
+            while (Gtk3::events_pending()) { Gtk3::main_iteration() }
+            Gtk3::Gdk::flush();
+        };
+
+        # Walk up to the toplevel window to get a mapped GdkWindow
+        my $toplevel = $widget;
+        while ($toplevel && !$toplevel->isa('Gtk3::Window')) {
+            $toplevel = eval { $toplevel->get_parent() };
+        }
+        die "snapshot: cannot find parent Gtk3::Window\n" unless $toplevel;
+
+        my $gdk_win = $toplevel->get_window();
+        die "snapshot: toplevel has no GdkWindow (window not mapped?)\n"
+            unless $gdk_win;
+
+        my $w = $gdk_win->get_width();
+        my $h = $gdk_win->get_height();
+
+        if (!$pixbuf && $gdk_win->can('pixbuf_get_from_surface')) {
+            $pixbuf = eval {
+                my $surface = $gdk_win->get_surface();
+                return undef unless $surface;
+                $gdk_win->pixbuf_get_from_surface($surface, 0, 0, $w, $h);
+            };
+        }
+
+        if (!$pixbuf) {
+            $pixbuf = eval {
+                Gtk3::Gdk::pixbuf_get_from_window($gdk_win, 0, 0, $w, $h);
+            };
+        }
+
+        if (!$pixbuf) {
+            $pixbuf = eval {
+                Gtk3::Gdk::Pixbuf->get_from_window($gdk_win, 0, 0, $w, $h);
+            };
+        }
+
+        die "snapshot: all pixel-extraction methods failed\n" unless $pixbuf;
+
+        # Crop to widget area if requested
+        if ($opts{widget_only}) {
+            my $alloc = $widget->get_allocation();
+            my $sx = $alloc->{x};
+            my $sy = $alloc->{y};
+            my $sw = $alloc->{width};
+            my $sh = $alloc->{height};
+            if ($sx >= 0 && $sy >= 0 && $sw > 0 && $sh > 0
+                && $sx + $sw <= $w && $sy + $sh <= $h) {
+                $pixbuf = $pixbuf->new_subpixbuf($sx, $sy, $sw, $sh);
+            }
         }
     }
 
