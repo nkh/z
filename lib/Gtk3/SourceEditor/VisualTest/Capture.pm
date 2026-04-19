@@ -232,30 +232,46 @@ sub _external_capture {
         my $wid = `xdotool --display "$display" search --name "$window_title" 2>/dev/null`;
         chomp $wid;
         my @ids = split /\s+/, $wid;
-        $wid = $ids[-1] if @ids;   # most specific child window
-        die "xdotool: window '$window_title' not found on display $display\n"
-            unless $wid && $wid =~ /^0x[0-9a-f]+$/;
+        $wid = $ids[0] if @ids;   # top-level window (most reliable for import)
 
-        my $ret = system('import', '-display', $display,
-                         '-window', $wid, $output_path);
-        die "import failed for window $wid (exit $ret)\n" if $ret != 0;
+        if (!$wid || $wid !~ /^0x[0-9a-f]+$/) {
+            warn "visual_test: xdotool could not find window '$window_title', "
+               . "falling back to root capture\n";
+            $tool = 'import';
+        }
+        else {
+            # Try capturing the specific window first
+            my $ret = _run_cmd('import', '-display', $display,
+                               '-window', $wid, $output_path);
+            if ($ret != 0) {
+                warn "visual_test: import -window $wid failed (exit $ret), "
+                   . "falling back to root capture\n";
+                $tool = 'import';
+            }
+            elsif (!-f $output_path || !-s $output_path) {
+                warn "visual_test: import -window $wid produced no file, "
+                   . "falling back to root capture\n";
+                $tool = 'import';
+            }
+        }
     }
-    elsif ($tool eq 'import') {
-        my $ret = system('import', '-display', $display,
-                         '-window', 'root', $output_path);
-        die "import failed (exit $ret)\n" if $ret != 0;
+
+    if ($tool eq 'import') {
+        my $ret = _run_cmd('import', '-display', $display,
+                           '-window', 'root', $output_path);
+        die "import -window root failed (exit $ret)\n" if $ret != 0;
     }
     elsif ($tool eq 'scrot') {
-        my $ret = system('scrot', '-o', $output_path);
+        my $ret = _run_cmd('scrot', '-o', $output_path);
         die "scrot failed (exit $ret)\n" if $ret != 0;
     }
     elsif ($tool eq 'xwd+convert') {
         my ($fh, $tmpfile) = tempfile(SUFFIX => '.xwd', UNLINK => 1);
         close $fh;
-        my $ret = system('xwd', '-display', $display,
-                         '-root', '-out', $tmpfile);
+        my $ret = _run_cmd('xwd', '-display', $display,
+                           '-root', '-out', $tmpfile);
         die "xwd failed (exit $ret)\n" if $ret != 0;
-        $ret = system('convert', $tmpfile, $output_path);
+        $ret = _run_cmd('convert', $tmpfile, $output_path);
         die "convert failed (exit $ret)\n" if $ret != 0;
     }
     else {
@@ -265,6 +281,40 @@ sub _external_capture {
 
     die "Capture tool completed but output file is missing: $output_path\n"
         unless -f $output_path && -s $output_path;
+}
+
+# ----------------------------------------------------------------
+# _run_cmd( @cmd )
+#
+# Run an external command, capture stderr, and return the exit code.
+# Stderr is printed on failure so the user can see what went wrong.
+# ----------------------------------------------------------------
+sub _run_cmd {
+    my @cmd = @_;
+    my $stderr = '';
+    my $pid = open(my $fh, '-|');
+    if (!defined $pid) {
+        die "Failed to fork: $!\n";
+    }
+    elsif ($pid == 0) {
+        # Child: redirect stderr to stdout
+        open(STDERR, '>&', \*STDOUT);
+        exec(@cmd);
+        exit 127;   # if exec fails
+    }
+    # Parent: read output
+    local $/;
+    $stderr = <$fh> // '';
+    close $fh;
+    my $ret = $?;
+
+    if ($ret != 0) {
+        chomp $stderr;
+        warn "  command: " . join(" ", @cmd) . "\n";
+        warn "  stderr:  $stderr\n" if length $stderr;
+    }
+
+    return $ret;
 }
 
 # ----------------------------------------------------------------
