@@ -835,15 +835,11 @@ sub generate_diff_image {
     my $pixels_a    = $pix_a->get_pixels;
     my $pixels_b    = $pix_b->get_pixels;
 
-    # Paint golden image onto a Cairo surface as the base
-    my $diff_surface = Cairo::ImageSurface->create('argb32', $w, $h);
-    my $diff_cr = Cairo::Context->create($diff_surface);
-    Gtk3::Gdk::cairo_set_source_pixbuf($diff_cr, $pix_a, 0, 0);
-    $diff_cr->paint;
-
-    # Modify pixels directly: blend differing pixels with magenta
-    my $diff_data   = $diff_surface->get_data;
-    my $diff_stride = $diff_surface->get_stride;
+    # Copy the golden image's raw pixel data into a new string.
+    # We modify this copy and build a fresh pixbuf from it.
+    # (Perl string assignment copies the bytes, so substr edits on
+    # $pixels_out won't affect $pixels_a used in the comparison.)
+    my $pixels_out = $pixels_a;  # byte copy
 
     for my $y (0 .. $h - 1) {
         for my $x (0 .. $w - 1) {
@@ -856,27 +852,29 @@ sub generate_diff_image {
             }
             if ($d > 0) {
                 # Blend with magenta (255, 0, 255) at 60% opacity
-                my $pix_off = $y * $diff_stride + $x * 4;
-                my $bg_r = ord(substr($diff_data, $pix_off + 0, 1));
-                my $bg_g = ord(substr($diff_data, $pix_off + 1, 1));
-                my $bg_b = ord(substr($diff_data, $pix_off + 2, 1));
+                my $bg_r = ord(substr($pixels_out, $off_a + 0, 1));
+                my $bg_g = ord(substr($pixels_out, $off_a + 1, 1));
+                my $bg_b = ord(substr($pixels_out, $off_a + 2, 1));
                 my $blend = 0.6;
                 my $r = int($bg_r * (1 - $blend) + 255 * $blend);
                 my $g = int($bg_g * (1 - $blend));
                 my $b = int($bg_b * (1 - $blend) + 255 * $blend);
-                substr($diff_data, $pix_off + 0, 1) = chr($r);
-                substr($diff_data, $pix_off + 1, 1) = chr($g);
-                substr($diff_data, $pix_off + 2, 1) = chr($b);
-                substr($diff_data, $pix_off + 3, 1) = chr(255);
+                substr($pixels_out, $off_a + 0, 1) = chr($r);
+                substr($pixels_out, $off_a + 1, 1) = chr($g);
+                substr($pixels_out, $off_a + 2, 1) = chr($b);
             }
         }
     }
-    $diff_surface->mark_dirty;
 
-    # Save to file via GdkPixbuf
-    my $diff_pixbuf = Gtk3::Gdk::pixbuf_get_from_surface(
-        $diff_surface, 0, 0, $w, $h);
-    $diff_pixbuf->savev($diff_path, 'png', [], []) if $diff_pixbuf;
+    # Create a new pixbuf from the modified pixel data and save
+    my $has_alpha  = $pix_a->get_has_alpha;
+    my $colorspace = $pix_a->get_colorspace;
+    my $bps        = $pix_a->get_bits_per_sample;
+    my $diff = Gtk3::Gdk::Pixbuf->new_from_data(
+        $pixels_out, $colorspace, $has_alpha, $bps,
+        $w, $h, $rowstride_a
+    );
+    $diff->savev($diff_path, 'png', [], []) if $diff;
 }
 
 sub compare_images {
