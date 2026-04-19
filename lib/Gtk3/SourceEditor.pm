@@ -392,6 +392,92 @@ sub get_buffer {
 }
 
 # ==========================================================================
+# snapshot( $path, %opts )
+#
+# Save a PNG screenshot of the editor widget to $path.
+#
+# The widget must be inside a mapped (visible) GTK window with the main
+# loop running.  This method extracts pixels directly from the GDK
+# window using GdkPixbuf — no Xvfb, no external tools, no system()
+# calls.
+#
+# Options:
+#   widget_only  => 1    # crop to the editor widget area instead of
+#                        # capturing the whole GdkWindow (default: 0)
+#
+# Returns $path on success.  Dies on failure.
+# ==========================================================================
+sub snapshot {
+    my ($self, $path, %opts) = @_;
+    die "snapshot: path is required\n" unless defined $path && length $path;
+
+    my $widget     = $self->{widget};
+    my $textview   = $self->{textview};
+
+    # --- Step 1: obtain a GdkWindow ---
+    # Walk up to the toplevel window to get a mapped GdkWindow
+    my $toplevel = $widget;
+    while ($toplevel && !$toplevel->isa('Gtk3::Window')) {
+        $toplevel = eval { $toplevel->get_parent() };
+    }
+    die "snapshot: cannot find parent Gtk3::Window\n" unless $toplevel;
+
+    my $gdk_win = $toplevel->get_window();
+    die "snapshot: toplevel has no GdkWindow (window not mapped?)\n"
+        unless $gdk_win;
+
+    my $w = $gdk_win->get_width();
+    my $h = $gdk_win->get_height();
+
+    # --- Step 2: extract pixels via GdkPixbuf ---
+    my $pixbuf;
+
+    # Try pixbuf_get_from_surface (GTK 3.x with Cairo backend)
+    if (!$pixbuf && $gdk_win->can('pixbuf_get_from_surface')) {
+        $pixbuf = eval {
+            my $surface = $gdk_win->get_surface();
+            return undef unless $surface;
+            $gdk_win->pixbuf_get_from_surface($surface, 0, 0, $w, $h);
+        };
+    }
+
+    # Try Gdk::pixbuf_get_from_window
+    if (!$pixbuf) {
+        $pixbuf = eval {
+            Gtk3::Gdk::pixbuf_get_from_window($gdk_win, 0, 0, $w, $h);
+        };
+    }
+
+    # Try Gdk::Pixbuf->get_from_window
+    if (!$pixbuf) {
+        $pixbuf = eval {
+            Gtk3::Gdk::Pixbuf->get_from_window($gdk_win, 0, 0, $w, $h);
+        };
+    }
+
+    die "snapshot: all pixel-extraction methods failed\n" unless $pixbuf;
+
+    # --- Step 3: optionally crop to widget area ---
+    if ($opts{widget_only}) {
+        my $alloc = $widget->get_allocation();
+        my $sx = $alloc->x;
+        my $sy = $alloc->y;
+        my $sw = $alloc->width;
+        my $sh = $alloc->height;
+        if ($sx >= 0 && $sy >= 0 && $sw > 0 && $sh > 0
+            && $sx + $sw <= $w && $sy + $sh <= $h) {
+            $pixbuf = $pixbuf->new_subpixbuf($sx, $sy, $sw, $sh);
+        }
+    }
+
+    # --- Step 4: save ---
+    eval { $pixbuf->save($path, 'png') };
+    die "snapshot: failed to save PNG: $@\n" if $@;
+
+    return $path;
+}
+
+# ==========================================================================
 # Runtime configuration methods
 #
 # These allow changing editor settings after construction, e.g. via
@@ -782,6 +868,36 @@ Returns the underlying C<Gtk3::SourceView::Buffer> object, giving direct access
 to the GTK text buffer for advanced operations (signals, marks, tags, etc.).
 Note that operating on the buffer directly bypasses the Vim undo/redo stack
 and may interfere with the Vim bindings layer.
+
+=head2 snapshot( $path, %opts )
+
+    $editor->snapshot('/tmp/screenshot.png');
+
+    # Crop to just the editor widget area
+    $editor->snapshot('/tmp/editor_only.png', widget_only => 1);
+
+Save a PNG screenshot of the editor widget to C<$path>. The widget must be
+inside a mapped (visible) GTK window with the main loop running. This method
+extracts pixels directly from the GDK window using GdkPixbuf — no Xvfb, no
+external tools, no C<system()> calls.
+
+Tries multiple pixel-extraction methods (C<pixbuf_get_from_surface>,
+C<Gdk::pixbuf_get_from_window>, C<Gdk::Pixbuf-E<gt>get_from_window>) and
+uses whichever is available.
+
+Options:
+
+=over 4
+
+=item C<widget_only =E<gt> 1>
+
+Crop the screenshot to the editor widget's allocation rectangle instead of
+capturing the whole toplevel GdkWindow. Useful for excluding window chrome
+when comparing against golden images.
+
+=back
+
+Returns C<$path> on success. Dies on failure.
 
 =head1 AUTHOR
 

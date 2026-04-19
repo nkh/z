@@ -1,6 +1,0 @@
-# Visual test output (generated, not committed)
-t/visual/output/
-t/visual/diffs/
-
-# Golden images ARE committed (they are the baselines)
-# Only output and diffs are ignored
