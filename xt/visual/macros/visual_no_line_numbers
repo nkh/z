@@ -1,2 +1,48 @@
-# Visual test: Editor without line numbers
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+package My::Module;
+
+sub new {
+    my ($class, %opts) = @_;
+    return bless \%opts, $class;
+}
+
+sub process {
+    my ($self, $data) = @_;
+    die "No data provided" unless $data;
+    my @results;
+    for my $item (@$data) {
+        push @results, $self->_transform($item);
+    }
+    return \@results;
+}
+
+sub _transform {
+    my ($self, $item) = @_;
+    return uc($item);
+}
+
+1;
+END_CODE
+
+{
+    desc => q{No line numbers},
+    description => <<'END_DESC',
+Option: line numbers disabled
+
+Visual checks:
+- No gutter on the left side of the editor
+- Text starts at the left edge of the widget
+- Full width available for code
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->editor->toggle_line_numbers(0);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

@@ -60,7 +60,28 @@ sub load {
 sub run {
     my ($class, $name, $ctx, @args) = @_;
     die "Macro '$name' not loaded\n" unless $REGISTRY{$name};
-    return $REGISTRY{$name}{code}->($ctx, @args);
+    my $entry = $REGISTRY{$name};
+    my $code = $entry->{run} || $entry->{code};
+    die "Macro '$name' has no runnable code\n" unless $code && ref $code eq 'CODE';
+    return $code->($ctx, @args);
+}
+
+# ==========================================================================
+# meta( $name )
+#
+# Return hashref with macro metadata (all keys except code/run/file).
+# Returns undef if the macro is not loaded.
+# ==========================================================================
+
+sub meta {
+    my ($class, $name) = @_;
+    return undef unless $REGISTRY{$name};
+    my $entry = $REGISTRY{$name};
+    return {
+        map { $_ => $entry->{$_} }
+        grep { !/^(code|run|file)$/ }
+        keys %$entry
+    };
 }
 
 # ==========================================================================
@@ -120,17 +141,24 @@ sub save {
 
 sub _load_file {
     my ($path) = @_;
-    my $code = do $path;
+    my $result = do $path;
     if ($@) {
         die "Macro::load: syntax error in '$path': $@\n";
     }
-    if (!defined $code) {
+    if (!defined $result) {
         die "Macro::load: '$path' did not return a value\n";
     }
-    if (ref $code ne 'CODE') {
-        die "Macro::load: '$path' returned a " . ref($code) . " (expected CODE ref)\n";
+    if (ref $result eq 'CODE') {
+        return { code => $result };
     }
-    return $code;
+    if (ref $result eq 'HASH') {
+        unless ($result->{run} && ref $result->{run} eq 'CODE') {
+            die "Macro::load: '$path': hashref must contain a 'run' coderef\n";
+        }
+        return $result;
+    }
+    die "Macro::load: '$path' returned a " . ref($result)
+      . " (expected CODE or HASH ref)\n";
 }
 
 # ==========================================================================

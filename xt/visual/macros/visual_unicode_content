@@ -1,2 +1,49 @@
-# Visual test: Unicode characters (accented, Greek, box drawing)
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+# Latin-1 Supplement
+my $french = "café résumé";
+my $deutsch = "über";
+
+# Greek
+my $greek = "αβγδε";
+
+# Box drawing
+my $box = "┌─┐\n"
+        . "│    │\n"
+        . "└─┘\n";
+
+# Currency
+my $price = "€19.99";
+
+# Misc symbols
+my $math = "±×÷";
+my $quotes = "«»“”";
+my $scand = "åøæ";
+END_CODE
+
+{
+    desc => q{Unicode content},
+    description => <<'END_DESC',
+Edge case: Unicode characters rendered in the editor
+
+The test loads a Perl source file containing actual UTF-8 characters
+(accented Latin, Greek, box drawing, currency, math symbols, Scandinavian).
+
+Characters included:
+- Latin-1 Supplement: e-acute, u-umlaut
+- Greek: alpha through epsilon
+- Box drawing: corner and line chars
+- Currency: euro sign
+- Math: plus-minus, multiply, divide
+- Quotation marks: guillemets, smart quotes
+- Scandinavian: a-ring, o-slash, ae ligature
+
+Glyph coverage depends on the configured font.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_language('perl');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

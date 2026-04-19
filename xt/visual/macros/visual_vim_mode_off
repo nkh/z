@@ -1,2 +1,48 @@
-# Visual test: Native GTK mode (vim disabled)
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+package My::Module;
+
+sub new {
+    my ($class, %opts) = @_;
+    return bless \%opts, $class;
+}
+
+sub process {
+    my ($self, $data) = @_;
+    die "No data provided" unless $data;
+    my @results;
+    for my $item (@$data) {
+        push @results, $self->_transform($item);
+    }
+    return \@results;
+}
+
+sub _transform {
+    my ($self, $item) = @_;
+    return uc($item);
+}
+
+1;
+END_CODE
+
+{
+    desc => q{Vim mode off},
+    description => <<'END_DESC',
+Option: vim mode disabled (native GTK keybindings)
+
+Visual checks:
+- Status bar / mode label should be empty or hidden
+- Command entry should not be visible
+- Editor uses standard GTK text cursor (i-beam), not block cursor
+END_DESC
+    vim_mode => 0,
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

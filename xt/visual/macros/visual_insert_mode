@@ -1,9 +1,59 @@
-# Visual test: Insert mode indicator (i)
-sub {
-    my ($ctx) = @_;
-    $ctx->snapshot('1');
-    $ctx->delay(100);
-    $ctx->key('i');
-    $ctx->delay(100);
-    $ctx->snapshot('2');
+my $CODE = <<'END_CODE';
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+package My::Module;
+
+sub new {
+    my ($class, %opts) = @_;
+    return bless \%opts, $class;
+}
+
+sub process {
+    my ($self, $data) = @_;
+    die "No data provided" unless $data;
+    my @results;
+    for my $item (@$data) {
+        push @results, $self->_transform($item);
+    }
+    return \@results;
+}
+
+sub _transform {
+    my ($self, $item) = @_;
+    return uc($item);
+}
+
+1;
+END_CODE
+
+{
+    desc => q{Insert mode indicator},
+    description => <<'END_DESC',
+Action: i enters insert mode
+
+_1.png (initial state):
+- Dark theme, Normal mode
+- Mode label shows "-- NORMAL --"
+
+Action: keystrokes "i" (enters insert mode)
+
+_2.png (after action):
+- Mode label shows "-- INSERT --"
+- Cursor shape may change
+- No text content change (no characters typed yet)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->editor->set_language('perl');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('i');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
 }

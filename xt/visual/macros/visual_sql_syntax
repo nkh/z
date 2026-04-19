@@ -1,2 +1,35 @@
-# Visual test: SQL syntax highlighting
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+CREATE TABLE users (
+    id       SERIAL PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    created  TIMESTAMP DEFAULT now()
+);
+
+INSERT INTO users (username) VALUES ('admin');
+
+SELECT id, username, created
+FROM users
+WHERE created >= '2024-01-01'
+ORDER BY created DESC
+LIMIT 10;
+END_CODE
+
+{
+    desc => q{SQL syntax},
+    description => <<'END_DESC',
+Syntax highlighting: SQL
+
+Visual checks:
+- Keywords (CREATE, TABLE, INSERT, SELECT, FROM, WHERE, etc.) colored
+- Data types (SERIAL, VARCHAR, TIMESTAMP, INTEGER) colored
+- String literals have string color
+- Comments (--) have comment color
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_language('sql');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

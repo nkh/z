@@ -1,2 +1,20 @@
-# Visual test: Empty editor buffer
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+END_CODE
+
+{
+    desc => q{Empty buffer},
+    description => <<'END_DESC',
+Edge case: completely empty buffer
+
+Visual checks:
+- Editor shows only the background theme color
+- Line numbers gutter visible (if enabled)
+- No text rendered at all
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

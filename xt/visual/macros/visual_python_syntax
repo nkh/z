@@ -1,2 +1,42 @@
-# Visual test: Python syntax highlighting
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+#!/usr/bin/env python3
+"""Module docstring."""
+import os
+import sys
+from typing import List, Optional
+
+
+class DataProcessor:
+    """Process data items."""
+
+    def __init__(self, config: dict):
+        self.config = config
+        self._results: List[str] = []
+
+    def process(self, data: List[str]) -> List[str]:
+        if not data:
+            raise ValueError("No data")
+        for item in data:
+            self._results.append(item.upper())
+        return self._results
+END_CODE
+
+{
+    desc => q{Python syntax},
+    description => <<'END_DESC',
+Syntax highlighting: Python
+
+Visual checks:
+- Keywords (import, from, class, def, if, not, for, return) colored
+- Triple-quoted docstrings have string color
+- Type hints (List, Optional) recognized as types
+- f-strings and inline expressions highlighted
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_language('python');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

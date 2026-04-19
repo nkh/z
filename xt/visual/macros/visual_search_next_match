@@ -1,9 +1,57 @@
-# Visual test: Search next match (/sub then n)
-sub {
-    my ($ctx) = @_;
-    $ctx->snapshot('1');
-    $ctx->delay(100);
-    $ctx->keys('/sub\nn');
-    $ctx->delay(300);
-    $ctx->snapshot('2');
+my $CODE = <<'END_CODE';
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+package My::Module;
+
+sub new {
+    my ($class, %opts) = @_;
+    return bless \%opts, $class;
+}
+
+sub process {
+    my ($self, $data) = @_;
+    die "No data provided" unless $data;
+    my @results;
+    for my $item (@$data) {
+        push @results, $self->_transform($item);
+    }
+    return \@results;
+}
+
+sub _transform {
+    my ($self, $item) = @_;
+    return uc($item);
+}
+
+1;
+END_CODE
+
+{
+    desc => q{Search next (n)},
+    description => <<'END_DESC',
+Action: /sub then n moves to next match
+
+_1.png (initial state):
+- Dark theme, Normal mode
+
+Action: keystrokes "/sub\\nn" (search for "sub", then n for next match)
+
+_2.png (after action):
+- Cursor on the second occurrence of "sub" (first sub is "package" on line 7)
+- Search highlights still active
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->editor->set_language('perl');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('/sub\nn');
+        $ctx->delay(300);
+        $ctx->snapshot('2');
+    },
 }

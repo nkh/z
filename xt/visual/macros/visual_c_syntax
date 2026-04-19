@@ -1,2 +1,50 @@
-# Visual test: C syntax highlighting
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAX_ITEMS 1024
+
+typedef struct {
+    int id;
+    char name[64];
+    double value;
+} Item;
+
+static int compare(const void *a, const void *b) {
+    return ((Item*)a)->value > ((Item*)b)->value ? 1 : -1;
+}
+
+int main(int argc, char *argv[]) {
+    Item items[MAX_ITEMS];
+    int count = 0;
+    while (count < MAX_ITEMS && scanf("%d", &items[count].id) == 1) {
+        count++;
+    }
+    qsort(items, count, sizeof(Item), compare);
+    for (int i = 0; i < count; i++) {
+        printf("%d: %s = %.2f\n", items[i].id, items[i].name, items[i].value);
+    }
+    return 0;
+}
+END_CODE
+
+{
+    desc => q{C syntax},
+    description => <<'END_DESC',
+Syntax highlighting: C
+
+Visual checks:
+- Preprocessor directives (#include, #define) colored distinctly
+- Type keywords (int, char, double, void) colored
+- Control flow (if, while, for, return) colored
+- String literals have string color
+- Comments (// and /* */) have comment color
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_language('c');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

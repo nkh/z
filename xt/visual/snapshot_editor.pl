@@ -2,23 +2,19 @@
 # ==========================================================================
 # snapshot_editor.pl - Create screenshots of a Gtk3::SourceEditor widget
 #
+# This is a thin harness: it creates a Gtk3::SourceEditor widget in an
+# off-screen window, loads a macro, waits for rendering, then runs the
+# macro.  The macro handles all setup (theme, language, code content,
+# editor options) and snapshot capture.
+#
 # Usage:
-#   perl xt/visual/snapshot_editor.pl [options]
+#   perl xt/visual/snapshot_editor.pl --macro FILE --macro-run NAME [options]
 #
 # Options:
-#   --snapshot PATH          Save PNG screenshot to PATH (step 1, then exit
-#                            unless --snapshot2 is also given)
-#   --snapshot-delay MS      Delay before capturing step 1 (default: 500)
-#   --snapshot2 PATH         Save second PNG after injecting keystrokes
-#   --snapshot2-delay MS     Delay after keystrokes before step 2 (default: 300)
+#   --macro FILE             Load a macro file (Perl script returning hashref/coderef)
+#   --macro-run 'NAME ARGS'  Run named macro with optional args
 #   --snapshot-dir DIR       Directory for macro snapshots (default: .)
-#   --keystrokes STRING      Keys to inject between snapshots (step 1 -> step 2)
-#                            Supports \n (Enter), \e (Escape), \t (Tab),
-#                            \b (Backspace), \d (Delete)
-#   --macro FILE             Load a macro file (Perl script returning coderef)
-#   --macro-run 'NAME ARGS'  Run named macro with optional args (single string)
-#   --macro-dir DIR          Load all macros from directory
-#   --macro-list             List loaded macros and exit
+#   --snapshot-delay MS      Delay before macro runs (default: 500)
 #   --theme NAME             Theme: default, dark, light, solarized
 #   --language ID            Force syntax highlighting (perl, python, c, ...)
 #   --size WxH               Window size (default: 800x400)
@@ -28,24 +24,17 @@
 #   --vim-mode 0|1           Enable vim mode (default: 1)
 #   --code TEXT               Set buffer text directly
 #   --file PATH               Load file into buffer
-#   --widget-only             Crop screenshot to widget area
-#
-# Macro mode (--macro + --macro-run):
-#   show_all -> delay -> run macro -> exit
-#
-# Single snapshot mode (--snapshot only):
-#   show_all -> delay -> snapshot -> exit
-#
-# Two-step snapshot mode (--snapshot + --snapshot2):
-#   show_all -> delay -> snapshot -> keystrokes -> delay -> snapshot2 -> exit
-#
-# No Xvfb, no external tools, no system() calls.
+#   --debug                   Print millisecond timing to STDERR
+#   --widget-only             Crop screenshot to widget area (legacy)
 # ==========================================================================
 
 use strict;
 use warnings;
 use FindBin qw($RealBin);
 use lib "$RealBin/../../lib";
+
+# Ensure CWD is the project root so relative theme paths work
+chdir("$RealBin/../..") or warn "Cannot chdir to project root: $!";
 
 use Getopt::Long qw(:config no_ignore_case bundling);
 use Time::HiRes qw(time);
@@ -55,40 +44,28 @@ use Gtk3::SourceEditor;
 
 # --- Parse options ---
 my %opt = (
-    snapshot        => undef,
-    snapshot_delay  => 500,
-    snapshot2       => undef,
-    snapshot2_delay => 300,
-    snapshot_dir    => '.',
-    keystrokes      => undef,
-    macro           => undef,
-    macro_run       => undef,
-    macro_dir       => undef,
-    macro_list      => 0,
-    theme           => undef,
-    language        => undef,
-    size            => '800x400',
-    font_size       => 11,
-    line_numbers    => 1,
-    cursor_line     => 1,
-    vim_mode        => 1,
-    code            => undef,
-    file            => undef,
-    widget_only     => 0,
-    debug           => 0,
+    snapshot_delay => 500,
+    snapshot_dir   => '.',
+    macro          => undef,
+    macro_run      => undef,
+    theme          => undef,
+    language       => undef,
+    size           => '800x400',
+    font_size      => 11,
+    line_numbers   => 1,
+    cursor_line    => 1,
+    vim_mode       => 1,
+    code           => undef,
+    file           => undef,
+    widget_only    => 0,
+    debug          => 0,
 );
 
 GetOptions(
-    'snapshot=s'        => \$opt{snapshot},
-    'snapshot-delay=i'  => \$opt{snapshot_delay},
-    'snapshot2=s'       => \$opt{snapshot2},
-    'snapshot2-delay=i' => \$opt{snapshot2_delay},
     'snapshot-dir=s'    => \$opt{snapshot_dir},
-    'keystrokes=s'      => \$opt{keystrokes},
+    'snapshot-delay=i'  => \$opt{snapshot_delay},
     'macro=s'           => \$opt{macro},
     'macro-run=s'       => \$opt{macro_run},
-    'macro-dir=s'       => \$opt{macro_dir},
-    'macro-list'        => \$opt{macro_list},
     'theme=s'           => \$opt{theme},
     'language=s'        => \$opt{language},
     'size=s'            => \$opt{size},
@@ -100,7 +77,7 @@ GetOptions(
     'file=s'            => \$opt{file},
     'widget-only'       => \$opt{widget_only},
     'debug'             => \$opt{debug},
-) or die "Usage: $0 [--macro FILE --macro-run 'NAME ARGS'] [--snapshot PATH] [options]\n";
+) or die "Usage: $0 --macro FILE --macro-run 'NAME' [options]\n";
 
 # --- Debug helper ---
 my $t0 = Time::HiRes::time();
@@ -119,15 +96,14 @@ if ($opt{size} =~ /^(\d+)x(\d+)$/) {
 
 # --- Build editor ---
 my %editor_opts = (
-    debug           => $opt{debug},
-    font_size              => $opt{font_size},
-    show_line_numbers      => $opt{line_numbers},
+    debug                 => $opt{debug},
+    font_size             => $opt{font_size},
+    show_line_numbers     => $opt{line_numbers},
     highlight_current_line => $opt{cursor_line},
-    vim_mode               => $opt{vim_mode},
-    block_cursor           => 0,
+    vim_mode              => $opt{vim_mode},
+    block_cursor          => 0,
 );
 
-# Resolve --theme name to absolute theme_file path
 my $project_root = "$RealBin/../..";
 if (defined $opt{theme}) {
     if ($opt{theme} eq 'default') {
@@ -174,8 +150,6 @@ _dbg("show_all complete");
 sub _parse_macro_run {
     my ($str) = @_;
     return () unless defined $str && length $str;
-    # First whitespace-delimited token is the macro name.
-    # Everything after it is passed as arguments (split on whitespace).
     if ($str =~ /^(\S+)(?:\s+(.*))?$/) {
         my $name = $1;
         my $args_str = $2 // '';
@@ -186,31 +160,16 @@ sub _parse_macro_run {
     return ($str);
 }
 
-# Load macros
-if ($opt{macro} || $opt{macro_dir}) {
+# Load and run macro
+if ($opt{macro}) {
     require Gtk3::SourceEditor::Macro;
+    Gtk3::SourceEditor::Macro->load(file => $opt{macro});
 
-    if ($opt{macro}) {
-        Gtk3::SourceEditor::Macro->load(file => $opt{macro});
-    }
-    if ($opt{macro_dir}) {
-        Gtk3::SourceEditor::Macro->load(dir => $opt{macro_dir});
-    }
-
-    # --macro-list: print and exit
-    if ($opt{macro_list}) {
-        for my $name (Gtk3::SourceEditor::Macro->list) {
-            print "  $name\n";
-        }
-        Gtk3->main_quit;
-        exit 0;
-    }
-
-    # Run a macro
     if ($opt{macro_run}) {
         my ($macro_name, @macro_args) = _parse_macro_run($opt{macro_run});
 
         Glib::Timeout->add($opt{snapshot_delay}, sub {
+            _dbg("running macro '$macro_name'");
             require Gtk3::SourceEditor::Macro::Context;
             my $ctx = Gtk3::SourceEditor::Macro::Context->new(
                 editor       => $editor,
@@ -235,138 +194,5 @@ if ($opt{macro} || $opt{macro_dir}) {
     }
 }
 
-# ==========================================================================
-# Keystroke injection (legacy --keystrokes support)
-# ==========================================================================
-
-sub _parse_keys {
-    my ($str) = @_;
-    my @chars;
-    while (length $str) {
-        if    ($str =~ s/^\\n//) { push @chars, "\n" }
-        elsif ($str =~ s/^\\e//) { push @chars, "\x1b" }
-        elsif ($str =~ s/^\\t//) { push @chars, "\t" }
-        elsif ($str =~ s/^\\b//) { push @chars, "\x08" }
-        elsif ($str =~ s/^\\d//) { push @chars, "\x7f" }
-        elsif ($str =~ s/^(.)//s) { push @chars, $1 }
-    }
-    return @chars;
-}
-
-sub _keyval_for {
-    my ($ch) = @_;
-    my %names = (
-        "\n"   => 'Return',
-        "\x1b" => 'Escape',
-        "\t"   => 'Tab',
-        "\x08" => 'BackSpace',
-        "\x7f" => 'Delete',
-    );
-    my %fallback = (
-        "\n"   => 0xff0d,
-        "\x1b" => 0xff1b,
-        "\t"   => 0xff09,
-        "\x08" => 0xff08,
-        "\x7f" => 0xffff,
-    );
-    if (exists $names{$ch}) {
-        my $kv = eval { Gtk3::Gdk::keyval_from_name($names{$ch}) };
-        return $kv if defined $kv && $kv > 0;
-        return $fallback{$ch};
-    }
-    my $kv = eval { Gtk3::Gdk::unicode_to_keyval(ord($ch)) };
-    return $kv if defined $kv && $kv > 0;
-    return ord($ch);
-}
-
-sub inject_keystrokes {
-    my ($editor, $key_string) = @_;
-    my $view = $editor->get_textview;
-    return unless $view;
-
-    my $gdk_win = $view->get_window;
-    $gdk_win ||= eval { $window->get_window };
-    return unless $gdk_win;
-
-    my @chars = _parse_keys($key_string);
-    for my $ch (@chars) {
-        my $keyval = _keyval_for($ch);
-
-        eval {
-            my $ev = Gtk3::Gdk::Event->new('key-press');
-            $ev->window($gdk_win);
-            $ev->keyval($keyval);
-            $ev->state(0);
-            $ev->send_event(1);
-            $ev->time(Gtk3::get_current_event_time() || 0);
-            $ev->string( (ord($ch) >= 32 && ord($ch) < 127) ? $ch : '' );
-            $view->signal_emit('key-press-event', $ev);
-
-            my $rel = Gtk3::Gdk::Event->new('key-release');
-            $rel->window($gdk_win);
-            $rel->keyval($keyval);
-            $rel->state(0);
-            $rel->send_event(1);
-            $rel->time(Gtk3::get_current_event_time() || 0);
-            $view->signal_emit('key-release-event', $rel);
-        };
-        if ($@) {
-            print STDERR "inject_keystrokes: char 0x" . sprintf("%x", ord($ch)) . " failed: $@\n";
-        }
-    }
-}
-
-# ==========================================================================
-# Snapshot scheduling (legacy --snapshot/--snapshot2 support)
-# ==========================================================================
-
-if ($opt{snapshot}) {
-    my $path1  = $opt{snapshot};
-    my $delay1 = $opt{snapshot_delay};
-
-    unless ($opt{snapshot2}) {
-        Glib::Timeout->add($delay1, sub {
-            eval { $editor->snapshot($path1, widget_only => $opt{widget_only}) };
-            if ($@) { print STDERR "Snapshot failed: $@\n" }
-            Gtk3->main_quit;
-            return FALSE;
-        });
-        Gtk3->main;
-        exit 0;
-    }
-
-    my $path2  = $opt{snapshot2};
-    my $delay2 = $opt{snapshot2_delay};
-
-    Glib::Timeout->add($delay1, sub {
-        eval { $editor->snapshot($path1, widget_only => $opt{widget_only}) };
-        if ($@) {
-            print STDERR "Snapshot 1 failed: $@\n";
-            Gtk3->main_quit;
-            return FALSE;
-        }
-
-        if (defined $opt{keystrokes} && length $opt{keystrokes}) {
-            eval { inject_keystrokes($editor, $opt{keystrokes}) };
-            if ($@) {
-                print STDERR "Keystroke injection failed: $@\n";
-                Gtk3->main_quit;
-                return FALSE;
-            }
-        }
-
-        Glib::Timeout->add($delay2, sub {
-            eval { $editor->snapshot($path2, widget_only => $opt{widget_only}) };
-            if ($@) { print STDERR "Snapshot 2 failed: $@\n" }
-            Gtk3->main_quit;
-            return FALSE;
-        });
-        return FALSE;
-    });
-
-    Gtk3->main;
-    exit 0;
-}
-
-# --- Interactive mode (no --snapshot, no --macro) ---
+# --- Interactive mode (no --macro-run) ---
 Gtk3->main;

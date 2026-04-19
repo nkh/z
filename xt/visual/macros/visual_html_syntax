@@ -1,2 +1,37 @@
-# Visual test: HTML syntax highlighting
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gtk3::SourceEditor</title>
+</head>
+<body>
+    <h1>Gtk3::SourceEditor</h1>
+    <p>An embeddable text editor widget.</p>
+    <ul>
+        <li>Syntax highlighting</li>
+        <li>Vim keybindings</li>
+    </ul>
+</body>
+</html>
+END_CODE
+
+{
+    desc => q{HTML syntax},
+    description => <<'END_DESC',
+Syntax highlighting: HTML
+
+Visual checks:
+- Tags (<html>, <head>, <body>, <h1>, etc.) colored
+- Attributes (charset, title, lang) colored
+- Attribute values in quotes have string color
+- Text content outside tags in default text color
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_language('html');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

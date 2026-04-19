@@ -4,14 +4,16 @@
 #
 # HOW IT WORKS
 # ============
-# Each test is defined by a Perl macro file in xt/visual/macros/.  The macro takes
-# one or two snapshots: a single snapshot for static tests, or _1 and _2
-# for action tests (before/after an editor action).
+# Each test is defined by a self-contained Perl macro file in
+# xt/visual/macros/.  The macro contains all test metadata (description,
+# code content, theme, language, editor options) and a run sub that
+# configures the editor and captures snapshot(s).
 #
 # The runner:
-#   1. Launches snapshot_editor.pl with --macro and --macro-run for each test
-#   2. The macro creates PNG files in the output directory
-#   3. Compares output against golden images
+#   1. Discovers and loads all macros from xt/visual/macros/
+#   2. Launches snapshot_editor.pl with --macro for each test
+#   3. The macro creates PNG files in the output directory
+#   4. Compares output against golden images
 #
 # WORKFLOW
 # ========
@@ -53,6 +55,7 @@
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings from child processes
 #   --generate-diff      Generate diff images on failure (default: off)
+#   --debug              Pass --debug to snapshot_editor.pl
 # ==========================================================================
 
 use strict;
@@ -62,20 +65,22 @@ use FindBin qw($RealBin);
 use lib "$RealBin/../../lib";
 
 use Getopt::Long qw(:config no_ignore_case bundling);
-use File::Basename qw(dirname);
+use File::Basename qw(dirname basename);
 use File::Path qw(make_path);
 use File::Compare qw(compare);
 use File::Copy qw(copy);
 use File::Spec ();
 use Gtk3 '-init';
+use Gtk3::SourceEditor::Macro;
 
 # --- Parse options ---
-my $mode      = 'test';
-my $target    = '';
-my $threshold = 0.01;
-my $delay     = 500;
-my $verbose        = 0;
+my $mode          = 'test';
+my $target        = '';
+my $threshold     = 0.01;
+my $delay         = 500;
+my $verbose       = 0;
 my $generate_diff = 0;
+my $debug         = 0;
 
 GetOptions(
     'init'            => sub { $mode = 'init' },
@@ -88,7 +93,8 @@ GetOptions(
     'snapshot-delay=i'=> \$delay,
     'verbose|v'       => \$verbose,
     'generate-diff'   => \$generate_diff,
-) or die "Usage: $0 [--init|--init-missing|--test|--list] [--test NAME|--target NAME] [--threshold N] [--verbose] [--generate-diff]\n";
+    'debug'           => \$debug,
+) or die "Usage: $0 [--init|--init-missing|--test|--list] [--test NAME|--target NAME] [--threshold N] [--verbose] [--generate-diff] [--debug]\n";
 
 # --- Directories ---
 my $golden_dir = "$RealBin/golden";
@@ -100,720 +106,26 @@ my $macros_dir = "$RealBin/macros";
 make_path($golden_dir, $output_dir, $diffs_dir);
 
 # ==========================================================================
-# Sample code for syntax highlighting tests
+# Discover and load macros
 # ==========================================================================
 
-my $PERL_SAMPLE = <<'PERL';
-#!/usr/bin/perl
-use strict;
-use warnings;
-
-package My::Module;
-
-sub new {
-    my ($class, %opts) = @_;
-    return bless \%opts, $class;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    die "No data provided" unless $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item);
-}
-
-1;
-PERL
-
-my $PYTHON_SAMPLE = <<'PYTHON';
-#!/usr/bin/env python3
-"""Module docstring."""
-import os
-import sys
-from typing import List, Optional
-
-
-class DataProcessor:
-    """Process data items."""
-
-    def __init__(self, config: dict):
-        self.config = config
-        self._results: List[str] = []
-
-    def process(self, data: List[str]) -> List[str]:
-        if not data:
-            raise ValueError("No data")
-        for item in data:
-            self._results.append(item.upper())
-        return self._results
-PYTHON
-
-my $C_SAMPLE = <<'C';
-#include <stdio.h>
-#include <stdlib.h>
-
-#define MAX_ITEMS 1024
-
-typedef struct {
-    int id;
-    char name[64];
-    double value;
-} Item;
-
-static int compare(const void *a, const void *b) {
-    return ((Item*)a)->value > ((Item*)b)->value ? 1 : -1;
-}
-
-int main(int argc, char *argv[]) {
-    Item items[MAX_ITEMS];
-    int count = 0;
-    while (count < MAX_ITEMS && scanf("%d", &items[count].id) == 1) {
-        count++;
-    }
-    qsort(items, count, sizeof(Item), compare);
-    for (int i = 0; i < count; i++) {
-        printf("%d: %s = %.2f\n", items[i].id, items[i].name, items[i].value);
-    }
-    return 0;
-}
-C
-
-my $JSON_SAMPLE = <<'JSON';
-{
-    "name": "Gtk3::SourceEditor",
-    "version": "0.04",
-    "description": "Embeddable Vim-like text editor",
-    "dependencies": {
-        "Gtk3": "0",
-        "Gtk3::SourceView": "0"
-    },
-    "features": [
-        "syntax highlighting",
-        "vim keybindings"
-    ]
-}
-JSON
-
-my $HTML_SAMPLE = <<'HTML';
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Gtk3::SourceEditor</title>
-</head>
-<body>
-    <h1>Gtk3::SourceEditor</h1>
-    <p>An embeddable text editor widget.</p>
-    <ul>
-        <li>Syntax highlighting</li>
-        <li>Vim keybindings</li>
-    </ul>
-</body>
-</html>
-HTML
-
-my $CSS_SAMPLE = <<'CSS';
-/* Editor theme overrides */
-.editor {
-    font-family: monospace;
-    font-size: 12px;
-    color: #d4d4d4;
-    background: #1e1e1e;
-}
-
-.editor .gutter {
-    color: #858585;
-    border-right: 1px solid #333;
-}
-CSS
-
-my $MARKDOWN_SAMPLE = <<'MARKDOWN';
-# Gtk3::SourceEditor
-
-An embeddable **Vim-like** text editor widget.
-
-## Features
-
-- Syntax highlighting via GtkSourceView
-- Vim modal keybindings
-- Theme support
-
-## Usage
-
-```perl
-use Gtk3::SourceEditor;
-my $editor = Gtk3::SourceEditor->new(
-    file => 'my_script.pl',
-);
-```
-MARKDOWN
-
-my $SQL_SAMPLE = <<'SQL';
-CREATE TABLE users (
-    id       SERIAL PRIMARY KEY,
-    username VARCHAR(64) NOT NULL,
-    created  TIMESTAMP DEFAULT now()
-);
-
-INSERT INTO users (username) VALUES ('admin');
-
-SELECT id, username, created
-FROM users
-WHERE created >= '2024-01-01'
-ORDER BY created DESC
-LIMIT 10;
-SQL
-
-my $UNICODE_SAMPLE = <<'UNICODE';
-# Latin-1 Supplement
-my $french = "café résumé";
-my $deutsch = "über";
-
-# Greek
-my $greek = "αβγδε";
-
-# Box drawing
-my $box = "┌─┐\n"
-        . "│    │\n"
-        . "└─┘\n";
-
-# Currency
-my $price = "€19.99";
-
-# Misc symbols
-my $math = "±×÷";
-my $quotes = "«»“”";
-my $scand = "åøæ";
-UNICODE
-
-# ==========================================================================
-# Test definitions
-# ==========================================================================
-# Each test is a hash with:
-#   name        - unique identifier used for golden files and --target
-#   desc        - one-line description shown in test output
-#   macro       - macro file path (relative to xt/visual/macros/)
-#   is_action   - 1 if test produces _1 and _2 snapshots, 0 if single snapshot
-#   (editor options): theme, language, code, line_numbers, cursor_line, vim_mode
-#   description - human-readable text written to golden/<name>.txt during --init
-
-my @tests = (
-
-    # --- Theme tests (single snapshot) ---
-    { name => 'visual_default_theme', desc => 'Default theme',
-      code => $PERL_SAMPLE,
-      description => <<'DESC',
-Theme: default (white background, black text)
-
-Visual checks:
-- White background (#FFFFFF), black text
-- Standard GtkSourceView syntax colors for Perl
-- Blue selection color
-- Line numbers in left gutter
-- Current line highlighted
-- Mode label shows "-- NORMAL --"
-DESC
-    },
-
-    { name => 'visual_dark_theme', desc => 'Dark theme',
-      theme => 'dark', code => $PERL_SAMPLE,
-      description => <<'DESC',
-Theme: dark (#1E1E1E background, IntelliJ-style colors)
-
-Visual checks:
-- Dark background, light text
-- Syntax colors: keywords (purple), strings (orange), comments (green), etc.
-- Line numbers gutter visible
-- Status bar (mode label + position) uses theme colors
-DESC
-    },
-
-    { name => 'visual_light_theme', desc => 'Light theme',
-      theme => 'light', code => $PERL_SAMPLE,
-      description => <<'DESC',
-Theme: light (solarized-light inspired, #FDF6E3 background)
-
-Visual checks:
-- Warm light background
-- Muted syntax colors appropriate for light themes
-- Readable contrast between text and background
-DESC
-    },
-
-    { name => 'visual_solarized_theme', desc => 'Solarized theme',
-      theme => 'solarized', code => $PERL_SAMPLE,
-      description => <<'DESC',
-Theme: solarized dark (#002B36 background, classic Solarized palette)
-
-Visual checks:
-- Dark navy background
-- Solarized color scheme: base0 text, base1 comments, etc.
-- Distinct keyword/string/comment coloring per Solarized spec
-DESC
-    },
-
-    # --- Syntax highlighting tests ---
-    { name => 'visual_perl_syntax', desc => 'Perl syntax',
-      language => 'perl', code => $PERL_SAMPLE,
-      description => <<'DESC',
-Syntax highlighting: Perl
-
-Visual checks:
-- Keywords (use, strict, warnings, sub, my, return, package, bless, for, die, unless)
-  should be colored differently from identifiers and strings
-- Strings in double quotes should have distinct string color
-- Comments (lines starting with #) should have comment color
-- POD/heredoc-style text should be colored
-- Numbers should have number color
-DESC
-    },
-
-    { name => 'visual_python_syntax', desc => 'Python syntax',
-      language => 'python', code => $PYTHON_SAMPLE,
-      description => <<'DESC',
-Syntax highlighting: Python
-
-Visual checks:
-- Keywords (import, from, class, def, if, not, for, return) colored
-- Triple-quoted docstrings have string color
-- Type hints (List, Optional) recognized as types
-- @-decorator syntax colored
-- f-strings and inline expressions highlighted
-DESC
-    },
-
-    { name => 'visual_c_syntax', desc => 'C syntax',
-      language => 'c', code => $C_SAMPLE,
-      description => <<'DESC',
-Syntax highlighting: C
-
-Visual checks:
-- Preprocessor directives (#include, #define) colored distinctly
-- Type keywords (int, char, double, void) colored
-- Control flow (if, while, for, return) colored
-- String literals have string color
-- Comments (// and /* */) have comment color
-DESC
-    },
-
-    { name => 'visual_json_syntax', desc => 'JSON syntax',
-      language => 'json', code => $JSON_SAMPLE,
-      description => <<'DESC',
-Syntax highlighting: JSON
-
-Visual checks:
-- Keys (in double quotes before colon) colored distinctly from values
-- String values have string color
-- Numbers have number color
-- Braces and brackets may have distinct coloring
-DESC
-    },
-
-    { name => 'visual_html_syntax', desc => 'HTML syntax',
-      language => 'html', code => $HTML_SAMPLE,
-      description => <<'DESC',
-Syntax highlighting: HTML
-
-Visual checks:
-- Tags (<html>, <head>, <body>, <h1>, etc.) colored
-- Attributes (charset, title, lang) colored
-- Attribute values in quotes have string color
-- Text content outside tags in default text color
-DESC
-    },
-
-    { name => 'visual_css_syntax', desc => 'CSS syntax',
-      language => 'css', code => $CSS_SAMPLE,
-      description => <<'DESC',
-Syntax highlighting: CSS
-
-Visual checks:
-- Selectors (.editor, .gutter) colored
-- Properties (font-family, color, background) colored
-- Values (monospace, #d4d4d4, 12px) colored
-- Comments (/* */) have comment color
-DESC
-    },
-
-    { name => 'visual_markdown_syntax', desc => 'Markdown syntax',
-      language => 'markdown', code => $MARKDOWN_SAMPLE,
-      description => <<'DESC',
-Syntax highlighting: Markdown
-
-Visual checks:
-- Headings (# ##) colored
-- Bold (**text**) and italic (*text*) markers colored
-- Code blocks (```) have distinct background or color
-- List items (-) colored
-- Links and URLs recognized
-DESC
-    },
-
-    { name => 'visual_sql_syntax', desc => 'SQL syntax',
-      language => 'sql', code => $SQL_SAMPLE,
-      description => <<'DESC',
-Syntax highlighting: SQL
-
-Visual checks:
-- Keywords (CREATE, TABLE, INSERT, SELECT, FROM, WHERE, etc.) colored
-- Data types (SERIAL, VARCHAR, TIMESTAMP, INTEGER) colored
-- String literals have string color
-- Comments (--) have comment color
-DESC
-    },
-
-    # --- Editor option tests ---
-    { name => 'visual_no_line_numbers', desc => 'No line numbers',
-      line_numbers => 0, code => $PERL_SAMPLE,
-      description => <<'DESC',
-Option: line numbers disabled
-
-Visual checks:
-- No gutter on the left side of the editor
-- Text starts at the left edge of the widget
-- Full width available for code
-DESC
-    },
-
-    { name => 'visual_no_cursor_line', desc => 'No cursor line',
-      cursor_line => 0, code => $PERL_SAMPLE,
-      description => <<'DESC',
-Option: current-line highlighting disabled
-
-Visual checks:
-- Line 1 does NOT have a subtle background highlight
-- All lines have uniform background
-DESC
-    },
-
-    { name => 'visual_vim_mode_off', desc => 'Vim mode off',
-      vim_mode => 0, code => $PERL_SAMPLE,
-      description => <<'DESC',
-Option: vim mode disabled (native GTK keybindings)
-
-Visual checks:
-- Status bar / mode label should be empty or hidden
-- Command entry should not be visible
-- Editor uses standard GTK text cursor (i-beam), not block cursor
-DESC
-    },
-
-    # --- Content edge cases ---
-    { name => 'visual_empty_buffer', desc => 'Empty buffer',
-      code => '',
-      description => <<'DESC',
-Edge case: completely empty buffer
-
-Visual checks:
-- Editor shows only the background theme color
-- Line numbers gutter visible (if enabled)
-- No text rendered at all
-DESC
-    },
-
-    { name => 'visual_single_line', desc => 'Single line',
-      code => "hello world\n",
-      description => <<'DESC',
-Edge case: single line of text
-
-Visual checks:
-- One line of text displayed
-- Cursor on the line
-- Line number "1" in gutter (if enabled)
-DESC
-    },
-
-    { name => 'visual_long_lines', desc => 'Long lines',
-      code => join("\n", ('x' x 200) x 30) . "\n",
-      description => <<'DESC',
-Edge case: very long lines (200 chars each, 30 lines)
-
-Visual checks:
-- Lines wrap if wrap mode is on (default)
-- Horizontal scrollbar may appear if wrap is off
-- All lines should render without truncation artifacts
-DESC
-    },
-
-    { name => 'visual_unicode_content', desc => 'Unicode content',
-      language => 'perl', code => $UNICODE_SAMPLE,
-      description => <<'DESC',
-Edge case: Unicode characters rendered in the editor
-
-The test loads a Perl source file containing actual UTF-8 characters
-(accented Latin, Greek, box drawing, currency, math symbols, Scandinavian).
-The file is written via binmode(:encoding(UTF-8)) and read by
-File::Slurper::read_text(), so the editor receives proper UTF-8 bytes.
-
-Characters included:
-- Latin-1 Supplement: \x{e9} (e-acute), \x{fc} (u-umlaut)
-- Greek: \x{3b1}-\x{3b5} (alpha through epsilon)
-- Box drawing: \x{250c}\x{2500}\x{2510} \x{2502} \x{2514}\x{2500}\x{2518}
-- Currency: \x{20ac} (euro sign)
-- Math: \x{b1} (plus-minus), \x{d7} (multiply), \x{f7} (divide)
-- Quotation marks: \x{ab}\x{bb} (guillemets), \x{201c}\x{201d} (smart quotes)
-- Scandinavian: \x{e5} (a-ring), \x{f8} (o-slash), \x{e6} (ae ligature)
-
-Glyph coverage depends on the configured font.  The golden image captures
-the rendering for the default system monospace font.
-DESC
-    },
-
-    # --- Theme + option combinations ---
-    { name => 'visual_dark_no_numbers', desc => 'Dark, no line numbers',
-      theme => 'dark', line_numbers => 0, code => $PERL_SAMPLE,
-      description => <<'DESC',
-Theme: dark, option: no line numbers
-
-Visual checks:
-- Dark theme colors (#1E1E1E background)
-- No line numbers gutter
-- Text flush against left edge
-DESC
-    },
-
-    { name => 'visual_dark_minimal', desc => 'Dark, minimal chrome',
-      theme => 'dark', line_numbers => 0, cursor_line => 0, code => $PERL_SAMPLE,
-      description => <<'DESC',
-Theme: dark, options: no line numbers, no cursor line highlight
-
-Visual checks:
-- Dark theme
-- No gutter, no line highlighting
-- Cleanest possible editor display
-DESC
-    },
-
-    { name => 'visual_light_no_numbers', desc => 'Light, no line numbers',
-      theme => 'light', line_numbers => 0, code => $PERL_SAMPLE,
-      description => <<'DESC',
-Theme: light, option: no line numbers
-
-Visual checks:
-- Light theme (#FDF6E3 background)
-- No gutter
-DESC
-    },
-
-    { name => 'visual_solarized_perl', desc => 'Solarized + Perl',
-      theme => 'solarized', language => 'perl', code => $PERL_SAMPLE,
-      description => <<'DESC',
-Theme: solarized + language: perl
-
-Visual checks:
-- Solarized color scheme with Perl syntax highlighting
-- Standard Solarized keyword/string/comment colors applied
-DESC
-    },
-
-    # ==================================================================
-    # ACTION TESTS (two-step: _1 -> keystrokes -> _2)
-    #
-    # These test the visual effect of editor actions.  Each produces
-    # two golden images: <name>_1.png and <name>_2.png.
-    # ==================================================================
-
-    { name => 'visual_search_highlight', desc => 'Search highlighting',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: /search highlights matching text
-
-_1.png (initial state):
-- Dark theme with Perl code
-- Normal mode, no search highlights
-- Cursor at line 1, column 0
-
-Action: keystrokes "/process\\n"
-
-_2.png (after search):
-- All occurrences of "process" highlighted with search-match color
-- Cursor moved to first match
-- Search pattern visible in status bar or mini-buffer
-DESC
-    },
-
-    { name => 'visual_char_selection', desc => 'Visual char selection',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: visual character mode (v) selects text
-
-_1.png (initial state):
-- Dark theme with Perl code
-- Normal mode, no selection
-- Cursor at line 1, column 0
-
-Action: keystrokes "v$" (v enters visual mode, $ moves to end of line)
-
-_2.png (after selection):
-- First line highlighted with selection color (from column 0 to end of line)
-- Mode label shows "-- VISUAL --"
-- Selection coloring covers the full first line
-DESC
-    },
-
-    { name => 'visual_line_selection', desc => 'Visual line selection',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: visual line mode (V) selects lines
-
-_1.png (initial state):
-- Dark theme with Perl code
-- Normal mode, no selection
-
-Action: keystrokes "Vjj" (V enters line visual, j moves down twice)
-
-_2.png (after selection):
-- First 3 lines highlighted with selection color
-- Mode label shows "-- VISUAL LINE --"
-- Full lines highlighted including entire line width
-DESC
-    },
-
-    { name => 'visual_command_entry', desc => 'Command entry visible',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: : enters command mode, showing the command entry
-
-_1.png (initial state):
-- Dark theme, Normal mode
-- Command entry not visible
-
-Action: keystrokes ":" (colon enters command mode)
-
-_2.png (after action):
-- Command entry visible at bottom of editor
-- Cursor/insert point active in command entry
-- Mode label may change
-DESC
-    },
-
-    { name => 'visual_insert_mode', desc => 'Insert mode indicator',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: i enters insert mode
-
-_1.png (initial state):
-- Dark theme, Normal mode
-- Mode label shows "-- NORMAL --"
-- Cursor at line 1, column 0
-
-Action: keystrokes "i" (enters insert mode)
-
-_2.png (after action):
-- Mode label shows "-- INSERT --"
-- Cursor shape may change (i-beam or block depending on settings)
-- No text content change (no characters typed yet)
-DESC
-    },
-
-    { name => 'visual_delete_line', desc => 'Delete line (dd)',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: dd deletes the current line
-
-_1.png (initial state):
-- Dark theme with Perl code (starts with #!/usr/bin/perl)
-
-Action: keystrokes "dd" (delete current line)
-
-_2.png (after action):
-- First line (#!/usr/bin/perl) is gone
-- Cursor at new line 1
-- Buffer content is one line shorter
-DESC
-    },
-
-    { name => 'visual_yank_paste_line', desc => 'Yank and paste line (yy p)',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: yy copies line, p pastes it below
-
-_1.png (initial state):
-- Dark theme with Perl code
-
-Action: keystrokes "yyp" (yank line, paste below)
-
-_2.png (after action):
-- First line is duplicated (appears twice)
-- Cursor on the pasted copy (line 2)
-- Total line count increased by 1
-DESC
-    },
-
-    { name => 'visual_search_next_match', desc => 'Search next (n)',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: /sub then n moves to next match
-
-_1.png (initial state):
-- Dark theme, Normal mode
-
-Action: keystrokes "/sub\\nn" (search for "sub", then n for next match)
-
-_2.png (after action):
-- First "sub" on line 7 highlighted (n moved past the first match on line 6)
-- Or cursor on the second occurrence of "sub"
-- Search highlights still active
-DESC
-    },
-
-    { name => 'visual_goto_bottom', desc => 'Go to bottom (G)',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: G jumps to last line
-
-_1.png (initial state):
-- Dark theme, cursor at line 1
-
-Action: keystrokes "G" (go to last line)
-
-_2.png (after action):
-- Viewport scrolled to show bottom of buffer
-- Cursor on last line
-- Position label in status bar shows last line position
-DESC
-    },
-
-    { name => 'visual_replace_char', desc => 'Replace mode (r)',
-      theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      is_action => 1,
-      description => <<'DESC',
-Action: rx replaces character under cursor with 'x'
-
-_1.png (initial state):
-- Dark theme, cursor at line 1, col 0 (the '#' character)
-
-Action: keystrokes "rx" (replace # with x)
-
-_2.png (after action):
-- Line 1 starts with "x!/usr/bin/perl" (first char changed)
-- Cursor moved one position to the right
-DESC
-    },
-);
+Gtk3::SourceEditor::Macro->load(dir => $macros_dir);
+
+my @test_names = sort Gtk3::SourceEditor::Macro->list();
+
+# Filter out utility macros (e.g. 'example') that don't have metadata
+# A visual test macro must have a 'desc' field in its metadata
+@test_names = grep {
+    my $meta = Gtk3::SourceEditor::Macro->meta($_);
+    $meta && $meta->{desc};
+} @test_names;
 
 # --- List mode ---
 if ($mode eq 'list') {
-    for my $t (@tests) {
-        my $tag = $t->{is_action} ? ' [action]' : '';
-        printf "  %-40s %s%s\n", $t->{name}, $t->{desc}, $tag;
+    for my $name (@test_names) {
+        my $meta = Gtk3::SourceEditor::Macro->meta($name);
+        my $desc = $meta->{desc} // '';
+        printf "  %-40s %s\n", $name, $desc;
     }
     exit 0;
 }
@@ -838,11 +150,7 @@ sub generate_diff_image {
     my $pixels_a    = $pix_a->get_pixels;
     my $pixels_b    = $pix_b->get_pixels;
 
-    # Copy the golden image's raw pixel data into a new string.
-    # We modify this copy and build a fresh pixbuf from it.
-    # (Perl string assignment copies the bytes, so substr edits on
-    # $pixels_out won't affect $pixels_a used in the comparison.)
-    my $pixels_out = $pixels_a;  # byte copy
+    my $pixels_out = $pixels_a;
 
     for my $y (0 .. $h - 1) {
         for my $x (0 .. $w - 1) {
@@ -854,7 +162,6 @@ sub generate_diff_image {
                         - ord(substr($pixels_b, $off_b + $c, 1)));
             }
             if ($d > 0) {
-                # Blend with magenta (255, 0, 255) at 60% opacity
                 my $bg_r = ord(substr($pixels_out, $off_a + 0, 1));
                 my $bg_g = ord(substr($pixels_out, $off_a + 1, 1));
                 my $bg_b = ord(substr($pixels_out, $off_a + 2, 1));
@@ -869,7 +176,6 @@ sub generate_diff_image {
         }
     }
 
-    # Create a new pixbuf from the modified pixel data and save
     my $has_alpha  = $pix_a->get_has_alpha;
     my $colorspace = $pix_a->get_colorspace;
     my $bps        = $pix_a->get_bits_per_sample;
@@ -881,7 +187,7 @@ sub generate_diff_image {
 }
 
 sub compare_images {
-    my ($file_a, $file_b, $diff_path) = @_;
+    my ($file_a, $file_b) = @_;
     return { match => 1, diff_pct => 0 } if compare($file_a, $file_b) == 0;
 
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
@@ -925,47 +231,27 @@ sub compare_images {
              pixels_diff => $diff_pixels, max_diff => $max_diff };
 }
 
-# --- Temp-file tracking for code content ---
-my @tmp_files;
-END { unlink for @tmp_files }
-
 # ==========================================================================
-# Build command for snapshot_editor.pl (macro-based)
+# Build command for snapshot_editor.pl
 # ==========================================================================
 
 sub build_cmd {
-    my ($t) = @_;
+    my ($name, $meta) = @_;
     my @cmd = (
         $^X, $script,
-        '--macro',       "$macros_dir/$t->{name}",
-        '--macro-run',   $t->{name},
+        '--macro',        "$macros_dir/$name",
+        '--macro-run',    $name,
         '--snapshot-dir', $output_dir,
         '--snapshot-delay', $delay,
-        '--size', '800x400',
+        '--size',         '800x400',
     );
-    push @cmd, '--theme',    $t->{theme}      if defined $t->{theme};
-    push @cmd, '--language', $t->{language}   if defined $t->{language};
-    push @cmd, '--line-numbers', $t->{line_numbers} if defined $t->{line_numbers};
-    push @cmd, '--cursor-line', $t->{cursor_line}  if defined $t->{cursor_line};
-    push @cmd, '--vim-mode',   $t->{vim_mode}      if defined $t->{vim_mode};
 
-    # Write code content to a temp file instead of passing via --code on the
-    # command line.  Command-line arguments go through the locale encoding
-    # which can mangle Unicode characters (e.g. box-drawing chars, accented
-    # letters).  Using --file lets snapshot_editor.pl read via
-    # File::Slurper::read_text() which correctly handles UTF-8.
-    if (defined $t->{code}) {
-        require File::Temp;
-        my $tmp = File::Temp->new(TEMPLATE => 'snapshot_code_XXXX',
-                                  DIR      => $output_dir,
-                                  SUFFIX   => '.pl',
-                                  UNLINK   => 0);
-        binmode($tmp, ':encoding(UTF-8)');
-        print $tmp $t->{code};
-        close $tmp;
-        push @cmd, '--file', $tmp->filename;
-        push @tmp_files, $tmp->filename;  # cleaned up at END
+    # Pass vim_mode if the macro requests non-default
+    if (defined $meta->{vim_mode} && !$meta->{vim_mode}) {
+        push @cmd, '--vim-mode', 0;
     }
+
+    push @cmd, '--debug' if $debug;
     return @cmd;
 }
 
@@ -994,16 +280,27 @@ sub run_child {
 # ==========================================================================
 
 sub write_description {
-    my ($t) = @_;
-    my $desc_file = "$golden_dir/$t->{name}.txt";
+    my ($name, $meta) = @_;
+    my $desc_file = "$golden_dir/$name.txt";
     open my $fh, '>', $desc_file or do { warn "Cannot write $desc_file: $!"; return };
-    print $fh "Test: $t->{name}\n";
-    print $fh "Description: $t->{desc}\n\n";
-    if ($t->{description}) {
-        print $fh $t->{description};
-        print $fh "\n" unless $t->{description} =~ /\n$/;
+    print $fh "Test: $name\n";
+    print $fh "Description: " . ($meta->{desc} // $name) . "\n\n";
+    if ($meta->{description}) {
+        print $fh $meta->{description};
+        print $fh "\n" unless $meta->{description} =~ /\n$/;
     }
     close $fh;
+}
+
+# ==========================================================================
+# Determine if output is action (two snapshots) or single
+# ==========================================================================
+
+sub is_action_output {
+    my ($name) = @_;
+    return (-f "$output_dir/${name}_1.png" && -s _
+         && -f "$output_dir/${name}_2.png" && -s _)
+        && !(-f "$output_dir/${name}.png" && -s _);
 }
 
 # ==========================================================================
@@ -1013,66 +310,38 @@ sub write_description {
 my $label = $mode eq 'init'         ? 'initializing golden images'
            : $mode eq 'init-missing' ? 'initializing missing golden images'
            :                          'comparing against golden';
-if ($target) {
-    $label .= " (target: $target)";
-}
+$label .= " (target: $target)" if $target;
 print "visual tests: $label\n---\n";
 
-my $passed = 0;
-my $failed = 0;
+my $passed  = 0;
+my $failed  = 0;
 my $skipped = 0;
 my @failures;
 
-# ==========================================================================
-# Check whether all expected golden files already exist for a test
-# ==========================================================================
-
 sub has_all_goldens {
-    my ($t) = @_;
-    my $name = $t->{name};
-    if ($t->{is_action}) {
-        return (-f "$golden_dir/${name}_1.png" && -s _
-             && -f "$golden_dir/${name}_2.png" && -s _);
-    } else {
-        return (-f "$golden_dir/${name}.png" && -s _);
-    }
+    my ($name) = @_;
+    return (-f "$golden_dir/${name}.png" && -s _)
+        || (-f "$golden_dir/${name}_1.png" && -s _
+          && -f "$golden_dir/${name}_2.png" && -s _);
 }
 
 TEST:
-for my $t (@tests) {
-    my $name = $t->{name};
+for my $name (@test_names) {
     next TEST if $target && $name ne $target;
 
-    my $is_action = $t->{is_action};
-    printf "  %-40s ", $t->{name};
-
-    # --- Build expected paths ---
-    my $output_png;
-    my $golden_png;
-    my $output_1;
-    my $golden_1;
-    my $output_2;
-    my $golden_2;
-
-    if ($is_action) {
-        $output_1 = "$output_dir/${name}_1.png";
-        $output_2 = "$output_dir/${name}_2.png";
-        $golden_1 = "$golden_dir/${name}_1.png";
-        $golden_2 = "$golden_dir/${name}_2.png";
-    } else {
-        $output_png = "$output_dir/${name}.png";
-        $golden_png = "$golden_dir/${name}.png";
-    }
+    my $meta = Gtk3::SourceEditor::Macro->meta($name);
+    my $desc = $meta->{desc} // $name;
+    printf "  %-40s ", $name;
 
     # --- init-missing: skip tests that already have golden images ---
-    if ($mode eq 'init-missing' && has_all_goldens($t)) {
+    if ($mode eq 'init-missing' && has_all_goldens($name)) {
         print "SKIP (exists)\n";
         $skipped++;
         next TEST;
     }
 
     # --- Run snapshot_editor.pl with macro ---
-    my @cmd = build_cmd($t);
+    my @cmd = build_cmd($name, $meta);
     my $rc = run_child(@cmd);
 
     if ($rc != 0) {
@@ -1083,32 +352,33 @@ for my $t (@tests) {
         next TEST;
     }
 
+    # --- Determine output type ---
+    my $is_action = is_action_output($name);
+
     # --- Init mode: copy to golden + write description ---
     if ($mode eq 'init' || $mode eq 'init-missing') {
         if ($is_action) {
-            unless (-f $output_1 && -s $output_1) {
-                print "FAIL (no _1 output)\n"; $failed++;
-                push @failures, { name => $name, error => "no _1 output" };
+            my $out1 = "$output_dir/${name}_1.png";
+            my $out2 = "$output_dir/${name}_2.png";
+            unless (-f $out1 && -s $out1 && -f $out2 && -s $out2) {
+                print "FAIL (no _1/_2 output)\n"; $failed++;
+                push @failures, { name => $name, error => "no _1/_2 output" };
                 next TEST;
             }
-            unless (-f $output_2 && -s $output_2) {
-                print "FAIL (no _2 output)\n"; $failed++;
-                push @failures, { name => $name, error => "no _2 output" };
-                next TEST;
-            }
-            copy($output_1, $golden_1);
-            copy($output_2, $golden_2);
+            copy($out1, "$golden_dir/${name}_1.png");
+            copy($out2, "$golden_dir/${name}_2.png");
             print "OK (golden saved)";
         } else {
-            unless (-f $output_png && -s $output_png) {
+            my $out = "$output_dir/${name}.png";
+            unless (-f $out && -s $out) {
                 print "FAIL (no output)\n"; $failed++;
                 push @failures, { name => $name, error => "no output" };
                 next TEST;
             }
-            copy($output_png, $golden_png);
+            copy($out, "$golden_dir/${name}.png");
             print "OK (golden saved)";
         }
-        write_description($t);
+        write_description($name, $meta);
         print "\n";
         $passed++;
         next TEST;
@@ -1116,15 +386,20 @@ for my $t (@tests) {
 
     # --- Test mode: compare against golden ---
     if ($is_action) {
-        unless (-f $output_1 && -s $output_1 && -f $output_2 && -s $output_2) {
+        my $out1 = "$output_dir/${name}_1.png";
+        my $out2 = "$output_dir/${name}_2.png";
+        my $gld1 = "$golden_dir/${name}_1.png";
+        my $gld2 = "$golden_dir/${name}_2.png";
+
+        unless (-f $out1 && -s $out1 && -f $out2 && -s $out2) {
             print "SKIP (no output)\n"; $skipped++; next TEST;
         }
-        unless (-f $golden_1 && -f $golden_2) {
+        unless (-f $gld1 && -f $gld2) {
             print "SKIP (no golden)\n"; $skipped++; next TEST;
         }
 
-        my $r1 = compare_images($golden_1, $output_1);
-        my $r2 = compare_images($golden_2, $output_2);
+        my $r1 = compare_images($gld1, $out1);
+        my $r2 = compare_images($gld2, $out2);
         my $fail = !$r1->{match} || !$r2->{match};
 
         if ($fail) {
@@ -1134,13 +409,13 @@ for my $t (@tests) {
             if ($generate_diff) {
                 if (!$r1->{match}) {
                     my $dp = "$diffs_dir/${name}_1_diff.png";
-                    generate_diff_image($golden_1, $output_1, $dp);
-                    print "\n  diff: xt/visual/diffs/${name}_1_diff.png";
+                    generate_diff_image($gld1, $out1, $dp);
+                    print "\n    diff: xt/visual/diffs/${name}_1_diff.png";
                 }
                 if (!$r2->{match}) {
                     my $dp = "$diffs_dir/${name}_2_diff.png";
-                    generate_diff_image($golden_2, $output_2, $dp);
-                    print "\n  diff: xt/visual/diffs/${name}_2_diff.png";
+                    generate_diff_image($gld2, $out2, $dp);
+                    print "\n    diff: xt/visual/diffs/${name}_2_diff.png";
                 }
             }
             print "\n";
@@ -1157,22 +432,25 @@ for my $t (@tests) {
             $passed++;
         }
     } else {
-        unless (-f $output_png && -s $output_png) {
+        my $out = "$output_dir/${name}.png";
+        my $gld = "$golden_dir/${name}.png";
+
+        unless (-f $out && -s $out) {
             print "SKIP (no output)\n"; $skipped++; next TEST;
         }
-        unless (-f $golden_png) {
+        unless (-f $gld) {
             print "SKIP (no golden)\n"; $skipped++; next TEST;
         }
 
-        my $r = compare_images($golden_png, $output_png);
+        my $r = compare_images($gld, $out);
 
         if (!$r->{match}) {
             my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
             print "FAIL ($d)";
             if ($generate_diff) {
                 my $dp = "$diffs_dir/${name}_diff.png";
-                generate_diff_image($golden_png, $output_png, $dp);
-                print "\n  diff: xt/visual/diffs/${name}_diff.png";
+                generate_diff_image($gld, $out, $dp);
+                print "\n    diff: xt/visual/diffs/${name}_diff.png";
             }
             print "\n";
             $failed++;

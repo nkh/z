@@ -1,2 +1,21 @@
-# Visual test: Single line of text
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+hello world
+END_CODE
+
+{
+    desc => q{Single line},
+    description => <<'END_DESC',
+Edge case: single line of text
+
+Visual checks:
+- One line of text displayed
+- Cursor on the line
+- Line number "1" in gutter (if enabled)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}

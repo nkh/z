@@ -1,9 +1,58 @@
-# Visual test: Delete line (dd)
-sub {
-    my ($ctx) = @_;
-    $ctx->snapshot('1');
-    $ctx->delay(100);
-    $ctx->keys('dd');
-    $ctx->delay(100);
-    $ctx->snapshot('2');
+my $CODE = <<'END_CODE';
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+package My::Module;
+
+sub new {
+    my ($class, %opts) = @_;
+    return bless \%opts, $class;
+}
+
+sub process {
+    my ($self, $data) = @_;
+    die "No data provided" unless $data;
+    my @results;
+    for my $item (@$data) {
+        push @results, $self->_transform($item);
+    }
+    return \@results;
+}
+
+sub _transform {
+    my ($self, $item) = @_;
+    return uc($item);
+}
+
+1;
+END_CODE
+
+{
+    desc => q{Delete line (dd)},
+    description => <<'END_DESC',
+Action: dd deletes the current line
+
+_1.png (initial state):
+- Dark theme with Perl code (starts with #!/usr/bin/perl)
+
+Action: keystrokes "dd" (delete current line)
+
+_2.png (after action):
+- First line (#!/usr/bin/perl) is gone
+- Cursor at new line 1
+- Buffer content is one line shorter
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->editor->set_language('perl');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('dd');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
 }

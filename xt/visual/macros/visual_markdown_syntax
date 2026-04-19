@@ -1,2 +1,41 @@
-# Visual test: Markdown syntax highlighting
-sub { my ($ctx) = @_; $ctx->snapshot() }
+my $CODE = <<'END_CODE';
+# Gtk3::SourceEditor
+
+An embeddable **Vim-like** text editor widget.
+
+## Features
+
+- Syntax highlighting via GtkSourceView
+- Vim modal keybindings
+- Theme support
+
+## Usage
+
+```perl
+use Gtk3::SourceEditor;
+my $editor = Gtk3::SourceEditor->new(
+    file => 'my_script.pl',
+);
+```
+END_CODE
+
+{
+    desc => q{Markdown syntax},
+    description => <<'END_DESC',
+Syntax highlighting: Markdown
+
+Visual checks:
+- Headings (# ##) colored
+- Bold (**text**) and italic (*text*) markers colored
+- Code blocks (```) have distinct background or color
+- List items (-) colored
+- Links and URLs recognized
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_language('markdown');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot();
+    },
+}
