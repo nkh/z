@@ -1,0 +1,198 @@
+#!/usr/bin/perl
+# perlc-check - Syntax-check Perl files that depend on Gtk3/XS modules
+#
+# Creates temporary stub modules for Gtk3, Glib, Pango, Cairo and
+# Gtk3::SourceView so that `perl -c` succeeds on a headless server
+# without those libraries installed.
+#
+# Usage:
+#   tools/perlc-check lib/Gtk3/SourceEditor.pm
+#   tools/perlc-check xt/visual/run_visual_tests.pl
+#   tools/perlc-check lib/Gtk3/SourceEditor/Macro/Context.pm
+
+use strict;
+use warnings;
+use File::Spec;
+use File::Path qw(make_path);
+use Cwd qw(abs_path);
+
+my @files = @ARGV;
+die "Usage: $0 FILE [FILE ...]\n" unless @files;
+
+# --- Create a temporary stub directory ---
+my $stub_dir = File::Spec->catdir($ENV{TMPDIR} // '/tmp', "perlc-stub-$$");
+make_path($stub_dir);
+END { system('rm', '-rf', $stub_dir) if -d $stub_dir }
+
+# --- Helper: write a stub .pm file ---
+sub write_stub {
+    my ($path, $content) = @_;
+    my $dir = File::Spec->catpath((File::Spec->splitpath($path))[0,1], '');
+    make_path($dir) if $dir && !-d $dir;
+    open my $fh, '>', $path or die "Cannot write $path: $!\n";
+    print $fh $content;
+    close $fh;
+}
+
+# --- Stub: Glib --------------------------------------------------------
+# Provides TRUE/FALSE constants and passthrough package constructors.
+# Also stubs Glib::Source and Glib::Timeout which are used at compile
+# time in some modules.
+
+write_stub(File::Spec->catfile($stub_dir, 'Glib.pm'), <<'GLIB');
+package Glib;
+use strict;
+use warnings;
+use parent 'Exporter';
+our @EXPORT_OK = qw(TRUE FALSE SOURCE_REMOVE CONTINUE);
+our @EXPORT    = qw();
+
+sub TRUE   { 1 }
+sub FALSE  { 0 }
+sub SOURCE_REMOVE { 1 }
+sub CONTINUE     { 2 }
+
+sub import {
+    my $class = shift;
+    # Silently consume flags like -init, -keep-interfaces, etc.
+    my @symbols = grep { !/^-/ } @_;
+    $class->export_to_level(1, $class, @symbols) if @symbols;
+}
+
+package Glib::Source;
+sub remove { 1 }
+
+package Glib::Timeout;
+sub add { 1 }
+sub add_seconds { 1 }
+
+package Glib::String { 1 }
+
+1;
+GLIB
+
+# --- Stub: Gtk3 --------------------------------------------------------
+# AUTOLOADs all Gtk3::X::Y::Z package constructors so that any
+# $obj->method call in the code being checked won't die.
+
+write_stub(File::Spec->catfile($stub_dir, 'Gtk3.pm'), <<'GTK3');
+package Gtk3;
+use strict;
+use warnings;
+
+sub import { }
+
+sub AUTOLOAD {
+    our $AUTOLOAD;
+    my $pkg = $AUTOLOAD;
+    $pkg =~ s/::\w+$//;
+    return sub { bless {}, $pkg } if $pkg =~ /^Gtk3::/;
+    die "Gtk3::AUTOLOAD: $AUTOLOAD\n";
+}
+
+sub events_pending { 0 }
+sub main_iteration { 0 }
+
+package Gtk3::Gdk;
+sub AUTOLOAD {
+    our $AUTOLOAD;
+    my $pkg = $AUTOLOAD;
+    $pkg =~ s/::\w+$//;
+    return sub { bless {}, $pkg } if $pkg =~ /^Gtk3::/;
+}
+sub flush { }
+sub unicode_to_keyval { $_[0] }
+sub keyval_name { '' }
+
+1;
+GTK3
+
+# --- Stub: Gtk3::SourceView --------------------------------------------
+write_stub(File::Spec->catfile($stub_dir, 'Gtk3', 'SourceView.pm'), <<'SV');
+package Gtk3::SourceView;
+use strict; use warnings;
+sub import { }
+1;
+SV
+
+# --- Stub: Pango -------------------------------------------------------
+write_stub(File::Spec->catfile($stub_dir, 'Pango.pm'), <<'PANGO');
+package Pango;
+use strict; use warnings;
+
+sub import { }
+
+sub AUTOLOAD {
+    our $AUTOLOAD;
+    my $pkg = $AUTOLOAD;
+    $pkg =~ s/::\w+$//;
+    return sub { bless {}, $pkg } if $pkg =~ /^Pango::/;
+}
+
+1;
+PANGO
+
+# --- Stub: Cairo -------------------------------------------------------
+write_stub(File::Spec->catfile($stub_dir, 'Cairo.pm'), <<'CAIRO');
+package Cairo;
+use strict; use warnings;
+
+sub import { }
+
+sub AUTOLOAD {
+    our $AUTOLOAD;
+    my $pkg = $AUTOLOAD;
+    $pkg =~ s/::\w+$//;
+    return sub { bless {}, $pkg } if $pkg =~ /^Cairo::/;
+}
+
+package Cairo::ImageSurface;
+sub create { bless {}, shift }
+package Cairo::Context;
+sub create { bless {}, shift }
+
+1;
+CAIRO
+
+# --- Stub: File::Slurper (pure-Perl, but may not be installed) ---------
+write_stub(File::Spec->catfile($stub_dir, 'File', 'Slurper.pm'), <<'SLURPER');
+package File::Slurper;
+use strict; use warnings;
+use parent 'Exporter';
+our @EXPORT_OK = qw(read_text read_binary write_text write_binary);
+
+sub read_text   { '' }
+sub read_binary  { '' }
+sub write_text   { }
+sub write_binary  { }
+1;
+SLURPER
+
+# --- Run perl -c on each file ------------------------------------------
+my $errors = 0;
+for my $file (@files) {
+    $file = abs_path($file);
+    die "Cannot find $file\n" unless -f $file;
+
+    # Build @INC: stub dir first (mocks GTK), then project lib/
+    my @inc = ($stub_dir);
+    if ($file =~ m{^(.*?)/(?:lib|xt)/}) {
+        my $root = $1;
+        push @inc, "$root/lib" if -d "$root/lib";
+    }
+
+    my $inc_str = join(' ', map { "-I$_" } @inc);
+    my $cmd = "perl $inc_str -c \Q$file\E 2>&1";
+    my $out = `$cmd`;
+    my $rc = $? >> 8;
+
+    if ($rc == 0 && $out =~ /syntax OK/) {
+        print "OK  $file\n";
+    } else {
+        print "FAIL $file\n";
+        print $out;
+        $errors++;
+    }
+}
+
+exit($errors ? 1 : 0);
