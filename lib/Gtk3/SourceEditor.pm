@@ -324,13 +324,19 @@ sub _build_ui {
         if ($self->{block_cursor}) {
             $wrapped_on_ready = sub {
                 my ($ctx) = @_;
+                # Store vim context for macro system (simulate_keys access)
+                $self->{vim_ctx} = $ctx;
                 if ($ctx->{set_cursor_mode}) {
                     $ctx->{set_cursor_mode}->('block');
                 }
                 $user_on_ready->($ctx) if $user_on_ready;
             };
         } else {
-            $wrapped_on_ready = $user_on_ready;
+            $wrapped_on_ready = sub {
+                my ($ctx) = @_;
+                $self->{vim_ctx} = $ctx;
+                $user_on_ready->($ctx) if $user_on_ready;
+            };
         }
 
         Gtk3::SourceEditor::VimBindings::add_vim_bindings(
@@ -394,6 +400,11 @@ sub get_textview {
 sub get_buffer {
     my ($self) = @_;
     return $self->{buffer};
+}
+
+sub get_vim_ctx {
+    my ($self) = @_;
+    return $self->{vim_ctx};
 }
 
 # ==========================================================================

@@ -40,63 +40,58 @@ sub buffer   { $_[0]->{editor}->get_buffer }
 # ==========================================================================
 # Keystroke injection
 #
-# These emit GDK key-press and key-release events through the textview's
-# signal handlers, so vim bindings process them identically to real
-# user input.
+# Instead of synthesizing GDK events (which is unreliable across GTK
+# versions and Perl bindings), we call VimBindings::simulate_keys()
+# directly.  This is the same mechanism used by the unit test suite
+# (500+ tests) and is proven to work correctly.
+#
+# simulate_keys() dispatches to the mode-specific handlers
+# (handle_normal_mode, handle_insert_mode, etc.) which modify the
+# VimBuffer directly through its interface, and then sync changes
+# back to the GTK buffer.
 # ==========================================================================
+
+sub _vim_ctx {
+    my ($self) = @_;
+    my $ctx = $self->{editor}->get_vim_ctx;
+    unless ($ctx) {
+        die "Macro::Context: editor has no vim context "
+          . "(vim_mode may be disabled, or on_ready has not fired yet)\n";
+    }
+    return $ctx;
+}
 
 sub key {
     my ($self, $name) = @_;
-    my $view = $self->textview
-        or $self->die("key: no textview available");
-    my $gdk_win = $self->_get_gdk_window()
-        or $self->die("key: no GdkWindow available");
+    my $vim_ctx = $self->_vim_ctx;
 
-    my ($keyval, $hw_keycode) = $self->_resolve_key($name);
-    my $ev_time = Gtk3::get_current_event_time() || 0;
-    my $ev_str = (length($name) == 1 && ord($name) >= 32 && ord($name) < 127)
-                 ? $name : '';
+    require Gtk3::SourceEditor::VimBindings;
 
-    eval {
-        my $ev_press = Gtk3::Gdk::Event->new('key-press');
-        $ev_press->window($gdk_win);
-        $ev_press->keyval($keyval);
-        $ev_press->state(0);
-        $ev_press->send_event(1);
-        $ev_press->time($ev_time);
-        $ev_press->string($ev_str);
+    # Translate the macro key name to the format simulate_keys expects.
+    # Control characters from \n, \e, etc. need to become named keys.
+    my $sim_name = $self->_to_simulate_key($name);
 
-        # Use $widget->event() instead of signal_emit.  This runs the full
-        # GTK event processing chain: first the GtkWidget::event signal
-        # (where vim bindings intercept navigation keys), then the specific
-        # key-press-event signal.  signal_emit('key-press-event') would
-        # skip the event signal entirely, causing arrow keys and other
-        # navigation keys to be processed by GtkTextView instead of vim.
-        $view->event($ev_press);
-
-        my $ev_release = Gtk3::Gdk::Event->new('key-release');
-        $ev_release->window($gdk_win);
-        $ev_release->keyval($keyval);
-        $ev_release->state(0);
-        $ev_release->send_event(1);
-        $ev_release->time($ev_time);
-
-        $view->event($ev_release);
-    };
-    if ($@) {
-        warn "Macro::Context::key: failed to emit key '$name': $@\n";
-    }
+    Gtk3::SourceEditor::VimBindings::simulate_keys($vim_ctx, $sim_name);
 }
 
 sub type {
     my ($self, $text) = @_;
+    my $vim_ctx = $self->_vim_ctx;
+
+    require Gtk3::SourceEditor::VimBindings;
+
     for my $ch (split //, $text) {
-        $self->key($ch);
+        my $sim_name = $self->_to_simulate_key($ch);
+        Gtk3::SourceEditor::VimBindings::simulate_keys($vim_ctx, $sim_name);
     }
 }
 
 sub keys {
     my ($self, $sequence) = @_;
+    my $vim_ctx = $self->_vim_ctx;
+
+    require Gtk3::SourceEditor::VimBindings;
+
     my @chars;
     while (length $sequence) {
         if    ($sequence =~ s/^\\n//) { push @chars, "\n" }
@@ -106,7 +101,29 @@ sub keys {
         elsif ($sequence =~ s/^\\d//) { push @chars, "\x7f" }
         elsif ($sequence =~ s/^(.)//s) { push @chars, $1 }
     }
-    $self->key($_) for @chars;
+
+    for my $ch (@chars) {
+        my $sim_name = $self->_to_simulate_key($ch);
+        Gtk3::SourceEditor::VimBindings::simulate_keys($vim_ctx, $sim_name);
+    }
+}
+
+# Translate a macro key name to the format VimBindings::simulate_keys expects.
+sub _to_simulate_key {
+    my ($self, $name) = @_;
+
+    # Control characters -> named keys
+    my %ctrl = (
+        "\n"   => 'Return',
+        "\x1b" => 'Escape',
+        "\t"   => 'Tab',
+        "\x08" => 'BackSpace',
+        "\x7f" => 'Delete',
+    );
+    return $ctrl{$name} if exists $ctrl{$name};
+
+    # Already a valid simulate_keys name (named keys, Control-x, etc.)
+    return $name;
 }
 
 # ==========================================================================
@@ -266,95 +283,6 @@ sub selection_text {
 sub is_modified {
     my ($self) = @_;
     return $self->buffer->get_modified ? 1 : 0;
-}
-
-# ==========================================================================
-# Private helpers
-# ==========================================================================
-
-sub _get_gdk_window {
-    my ($self) = @_;
-    # Try textview first, then parent window
-    my $view = $self->textview;
-    return undef unless $view;
-
-    my $gdk_win = eval { $view->get_window };
-    return $gdk_win if $gdk_win;
-
-    if ($self->{window}) {
-        $gdk_win = eval { $self->{window}->get_window };
-        return $gdk_win if $gdk_win;
-    }
-    return undef;
-}
-
-sub _resolve_key {
-    my ($self, $name) = @_;
-
-    # Named keys
-    my %named = (
-        Enter     => 0xff0d,  Return => 0xff0d,
-        Escape    => 0xff1b,  Esc    => 0xff1b,
-        Tab       => 0xff09,
-        Backspace => 0xff08,  BS     => 0xff08,
-        Delete    => 0xffff,  Del    => 0xffff,
-        Up        => 0xff52,
-        Down      => 0xff54,
-        Left      => 0xff51,
-        Right     => 0xff53,
-        Home      => 0xff50,
-        End       => 0xff57,
-        Page_Up   => 0xff55,  PgUp   => 0xff55,
-        Page_Down => 0xff56,  PgDn   => 0xff56,
-        Insert    => 0xff63,
-        Space     => 0x0020,
-        F1  => 0xffbe,  F2  => 0xffbf,  F3  => 0xffc0,  F4  => 0xffc1,
-        F5  => 0xffc2,  F6  => 0xffc3,  F7  => 0xffc4,  F8  => 0xffc5,
-        F9  => 0xffc6,  F10 => 0xffc7,  F11 => 0xffc8,  F12 => 0xffc9,
-    );
-
-    # Control characters (from \n, \e, etc.)
-    my %ctrl = (
-        "\n"   => [0xff0d, 'Return'],
-        "\x1b" => [0xff1b, 'Escape'],
-        "\t"   => [0xff09, 'Tab'],
-        "\x08" => [0xff08, 'BackSpace'],
-        "\x7f" => [0xffff, 'Delete'],
-    );
-
-    if (exists $ctrl{$name}) {
-        my $kv = eval { Gtk3::Gdk::keyval_from_name($ctrl{$name}[1]) };
-        return ($kv, undef) if defined $kv && $kv > 0;
-        return ($ctrl{$name}[0], undef);
-    }
-
-    # Ctrl-letter combinations
-    if ($name =~ /^Control-([a-z])$/i) {
-        my $letter = lc $1;
-        my $kv = eval { Gtk3::Gdk::keyval_from_name("Control-$letter") };
-        if (defined $kv && $kv > 0) {
-            return ($kv, undef);
-        }
-        return (0xff00 + ord($letter), undef);
-    }
-
-    # Single printable character
-    if (length($name) == 1) {
-        my $kv = eval { Gtk3::Gdk::unicode_to_keyval(ord($name)) };
-        return ($kv, undef) if defined $kv && $kv > 0;
-        return (ord($name), undef);
-    }
-
-    # Named key
-    if (exists $named{$name}) {
-        my $kv = eval { Gtk3::Gdk::keyval_from_name($name) };
-        if (defined $kv && $kv > 0) {
-            return ($kv, undef);
-        }
-        return ($named{$name}, undef);
-    }
-
-    die "Macro::Context::key: unknown key name '$name'\n";
 }
 
 1;
