@@ -279,40 +279,6 @@ perl xt/visual/snapshot_editor.pl \
 
 Each golden image has a corresponding `.txt` file in `xt/visual/golden/` that describes what the test checks and what to verify visually.  These are created during `--init` and should be reviewed when verifying golden images after intentional changes.
 
-## Macro System
-
-The macro system provides a way to automate editor actions through Perl scripts.  Macros receive a `$ctx` context object and optional arguments.
-
-### Macro File Format
-
-A macro file is any Perl script that returns a coderef:
-
-```perl
-# macros/my_macro
-sub {
-    my ($ctx, @args) = @_;
-    $ctx->echo("Args: @args");
-    $ctx->snapshot('1');
-    $ctx->delay(100);
-    $ctx->keys('dd');
-    $ctx->delay(100);
-    $ctx->snapshot('2');
-}
-```
-
-File names can be anything, with or without an extension.  The basename (minus `.pl`, `.pm`, or `.macro`) becomes the registry name.
-
-### Key Differences from Plugins
-
-| Aspect | Plugin | Macro |
-|--------|--------|-------|
-| **Purpose** | Extend editor capabilities | Automate sequences of actions |
-| **Registration** | `register(\%ACTIONS, $config)` — modifies dispatch | Returns coderef — called on demand |
-| **Keymaps** | Can add/override key bindings | Cannot modify keymaps |
-| **Ex-commands** | Can register new `:commands` | Can call existing commands |
-| **Typical use** | Add new features | Test automation, repetitive tasks |
-
-### Modules
-
-- **`Gtk3::SourceEditor::Macro`** — Loader, registry, `load()`, `run()`, `list()`, `save()`
-- **`Gtk3::SourceEditor::Macro::Context`** — `$ctx` wrapper with all macro API methods
+For the full macro system documentation including the context API, CLI options,
+ex-commands, recording, and writing your own macros, see the
+[Macro System](macros.md) chapter.

@@ -24,4 +24,5 @@
 - [Configuration](configuration.md)
 - [Theming](theming.md)
 - [Plugin System](plugins.md)
+- [Macro System](macros.md)
 - [Testing](testing.md)
