@@ -11,6 +11,9 @@ src = "src"
 # html.search.enabled = true
 # html.print-page.enabled = false
 
+[output.html]
+additional-css = ["custom.css"]
+
 # [output.html.fold]
 # enable = true
 # level = 0
