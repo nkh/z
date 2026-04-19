@@ -449,12 +449,19 @@ sub set_theme {
 
     # Apply new CSS to the widget hierarchy (mode label, command entry)
     if ($self->{widget} && $css_provider) {
-        my $screen = $self->{widget}->get_screen();
-        Gtk3::StyleContext->add_provider_for_screen(
-            $screen,
-            $css_provider,
-            600,  # GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
+        eval {
+            my $screen = $self->{widget}->get_screen();
+            Gtk3::StyleContext->add_provider_for_screen(
+                $screen,
+                $css_provider,
+                600,  # GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+            );
+        };
+        if ($@) {
+            # Fallback: apply to individual widget style contexts
+            # (some Perl-GTK3 builds lack add_provider_for_screen)
+            _apply_provider_to_widget_tree($self->{widget}, $css_provider);
+        }
     }
 
     # Store new fg/bg so vim bindings can use them (e.g., for block cursor)
@@ -474,6 +481,29 @@ sub toggle_fullscreen {
         $window->unfullscreen();
     } else {
         $window->fullscreen();
+    }
+}
+
+# ----------------------------------------------------------------
+# _apply_provider_to_widget_tree( $widget, $css_provider )
+#
+# Apply a CSS provider to a widget and all its children.
+# Used as fallback when add_provider_for_screen is unavailable.
+# ----------------------------------------------------------------
+sub _apply_provider_to_widget_tree {
+    my ($widget, $css_provider) = @_;
+    return unless $widget && $css_provider;
+
+    eval {
+        my $sc = $widget->get_style_context();
+        $sc->add_provider($css_provider, 600) if $sc;
+    };
+
+    # Recurse into children
+    if ($widget->isa('Gtk3::Container')) {
+        $widget->forall(sub {
+            _apply_provider_to_widget_tree($_[0], $css_provider);
+        });
     }
 }
 

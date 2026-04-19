@@ -20,8 +20,7 @@ our $VERSION = '0.01';
 # Capture a screenshot of the entire GTK window to a PNG file.
 # Returns the path on success, dies on failure.
 #
-# Uses Gdk::Window->pixbuf_get_from_surface() when available,
-# falls back to GdkPixbuf::Pixbuf::get_from_window().
+# Uses GdkPixbuf to read pixels from the GdkWindow surface.
 # ----------------------------------------------------------------
 sub capture_window {
     my ($window, $output_path) = @_;
@@ -32,11 +31,16 @@ sub capture_window {
     $window->realize() unless $window->get_realized();
     $window->show_now();
 
-    # Process pending events so the window gets drawn
-    _process_pending_events();
-
-    my $gdk_window = $window->get_window();
-    die "Cannot get GdkWindow from widget" unless $gdk_window;
+    # Wait for the GdkWindow to become available
+    my $gdk_window;
+    for my $attempt (1..50) {
+        _process_pending_events();
+        $gdk_window = $window->get_window();
+        last if $gdk_window;
+        select(undef, undef, undef, 0.02);  # 20ms pause
+    }
+    die "Cannot get GdkWindow from widget (window not mapped after 50 retries)"
+        unless $gdk_window;
 
     my $width  = $gdk_window->get_width();
     my $height = $gdk_window->get_height();
@@ -94,12 +98,11 @@ sub capture_widget {
 # capture_editor( $editor, $output_path, %opts )
 #
 # Capture a screenshot of a Gtk3::SourceEditor instance.
-# The editor's get_widget() returns a Gtk3::Box - we capture
-# the whole thing including status bar.
+# Creates a temporary window, captures the screenshot, then
+# destroys the window so each test gets a clean state.
 #
 # Options:
 #   size => [ $width, $height ]  - resize window before capture (default: 800x600)
-#   theme => 'dark'              - apply theme before capture
 # ----------------------------------------------------------------
 sub capture_editor {
     my ($editor, $output_path, %opts) = @_;
@@ -110,28 +113,36 @@ sub capture_editor {
     my $widget = $editor->get_widget();
     die "Cannot get editor widget" unless $widget;
 
-    # Get or find the toplevel window
-    my $window = $widget->get_toplevel();
-    unless ($window && $window->isa('Gtk3::Window')) {
-        # Widget may not be in a window yet - create a temporary one
-        $window = Gtk3::Window->new('toplevel');
-        $window->set_default_size(@{ $opts{size} || [800, 600] });
-        $window->add($widget);
-    } else {
-        my ($w, $h) = @{ $opts{size} || [800, 600] };
-        $window->set_default_size($w, $h);
-        $window->resize($w, $h);
-    }
+    # Always create a fresh temporary window for capture
+    my $window = Gtk3::Window->new('toplevel');
+    my ($w, $h) = @{ $opts{size} || [800, 600] };
+    $window->set_default_size($w, $h);
+    $window->resize($w, $h);
+    $window->add($widget);
 
     $window->show_all();
     _process_pending_events();
 
-    # Additional idle processing for theme/CSS to apply
-    for (1..5) {
+    # Give GTK time to layout and render
+    for (1..10) {
         _process_pending_events();
+        select(undef, undef, undef, 0.01);  # 10ms pause
     }
 
-    return capture_window($window, $output_path);
+    my $result;
+    eval { $result = capture_window($window, $output_path) };
+    my $err = $@;
+
+    # Remove widget from window before destroying so editor stays valid
+    eval { $window->remove($widget) };
+    # Destroy the temporary window
+    eval { $window->destroy() };
+
+    # Clean up any pending events after destruction
+    eval { _process_pending_events() };
+
+    die $err if $err;
+    return $result;
 }
 
 # ----------------------------------------------------------------
@@ -186,7 +197,7 @@ sub _window_to_pixbuf {
 
     # Method 1: pixbuf_get_from_surface (GTK 3.x with Cairo)
     if ($gdk_window->can('pixbuf_get_from_surface')) {
-        my $surface = $gdk_window->get_surface();
+        my $surface = eval { $gdk_window->get_surface() };
         if ($surface && $surface->can('create_similar_image_surface')) {
             my $pixbuf = eval {
                 $gdk_window->pixbuf_get_from_surface(
@@ -226,8 +237,6 @@ sub _window_to_pixbuf {
 # Critical for getting accurate screenshots.
 # ----------------------------------------------------------------
 sub _process_pending_events {
-    # Flush the GTK event queue so widgets get drawn/rendered.
-    # Critical for getting accurate screenshots.
     for (1..20) {
         last unless Gtk3::events_pending();
         Gtk3::main_iteration();
@@ -263,6 +272,9 @@ Gtk3::SourceEditor::VisualTest::Capture - Screenshot capture for GTK widgets
 Captures screenshots of GTK widgets (specifically SourceEditor instances)
 for visual regression testing.  Screenshots are saved as PNG files.
 
+Each call to C<capture_editor> creates a temporary window, captures the
+screenshot, then destroys the window so tests don't accumulate windows.
+
 =head1 FUNCTIONS
 
 =head2 capture_window( $gtk_window, $output_path )
@@ -276,7 +288,7 @@ Captures a specific widget region to a PNG.
 =head2 capture_editor( $editor, $output_path, %opts )
 
 Captures a Gtk3::SourceEditor instance.  Handles window creation
-and sizing automatically.
+and sizing automatically.  Cleans up the temporary window after capture.
 
 =head2 capture_editor_state( $editor, $name, $output_dir, %opts )
 
