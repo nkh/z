@@ -4,13 +4,14 @@
 #
 # HOW IT WORKS
 # ============
-# Each test is defined by a self-contained Perl macro file in
-# xt/visual/macros/.  The macro contains all test metadata (description,
-# code content, theme, language, editor options) and a run sub that
-# configures the editor and captures snapshot(s).
+# Each test is defined by a self-contained Perl macro file.  The macro
+# contains all test metadata (description, code content, theme, language,
+# editor options) and a run sub that configures the editor and captures
+# snapshot(s).
 #
 # The runner:
-#   1. Discovers and loads all macros from xt/visual/macros/
+#   1. Loads macros from directories and/or individual files given on the
+#      command line
 #   2. Launches snapshot_editor.pl with --macro for each test
 #   3. The macro creates PNG files in the output directory
 #   4. Compares output against golden images
@@ -18,19 +19,27 @@
 # WORKFLOW
 # ========
 #   First run (create all golden images):
-#       perl xt/visual/run_visual_tests.pl --init
+#       perl xt/visual/run_visual_tests.pl --init xt/visual/macros
 #
 #   Re-generate a SINGLE test (after intentional change):
-#       perl xt/visual/run_visual_tests.pl --init --target visual_dark_theme
+#       perl xt/visual/run_visual_tests.pl --init --target visual_dark_theme \
+#           xt/visual/macros
 #
 #   Run all tests to check for regressions:
-#       perl xt/visual/run_visual_tests.pl
+#       perl xt/visual/run_visual_tests.pl xt/visual/macros
 #
 #   Run a single test:
-#       perl xt/visual/run_visual_tests.pl --target visual_dark_theme
+#       perl xt/visual/run_visual_tests.pl --target visual_dark_theme \
+#           xt/visual/macros
+#
+#   Run a specific macro file:
+#       perl xt/visual/run_visual_tests.pl --init xt/visual/macros/visual_dark_theme
+#
+#   Multiple directories:
+#       perl xt/visual/run_visual_tests.pl --init dir1 dir2 dir3
 #
 #   List all test names:
-#       perl xt/visual/run_visual_tests.pl --list
+#       perl xt/visual/run_visual_tests.pl --list xt/visual/macros
 #
 #   The script exits 0 if all pass, 1 on any failure.
 #
@@ -56,6 +65,12 @@
 #   --verbose            Show GTK warnings from child processes
 #   --generate-diff      Generate diff images on failure (default: off)
 #   --debug              Pass --debug to snapshot_editor.pl
+#
+# ARGUMENTS
+# ========
+#   One or more paths.  Each path is either a directory (all macro files
+#   in it are loaded) or a single macro file.  At least one path is
+#   required unless --list is used with a default directory.
 # ==========================================================================
 
 use strict;
@@ -94,22 +109,37 @@ GetOptions(
     'verbose|v'       => \$verbose,
     'generate-diff'   => \$generate_diff,
     'debug'           => \$debug,
-) or die "Usage: $0 [--init|--init-missing|--test|--list] [--test NAME|--target NAME] [--threshold N] [--verbose] [--generate-diff] [--debug]\n";
+) or die "Usage: $0 [options] <dir_or_file> [dir_or_file ...]\n";
+
+# --- Remaining arguments: macro directories and/or individual files ---
+my @paths = @ARGV;
+
+unless (@paths) {
+    die "Usage: $0 [options] <dir_or_file> [dir_or_file ...]\n"
+      . "  Provide at least one directory or macro file to load.\n";
+}
 
 # --- Directories ---
 my $golden_dir = "$RealBin/golden";
 my $output_dir = "$RealBin/output";
 my $diffs_dir  = "$RealBin/diffs";
 my $script     = "$RealBin/snapshot_editor.pl";
-my $macros_dir = "$RealBin/macros";
 
 make_path($golden_dir, $output_dir, $diffs_dir);
 
 # ==========================================================================
-# Discover and load macros
+# Discover and load macros from given paths
 # ==========================================================================
 
-Gtk3::SourceEditor::Macro->load(dir => $macros_dir);
+for my $p (@paths) {
+    if (-d $p) {
+        Gtk3::SourceEditor::Macro->load(dir => $p);
+    } elsif (-f $p) {
+        Gtk3::SourceEditor::Macro->load(file => $p);
+    } else {
+        warn "Warning: '$p' is not a file or directory, skipping\n";
+    }
+}
 
 my @test_names = sort Gtk3::SourceEditor::Macro->list();
 
@@ -237,9 +267,12 @@ sub compare_images {
 
 sub build_cmd {
     my ($name, $meta) = @_;
+    my $info = Gtk3::SourceEditor::Macro->info($name);
+    die "No file path registered for macro '$name'\n" unless $info && $info->{file};
+
     my @cmd = (
         $^X, $script,
-        '--macro',        "$macros_dir/$name",
+        '--macro',        $info->{file},
         '--macro-run',    $name,
         '--snapshot-dir', $output_dir,
         '--snapshot-delay', $delay,
