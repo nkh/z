@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Exporter 'import';
 use File::Temp qw(tempfile);
+use File::Copy qw(move);
 use Glib ('TRUE', 'FALSE');
 
 our @EXPORT_OK = qw(
@@ -21,11 +22,11 @@ our $VERSION = '0.01';
 # Configurable settings
 #
 # $CAPTURE_TOOL  - preferred tool name, or undef for auto-detect
-# $CAPTURE_DELAY - milliseconds to wait in the main loop before
+# $CAPTURE_DELAY - milliseconds to wait for GTK rendering before
 #                  capturing (gives GTK time to render)
 # ----------------------------------------------------------------
 our $CAPTURE_TOOL  = undef;   # auto-detect if undef
-our $CAPTURE_DELAY = 300;    # ms
+our $CAPTURE_DELAY = 500;    # ms — increased for safety
 
 # ----------------------------------------------------------------
 # detect_capture_tools()
@@ -56,9 +57,22 @@ sub detect_capture_tools {
 #
 # Capture a screenshot of a Gtk3::SourceEditor instance.
 #
-# Strategy: enter the real GTK main loop so the window renders
-# properly, then use an external tool (import/scrot/xwd) to
-# capture pixels from the X display.
+# Strategy:
+#   1. Create a temporary GTK window, pack the editor widget
+#   2. show_all() to trigger the X MapWindow
+#   3. Process X events manually (main_iteration loop) so that
+#      the window is fully mapped, configured, and exposed on screen
+#   4. Flush the X connection to ensure all drawing is visible
+#   5. Shell out to an external capture tool (import/scrot/xwd)
+#      that reads pixels from the X server
+#   6. Move the captured file to the final output path
+#
+# We do NOT use Gtk3->main() / Glib::Timeout because:
+#   - Gtk3->main() may return immediately on some configurations
+#     (e.g. real display with window manager sending delete-event)
+#   - The external capture tool talks to the X server directly;
+#     it only needs the window to be visually on screen, not for
+#     the GTK main loop to be running
 #
 # Options:
 #   size     => [ $width, $height ]  - window size (default: 800x600)
@@ -77,7 +91,7 @@ sub capture_editor {
     die "Cannot get editor widget" unless $widget;
 
     my ($w, $h) = @{ $opts{size} || [800, 600] };
-    my $delay = $opts{delay} // $CAPTURE_DELAY // 300;
+    my $delay = $opts{delay} // $CAPTURE_DELAY // 500;
 
     # Determine which capture tool to use
     my $tool = $opts{tool} // $CAPTURE_TOOL;
@@ -93,44 +107,61 @@ sub capture_editor {
         $tool = $available[0]->{name};
     }
 
+    # Use a short temp path for capture.
+    # External tools like 'import' can fail silently with very long paths.
+    my $tmp_path = "/tmp/vt_capture_$$.png";
+
     # Create a temporary window
     my $window = Gtk3::Window->new('toplevel');
     $window->set_title("visual_test_capture");
     $window->set_default_size($w, $h);
+    $window->set_position('center');    # position on screen
     $window->add($widget);
     $window->show_all();
 
+    # Give GTK time to render the window by processing X events
+    # in a tight loop. We do NOT enter Gtk3->main() because:
+    #   (a) it may not return in a timely manner on some setups
+    #   (b) on real displays the WM may interfere with main_quit
+    # Instead we manually drain the event queue for $delay ms.
+    _process_events_for($delay);
+
+    # Ensure all X drawing commands have been sent to the server
+    Gtk3::Gdk::flush();
+
+    # Capture via external tool
     my $capture_error;
-    my $callback_fired = 0;
+    eval { _external_capture($tmp_path, $tool) };
+    $capture_error = $@ if $@;
 
-    # Schedule screenshot via a Glib timeout.
-    # This lets the real GTK main loop run: the window maps,
-    # renders, and the X server processes the frame.
-    Glib::Timeout->add($delay, sub {
-        $callback_fired = 1;
-        warn "[visual_test] timeout fired, capturing with '$tool' to '$output_path'\n";
-        eval { _external_capture($output_path, $tool) };
-        $capture_error = $@ if $@;
-        warn "[visual_test] capture error: $capture_error\n" if $capture_error;
-        warn "[visual_test] file exists: " . (-f $output_path ? "yes" : "NO") . ", size: " . (-s $output_path // 0) . "\n";
-        Gtk3->main_quit();
-        return FALSE;   # one-shot: don't repeat
-    });
-
-    # Block here until the timeout fires and captures the screenshot.
-    Gtk3->main();
-
-    warn "[visual_test] main() returned, callback_fired=$callback_fired, capture_error=" . ($capture_error // 'undef') . "\n";
+    warn "[visual_test] capture_error: $capture_error\n" if $capture_error;
 
     # Cleanup: reparent the widget out of the window before destroying
     eval {
         $window->remove($widget);
         $window->destroy();
     };
+    warn "[visual_test] window cleanup error: $@\n" if $@;
 
     die $capture_error if $capture_error;
-    die "Screenshot file not created: $output_path\n"
-        unless -f $output_path && -s $output_path;
+
+    # Move the captured file to the final output path
+    # (handles cross-device renames)
+    unless (-f $tmp_path && -s $tmp_path) {
+        die "Screenshot file not created at temp path: $tmp_path\n";
+    }
+
+    # Ensure the output directory exists
+    my $out_dir = $output_path;
+    $out_dir =~ s{/[^/]+$}{};    # strip filename
+    if ($out_dir && !-d $out_dir) {
+        require File::Path;
+        File::Path::make_path($out_dir);
+    }
+
+    move($tmp_path, $output_path)
+        or die "Cannot move $tmp_path to $output_path: $!\n";
+
     return $output_path;
 }
 
@@ -203,18 +234,60 @@ sub save_screenshot {
 # ==================================================================
 
 # ----------------------------------------------------------------
+# _process_events_for( $milliseconds )
+#
+# Process GTK/X events for approximately $milliseconds without
+# entering Gtk3->main().  This drains the event queue in a loop,
+# sleeping briefly between rounds so the X server and window
+# manager have time to send new events (map, configure, expose).
+#
+# This is the core rendering wait: after show_all(), the window
+# needs to go through:
+#   1. MapRequest → MapNotify (window appears)
+#   2. ConfigureNotify (WM positions the window)
+#   3. Expose events (actual pixel rendering)
+# Steps 1-3 may take several rounds of event processing.
+# ----------------------------------------------------------------
+sub _process_events_for {
+    my ($ms) = @_;
+    return unless $ms && $ms > 0;
+
+    my $rounds      = int($ms / 20);    # ~20ms per round
+    my $start       = time();
+    my $end_seconds = $start + ($ms / 1000) + 0.1;    # +100ms safety
+
+    for my $i (1 .. $rounds) {
+        # Drain all pending events in this round
+        while (Gtk3::events_pending()) {
+            Gtk3::main_iteration();
+        }
+
+        # Small sleep to let X server / WM generate more events
+        select(undef, undef, undef, 0.02);    # 20ms
+
+        last if time() >= $end_seconds;
+    }
+
+    # Final drain: process any remaining events
+    while (Gtk3::events_pending()) {
+        Gtk3::main_iteration();
+    }
+}
+
+# ----------------------------------------------------------------
 # _external_capture( $output_path, $tool )
 #
 # Capture the X display root window to a PNG file.
 #
 # All tools capture the root window because that is the most
-# reliable approach on Xvfb (no window manager). The editor
-# window will be at (0,0) with the exact size we set.
+# reliable approach. The editor window will be visible on screen.
 #
 # Supported tools:
 #   import       - ImageMagick: import -window root
 #   scrot        - scrot (captures root automatically)
 #   xwd+convert  - xwd -root + convert to PNG
+#
+# Dies on failure.
 # ----------------------------------------------------------------
 sub _external_capture {
     my ($output_path, $tool) = @_;
@@ -228,23 +301,35 @@ sub _external_capture {
     my $ret;
 
     if ($tool eq 'import') {
-        $ret = system("import -display $display -window root '$output_path' 2>'$err_file'");
+        # ImageMagick import: capture the root window
+        my @cmd = ('import', '-display', $display, '-window', 'root', $output_path);
+        warn "[visual_test] running: @cmd\n";
+        $ret = system(@cmd);
     }
     elsif ($tool eq 'scrot') {
-        $ret = system("scrot -o '$output_path' 2>'$err_file'");
+        my @cmd = ('scrot', '-o', $output_path);
+        warn "[visual_test] running: @cmd\n";
+        $ret = system(@cmd);
     }
     elsif ($tool eq 'xwd+convert') {
         my ($xfh, $xwd_file) = tempfile(SUFFIX => '.xwd', UNLINK => 1);
         close $xfh;
-        $ret = system("xwd -display $display -root -out '$xwd_file' 2>'$err_file'");
+
+        my @xwd_cmd = ('xwd', '-display', $display, '-root', '-out', $xwd_file);
+        warn "[visual_test] running: @xwd_cmd\n";
+        $ret = system(@xwd_cmd);
         die "xwd failed (exit $ret)\n" if $ret != 0;
-        $ret = system("convert '$xwd_file' '$output_path' 2>'$err_file'");
+
+        my @cvt_cmd = ('convert', $xwd_file, $output_path);
+        warn "[visual_test] running: @cvt_cmd\n";
+        $ret = system(@cvt_cmd);
     }
     else {
         die "Unknown capture tool: '$tool'. "
           . "Use one of: import, scrot, xwd+convert\n";
     }
 
+    # system() returns the child's wait status: 0 = success
     if ($ret != 0) {
         my $err = _read_file($err_file);
         chomp $err;
@@ -253,10 +338,7 @@ sub _external_capture {
     }
 
     unless (-f $output_path && -s $output_path) {
-        my $err = _read_file($err_file);
-        chomp $err;
-        $err =~ s/\n/ /g;
-        die "Capture tool '$tool' exited OK but file not created: $output_path. $err\n";
+        die "Capture tool '$tool' exited OK but file not created: $output_path\n";
     }
 }
 
@@ -360,7 +442,7 @@ Preferred capture tool name, or C<undef> for auto-detection (default).
 
 =item C<$Gtk3::SourceEditor::VisualTest::Capture::CAPTURE_DELAY>
 
-Milliseconds to wait in the GTK main loop before capturing (default 300).
+Milliseconds to wait for GTK rendering before capturing (default 500).
 
 =back
 
