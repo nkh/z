@@ -48,6 +48,7 @@ use FindBin qw($RealBin);
 use lib "$RealBin/../../lib";
 
 use Getopt::Long qw(:config no_ignore_case bundling);
+use Time::HiRes qw(time);
 use Glib ('TRUE', 'FALSE');
 use Gtk3 '-init';
 use Gtk3::SourceEditor;
@@ -74,6 +75,7 @@ my %opt = (
     code            => undef,
     file            => undef,
     widget_only     => 0,
+    debug           => 0,
 );
 
 GetOptions(
@@ -97,7 +99,17 @@ GetOptions(
     'code=s'            => \$opt{code},
     'file=s'            => \$opt{file},
     'widget-only'       => \$opt{widget_only},
+    'debug'             => \$opt{debug},
 ) or die "Usage: $0 [--macro FILE --macro-run 'NAME ARGS'] [--snapshot PATH] [options]\n";
+
+# --- Debug helper ---
+my $t0 = Time::HiRes::time();
+sub _dbg {
+    return unless $opt{debug};
+    my $elapsed = sprintf("%.3f", Time::HiRes::time() - $t0);
+    printf STDERR "[debug %7s ms] %s\n", $elapsed, join(" ", @_);
+}
+_dbg("script start");
 
 # Parse size
 my ($win_w, $win_h) = (800, 400);
@@ -107,6 +119,7 @@ if ($opt{size} =~ /^(\d+)x(\d+)$/) {
 
 # --- Build editor ---
 my %editor_opts = (
+    debug           => $opt{debug},
     font_size              => $opt{font_size},
     show_line_numbers      => $opt{line_numbers},
     highlight_current_line => $opt{cursor_line},
@@ -134,7 +147,9 @@ if ($opt{file}) {
     $editor_opts{file} = $opt{file};
 }
 
+_dbg("building editor (theme=%s, vim=%d)", $opt{theme} // 'default', $opt{vim_mode});
 my $editor = Gtk3::SourceEditor->new(%editor_opts);
+_dbg("editor created");
 
 # Set buffer text if --code given
 if (defined $opt{code}) {
@@ -148,7 +163,9 @@ $window->set_title('SourceEditor Snapshot');
 $window->set_default_size($win_w, $win_h);
 $window->signal_connect(delete_event => sub { Gtk3->main_quit; return FALSE });
 $window->add($editor->get_widget);
+_dbg("widget added to window");
 $window->show_all;
+_dbg("show_all complete");
 
 # ==========================================================================
 # Macro support

@@ -89,6 +89,7 @@ sub new {
     $self->{highlight_current_line} = defined $opts{highlight_current_line} ? $opts{highlight_current_line} : 1;
     $self->{use_clipboard}     = $opts{use_clipboard} // 1;
     $self->{show_line_numbers} = defined $opts{show_line_numbers} ? $opts{show_line_numbers} : 1;
+    $self->{debug}             = $opts{debug} // 0;
 
     $self->_build_ui(%opts);
     return $self;
@@ -107,6 +108,19 @@ sub new {
 sub _build_ui {
     my ($self, %opts) = @_;
 
+    # --- Debug timing helper ---
+    my $_t0;
+    if ($self->{debug}) {
+        require Time::HiRes;
+        $_t0 = Time::HiRes::time();
+    }
+    my $_dbg = sub {
+        return unless $self->{debug};
+        printf STDERR "[debug %7s ms] _build_ui: %s\n",
+            sprintf("%.3f", Time::HiRes::time() - $_t0), shift;
+    };
+    $_dbg->("start");
+
     # --- Safe-call helper: die never, warn once per missing method ---
     my %_missing_warned;
     my $_call = sub {
@@ -124,7 +138,9 @@ sub _build_ui {
     };
 
     # Load Theme
+    $_dbg->("loading theme");
     my $theme_data = Gtk3::SourceEditor::ThemeManager::load(file => $opts{theme_file});
+    $_dbg->("theme loaded");
     my $fg = $theme_data->{fg};
     my $bg = $theme_data->{bg};
 
@@ -252,6 +268,7 @@ sub _build_ui {
              Pango::FontDescription->from_string($pango_font));
 
     # Scrolled Window
+    $_dbg->("creating scrolled window + bottom bar");
     my $scroll = Gtk3::ScrolledWindow->new();
     $_call->($scroll, 'set_policy', 'automatic', 'automatic');
     $_call->($scroll, 'add', $self->{textview});
@@ -310,6 +327,7 @@ sub _build_ui {
         });
     }
 
+    $_dbg->("creating vim bindings");
     # Create VimBuffer adapter and attach bindings (if vim mode enabled)
     if ($self->{vim_mode}) {
         my $vb = Gtk3::SourceEditor::VimBuffer::Gtk3->new(

@@ -52,6 +52,7 @@
 #   --threshold N        Max diff ratio 0.0-1.0 (default: 0.01)
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings from child processes
+#   --generate-diff      Generate diff images on failure (default: off)
 # ==========================================================================
 
 use strict;
@@ -73,7 +74,8 @@ my $mode      = 'test';
 my $target    = '';
 my $threshold = 0.01;
 my $delay     = 500;
-my $verbose   = 0;
+my $verbose        = 0;
+my $generate_diff = 0;
 
 GetOptions(
     'init'            => sub { $mode = 'init' },
@@ -85,7 +87,8 @@ GetOptions(
     'threshold=f'     => \$threshold,
     'snapshot-delay=i'=> \$delay,
     'verbose|v'       => \$verbose,
-) or die "Usage: $0 [--init|--init-missing|--test|--list] [--test NAME|--target NAME] [--threshold N] [--verbose]\n";
+    'generate-diff'   => \$generate_diff,
+) or die "Usage: $0 [--init|--init-missing|--test|--list] [--test NAME|--target NAME] [--threshold N] [--verbose] [--generate-diff]\n";
 
 # --- Directories ---
 my $golden_dir = "$RealBin/golden";
@@ -1041,7 +1044,7 @@ for my $t (@tests) {
     next TEST if $target && $name ne $target;
 
     my $is_action = $t->{is_action};
-    printf "  %-40s ", $t->{desc};
+    printf "  %-40s ", $t->{name};
 
     # --- Build expected paths ---
     my $output_png;
@@ -1128,16 +1131,17 @@ for my $t (@tests) {
             my $d1 = sprintf("%.2f%%", ($r1->{diff_pct} // 0) * 100);
             my $d2 = sprintf("%.2f%%", ($r2->{diff_pct} // 0) * 100);
             print "FAIL (_1: $d1, _2: $d2)";
-            # Generate diff images to visually inspect the differences
-            if (!$r1->{match}) {
-                my $dp = "$diffs_dir/${name}_1_diff.png";
-                generate_diff_image($golden_1, $output_1, $dp);
-                print "\n  diff: $dp";
-            }
-            if (!$r2->{match}) {
-                my $dp = "$diffs_dir/${name}_2_diff.png";
-                generate_diff_image($golden_2, $output_2, $dp);
-                print "\n  diff: $dp";
+            if ($generate_diff) {
+                if (!$r1->{match}) {
+                    my $dp = "$diffs_dir/${name}_1_diff.png";
+                    generate_diff_image($golden_1, $output_1, $dp);
+                    print "\n  diff: xt/visual/diffs/${name}_1_diff.png";
+                }
+                if (!$r2->{match}) {
+                    my $dp = "$diffs_dir/${name}_2_diff.png";
+                    generate_diff_image($golden_2, $output_2, $dp);
+                    print "\n  diff: xt/visual/diffs/${name}_2_diff.png";
+                }
             }
             print "\n";
             $failed++;
@@ -1165,9 +1169,12 @@ for my $t (@tests) {
         if (!$r->{match}) {
             my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
             print "FAIL ($d)";
-            my $dp = "$diffs_dir/${name}_diff.png";
-            generate_diff_image($golden_png, $output_png, $dp);
-            print "\n  diff: $dp\n";
+            if ($generate_diff) {
+                my $dp = "$diffs_dir/${name}_diff.png";
+                generate_diff_image($golden_png, $output_png, $dp);
+                print "\n  diff: xt/visual/diffs/${name}_diff.png";
+            }
+            print "\n";
             $failed++;
             push @failures, { name => $name, diff_pct => $r->{diff_pct} };
         } else {

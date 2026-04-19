@@ -2,7 +2,7 @@
 #
 # Usage:
 #   perl xt/visual/snapshot_editor.pl \
-#     --macro macros/example \
+#     --macro xt/visual/macros/example \
 #     --macro-run 'example' \
 #     --snapshot-dir /tmp/macro-demo \
 #     --theme dark --language perl \

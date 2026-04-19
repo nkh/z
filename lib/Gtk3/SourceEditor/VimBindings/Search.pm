@@ -21,7 +21,7 @@ sub register {
         if ($ctx->{search_settings}) {
             eval {
                 $ctx->{search_settings}->set_search_text($pattern);
-                $ctx->{search_settings}->set_regex_enabled(FALSE);
+                $ctx->{search_settings}->set_regex_enabled(TRUE);
             };
             warn "set_search_text failed: $@" if $@;
         }

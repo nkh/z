@@ -480,12 +480,25 @@ sub search_forward {
     $start_col = $max_col if $start_col > $max_col;
     $start_col = 0         if $start_col < 0;
 
-    my $found = $buf->get_iter_at_line_offset( $start_line, $start_col );
+    # --- Try Perl regex first (supports full Perl regex syntax) ---
+    my $re = eval { qr/$str/ };
+    if ($re) {
+        my $total = $self->line_count;
+        for my $offset ( 0 .. $total - 1 ) {
+            my $ln   = ( $start_line + $offset ) % $total;
+            my $text = $self->line_text($ln);
+            my $from = ( $offset == 0 ) ? $start_col : 0;
+            my $substr = length($text) > $from ? substr($text, $from) : '';
+            if ($substr =~ /$re/) {
+                my $pos = $from + $-[0];
+                return { line => $ln, col => $pos };
+            }
+        }
+        return undef;
+    }
 
-    # Gtk3::TextIter::forward_search returns (success, match_start,
-    # match_end) — three values where the first is a boolean.  The
-    # comment from a previous refactor incorrectly stated it returns
-    # only (match_start, match_end).  Unpack all three values.
+    # --- Fallback: literal GTK search ---
+    my $found = $buf->get_iter_at_line_offset( $start_line, $start_col );
     my ( $success, $match_start, $match_end ) =
       eval { $found->forward_search( $str, 'visible-only' ) };
 
@@ -497,7 +510,7 @@ sub search_forward {
     }
 
     if ( !$success ) {
-        # Fallback: Perl-based literal text search through buffer lines.
+        # Fallback: Perl literal search through buffer lines.
         my $total = $self->line_count;
         for my $offset ( 0 .. $total - 1 ) {
             my $ln   = ( $start_line + $offset ) % $total;
@@ -514,154 +527,3 @@ sub search_forward {
 
     return { line => $match_start->get_line, col => $match_start->get_line_offset };
 }
-
-# ----------------------------------------------------------------
-# search_backward
-# ----------------------------------------------------------------
-
-sub search_backward {
-    my ( $self, $pattern, $start_line, $start_col ) = @_;
-    $start_line //= $self->_iter->get_line;
-    $start_col  //= $self->_iter->get_line_offset - 1;
-
-    my $str = ref($pattern) ? "$pattern" : $pattern;
-    return undef unless defined $str && length $str;
-
-    my $buf = $self->{_buffer};
-
-    # Clamp start_col to valid range for the line.
-    my $safe_col = $start_col < 0 ? 0 : $start_col;
-    my $max_col  = $self->line_length($start_line);
-    $safe_col = $max_col if $safe_col > $max_col;
-
-    my $found = $buf->get_iter_at_line_offset( $start_line, $safe_col );
-
-    # Gtk3::TextIter::backward_search returns (success, match_start,
-    # match_end) — three values where the first is a boolean.
-    my ( $success, $match_start, $match_end ) =
-      eval { $found->backward_search( $str, 'visible-only' ) };
-
-    if ( !$success ) {
-        # Wrap: try from end of buffer
-        $found = $buf->get_end_iter;
-        ( $success, $match_start, $match_end ) =
-          eval { $found->backward_search( $str, 'visible-only' ) };
-    }
-
-    if ( !$success ) {
-        # Fallback: Perl-based literal text search through buffer lines.
-        my $total = $self->line_count;
-        for my $offset ( 0 .. $total - 1 ) {
-            my $ln   = ( $start_line - $offset + $total ) % $total;
-            my $text = $self->line_text($ln);
-            my $from = ( $offset == 0 ) ? $safe_col : length($text) - 1;
-            while ( $from >= 0 ) {
-                my $pos = index( $text, $str, 0 );
-                if ( $pos >= 0 && $pos <= $from ) {
-                    return { line => $ln, col => $pos };
-                }
-                last;    # index only finds first occurrence; no more matches
-            }
-        }
-        return undef;
-    }
-
-    return { line => $match_start->get_line, col => $match_start->get_line_offset };
-}
-
-# ----------------------------------------------------------------
-# transform_range / toggle_case
-# ----------------------------------------------------------------
-
-sub transform_range {
-    my ( $self, $l1, $c1, $l2, $c2, $how ) = @_;
-    $how //= 'toggle';
-    my $buf = $self->{_buffer};
-
-    my $start = $buf->get_iter_at_line_offset( $l1, $c1 );
-    my $end   = $buf->get_iter_at_line_offset( $l2, $c2 );
-    my $text  = $start->get_text($end);
-
-    if    ( $how eq 'upper' )  { $text = uc $text; }
-    elsif ( $how eq 'lower' )  { $text = lc $text; }
-    elsif ( $how eq 'toggle' ) { $text =~ tr/a-zA-Z/A-Za-z/; }
-
-    $buf->delete( $start, $end );
-    my $ins = $buf->get_iter_at_line_offset( $l1, $c1 );
-    $buf->insert( $ins, $text );
-    $self->set_cursor( $l1, $c1 );
-}
-
-sub toggle_case {
-    my ( $self, $l1, $c1, $l2, $c2 ) = @_;
-    $self->transform_range( $l1, $c1, $l2, $c2, 'toggle' );
-}
-
-# ----------------------------------------------------------------
-# Predicate methods -- duplicated from base class for reliable
-# inheritance when loaded via blib or in complex @INC setups.
-# ----------------------------------------------------------------
-
-sub at_line_start {
-    my ($self) = @_;
-    return $self->cursor_col == 0;
-}
-
-sub at_line_end {
-    my ($self) = @_;
-    return $self->cursor_col >= $self->line_length( $self->cursor_line );
-}
-
-sub at_buffer_end {
-    my ($self) = @_;
-    return $self->cursor_line == $self->line_count - 1
-        && $self->at_line_end;
-}
-
-# ----------------------------------------------------------------
-# Selection management (for visual mode highlighting)
-# ----------------------------------------------------------------
-
-sub set_selection {
-    my ( $self, $anchor_line, $anchor_col ) = @_;
-    my $buf = $self->{_buffer};
-    my $anchor_iter = $buf->get_iter_at_line_offset( $anchor_line, $anchor_col );
-    my $cursor_iter = $self->_iter;
-    $buf->select_range( $cursor_iter, $anchor_iter );
-}
-
-sub clear_selection {
-    my ($self) = @_;
-    my $buf = $self->{_buffer};
-    my $iter = $self->_iter;
-    $buf->select_range( $iter, $iter );
-}
-
-# ----------------------------------------------------------------
-# Undo grouping
-# ----------------------------------------------------------------
-
-sub begin_user_action {
-    my ($self) = @_;
-    $self->{_buffer}->begin_user_action;
-}
-
-sub end_user_action {
-    my ($self) = @_;
-    $self->{_buffer}->end_user_action;
-}
-
-1;
-
-__END__
-
-=head1 AUTHOR
-
-Auto-generated for the P5-Gtk3-SourceEditor project.
-
-=head1 LICENSE
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
-
-=cut
