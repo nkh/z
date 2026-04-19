@@ -18,8 +18,8 @@ our $VERSION = '0.01';
 # capture_editor( $editor, $output_path, %opts )
 #
 # Capture a screenshot of a Gtk3::SourceEditor instance.
-# Creates a temporary window, runs the GTK main loop to allow
-# it to map and render, then captures and cleans up.
+# Creates a temporary window, runs an explicit Glib::MainLoop
+# to allow it to map and render, then captures and cleans up.
 #
 # Options:
 #   size => [ $width, $height ]  - resize window (default: 800x600)
@@ -45,9 +45,10 @@ sub capture_editor {
     my $error;
     my $attempts = 0;
 
-    # Use Glib::Timeout to poll for the GdkWindow inside the real
-    # GTK main loop.  Our manual events_pending/main_iteration loop
-    # was not sufficient to trigger the realize/map cycle.
+    # Use an explicit Glib::MainLoop (not Gtk3::main/main_quit)
+    # to avoid reference-counting issues with the global main loop.
+    my $loop = Glib::MainLoop->new(undef, 0);
+
     my $timeout_id = Glib::Timeout->add(10, sub {
         $attempts++;
 
@@ -63,31 +64,34 @@ sub capture_editor {
                 $result = $output_path;
             };
             $error = $@ if $@;
-            Gtk3::main_quit();
-            return 0;  # remove timeout
+            $loop->quit();
+            return 0;  # remove timeout source
         }
 
         # Safety timeout: 5 seconds
         if ($attempts > 500) {
             $error = "Cannot get GdkWindow from widget (window not mapped after 5s)";
-            Gtk3::main_quit();
+            $loop->quit();
             return 0;
         }
 
         return 1;  # keep polling
     });
 
-    # Run the GTK main loop — the timeout callback will call main_quit
-    Gtk3::main();
+    # Run our private main loop — the timeout callback will quit it
+    $loop->run();
 
-    # Remove timeout if still active (shouldn't happen, but safety)
-    eval { Glib::Source->remove($timeout_id) };
+    # Clean up the timeout source if still active
+    if ($timeout_id) {
+        eval { Glib::Source->remove($timeout_id) };
+    }
 
     # Cleanup: reparent widget out of window, then destroy window
     eval { $window->remove($widget) };
     eval { $window->destroy() };
 
     die $error if $error;
+    die "capture_editor returned no result" unless $result;
     return $result;
 }
 
@@ -242,25 +246,12 @@ Gtk3::SourceEditor::VisualTest::Capture - Screenshot capture for GTK widgets
 =head1 DESCRIPTION
 
 Captures screenshots of Gtk3::SourceEditor instances by creating a
-temporary window, running the GTK main loop to allow it to map and
-render, then capturing via GdkPixbuf.  Each capture creates and
+temporary window, running a private Glib::MainLoop to allow it to map
+and render, then capturing via GdkPixbuf.  Each capture creates and
 destroys its own window for test isolation.
 
-=head1 FUNCTIONS
-
-=head2 capture_editor( $editor, $output_path, %opts )
-
-Main entry point.  Creates a temporary Gtk3::Window, reparents the
-editor widget into it, waits for the window to map via Glib::Timeout
-polling inside Gtk3::main(), captures the screenshot, then cleans up.
-
-=head2 capture_editor_state( $editor, $name, $output_dir, %opts )
-
-Convenience wrapper that builds the output path from $name.
-
-=head2 capture_window( $gtk_window, $output_path )
-
-Captures an already-mapped window.  The window must have a GdkWindow.
+Uses a private Glib::MainLoop instead of Gtk3::main/main_quit to avoid
+reference-counting issues with the global main loop.
 
 =head1 AUTHOR
 
