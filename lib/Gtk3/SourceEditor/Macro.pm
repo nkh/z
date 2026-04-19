@@ -29,18 +29,26 @@ sub load {
         my $path = $opts{file};
         die "Macro::load: file '$path' not found\n" unless -f $path;
         my $name = $opts{name} // _name_from_file($path);
-        my $code = _load_file($path);
-        $REGISTRY{$name} = { file => $path, code => $code };
+        my $result = _load_file($path);
+        if (ref $result eq 'CODE') {
+            $REGISTRY{$name} = { file => $path, code => $result };
+        } else {
+            # Hashref: merge all fields (desc, run, etc.) into registry entry
+            $REGISTRY{$name} = { %$result, file => $path };
+        }
         return $name;
     }
 
     if ($opts{dir} && -d $opts{dir}) {
+        # Canonicalize: strip trailing slash to avoid double-slash paths
+        my $dir = $opts{dir};
+        $dir =~ s{/+$}{};
         my @entries;
-        opendir my $dh, $opts{dir} or die "Macro::load: cannot open dir '$opts{dir}': $!\n";
+        opendir my $dh, $dir or die "Macro::load: cannot open dir '$dir': $!\n";
         while (my $f = readdir $dh) {
             next if $f =~ /^\./;    # skip hidden files
-            next if -d "$opts{dir}/$f";  # skip subdirs
-            push @entries, "$opts{dir}/$f";
+            next if -d "$dir/$f";  # skip subdirs
+            push @entries, "$dir/$f";
         }
         closedir $dh;
         for my $f (sort @entries) {
