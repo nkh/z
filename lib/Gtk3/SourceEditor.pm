@@ -386,6 +386,11 @@ sub get_text {
     );
 }
 
+sub get_textview {
+    my ($self) = @_;
+    return $self->{textview};
+}
+
 sub get_buffer {
     my ($self) = @_;
     return $self->{buffer};
