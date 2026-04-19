@@ -15,6 +15,10 @@ lib/Gtk3/SourceEditor/VimBindings/Visual.pm
 lib/Gtk3/SourceEditor/VimBuffer.pm
 lib/Gtk3/SourceEditor/VimBuffer/Gtk3.pm
 lib/Gtk3/SourceEditor/VimBuffer/Test.pm
+lib/Gtk3/SourceEditor/VisualTest/Capture.pm
+lib/Gtk3/SourceEditor/VisualTest/Compare.pm
+lib/Gtk3/SourceEditor/VisualTest/Environment.pm
+lib/Gtk3/SourceEditor/VisualTest/Golden.pm
 bindings/AlignText.pm
 MANIFEST
 README.md
@@ -65,6 +69,11 @@ t/vim_search.t
 t/vim_undo.t
 t/vim_visual.t
 t/vim_bindings.t
+t/vim_new_features.t
+t/vim_viewport.t
+t/visual/.gitignore
+t/visual/run_visual_tests.pl
+t/visual/run_visual_tests.sh
 themes/default.xml
 themes/theme_dark.xml
 themes/theme_light.xml
