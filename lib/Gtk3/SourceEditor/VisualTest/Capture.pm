@@ -101,19 +101,26 @@ sub capture_editor {
     $window->show_all();
 
     my $capture_error;
+    my $callback_fired = 0;
 
     # Schedule screenshot via a Glib timeout.
     # This lets the real GTK main loop run: the window maps,
     # renders, and the X server processes the frame.
     Glib::Timeout->add($delay, sub {
+        $callback_fired = 1;
+        warn "[visual_test] timeout fired, capturing with '$tool' to '$output_path'\n";
         eval { _external_capture($output_path, $tool) };
         $capture_error = $@ if $@;
+        warn "[visual_test] capture error: $capture_error\n" if $capture_error;
+        warn "[visual_test] file exists: " . (-f $output_path ? "yes" : "NO") . ", size: " . (-s $output_path // 0) . "\n";
         Gtk3->main_quit();
         return FALSE;   # one-shot: don't repeat
     });
 
     # Block here until the timeout fires and captures the screenshot.
     Gtk3->main();
+
+    warn "[visual_test] main() returned, callback_fired=$callback_fired, capture_error=" . ($capture_error // 'undef') . "\n";
 
     # Cleanup: reparent the widget out of the window before destroying
     eval {
