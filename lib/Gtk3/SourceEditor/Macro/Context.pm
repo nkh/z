@@ -109,6 +109,13 @@ sub keys {
 }
 
 # Translate a macro key name to the format VimBindings::simulate_keys expects.
+#
+# VimBindings dispatches using GDK key names (the strings returned by
+# Gtk3::Gdk::keyval_name).  Many shifted/symbol characters have a
+# GDK name that differs from their literal character, e.g. '$' maps
+# to 'dollar', '~' maps to 'asciitilde'.  We use unicode_to_keyval()
+# to resolve every printable character to its GDK name so that macros
+# can use the natural character without knowing the GDK name.
 sub _to_simulate_key {
     my ($self, $name) = @_;
 
@@ -122,8 +129,17 @@ sub _to_simulate_key {
     );
     return $ctrl{$name} if exists $ctrl{$name};
 
-    # Already a valid simulate_keys name (named keys, Control-x, etc.)
-    return $name;
+    # Multi-char sequences like "Control-c", "Shift-Left" etc. are passed
+    # through verbatim -- simulate_keys knows how to handle them.
+    return $name if length($name) > 1;
+
+    # Single printable character: resolve via GDK so that '$' becomes
+    # 'dollar', '~' becomes 'asciitilde', etc.  Letters and digits
+    # round-trip to their own name (e.g. 'a' -> 'a'), so this is safe
+    # for every character.
+    my $keyval = Gtk3::Gdk::unicode_to_keyval(ord($name));
+    my $gdk_name = Gtk3::Gdk::keyval_name($keyval);
+    return $gdk_name // $name;
 }
 
 # ==========================================================================
