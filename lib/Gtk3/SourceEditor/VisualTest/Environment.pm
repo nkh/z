@@ -121,7 +121,16 @@ sub gtk_init {
 sub with_xvfb {
     my ($coderef, %opts) = @_;
 
-    my $disp = xvfb_start(%opts);
+    my $started_xvfb = 0;
+
+    # If DISPLAY is already set and reachable, use it as-is
+    if ($ENV{DISPLAY} && _display_reachable($ENV{DISPLAY})) {
+        # Existing display is fine
+    } else {
+        xvfb_start(%opts);
+        $started_xvfb = 1;
+    }
+
     gtk_init();
 
     my @result;
@@ -131,8 +140,8 @@ sub with_xvfb {
     };
     my $err = $@;
 
-    # Attempt to stop Xvfb even on error
-    eval { xvfb_stop() };
+    # Only stop Xvfb if we started it
+    xvfb_stop() if $started_xvfb;
 
     die $err unless $ok;
     return wantarray ? @result : $result[0];

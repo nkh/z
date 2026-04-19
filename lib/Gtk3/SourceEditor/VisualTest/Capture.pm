@@ -19,8 +19,6 @@ our $VERSION = '0.01';
 #
 # Capture a screenshot of the entire GTK window to a PNG file.
 # Returns the path on success, dies on failure.
-#
-# Uses GdkPixbuf to read pixels from the GdkWindow surface.
 # ----------------------------------------------------------------
 sub capture_window {
     my ($window, $output_path) = @_;
@@ -31,16 +29,16 @@ sub capture_window {
     $window->realize() unless $window->get_realized();
     $window->show_now();
 
-    # Wait for the GdkWindow to become available
-    my $gdk_window;
-    for my $attempt (1..50) {
-        _process_pending_events();
-        $gdk_window = $window->get_window();
-        last if $gdk_window;
-        select(undef, undef, undef, 0.02);  # 20ms pause
-    }
-    die "Cannot get GdkWindow from widget (window not mapped after 50 retries)"
+    # Flush X protocol requests to the server
+    _flush();
+
+    # Wait for the GdkWindow to become available with proper event loop
+    my $gdk_window = _wait_for_gdk_window($window, 100);
+    die "Cannot get GdkWindow from widget (window not mapped)"
         unless $gdk_window;
+
+    # Extra settle time for rendering to complete
+    _settle();
 
     my $width  = $gdk_window->get_width();
     my $height = $gdk_window->get_height();
@@ -67,8 +65,7 @@ sub capture_widget {
     die "output_path is required" unless defined $output_path;
 
     $widget->realize() unless $widget->get_realized();
-
-    _process_pending_events();
+    _flush();
 
     my $pad  = $opts{pad} // 0;
     my $alloc = $widget->get_allocation();
@@ -77,13 +74,14 @@ sub capture_widget {
     my $w = $alloc->width + 2 * $pad;
     my $h = $alloc->height + 2 * $pad;
 
-    # Get the root window
     my $gdk_window = $widget->get_window();
     die "Cannot get GdkWindow" unless $gdk_window;
 
     my $root = $gdk_window->get_screen()->get_root_window();
 
-    my $pixbuf = _window_to_pixbuf($root, $x < 0 ? -$x + $w : $root->get_width(), $y < 0 ? -$y + $h : $root->get_height());
+    my $pixbuf = _window_to_pixbuf($root,
+        $x < 0 ? -$x + $w : $root->get_width(),
+        $y < 0 ? -$y + $h : $root->get_height());
 
     if ($x >= 0 && $y >= 0) {
         $pixbuf = $pixbuf->new_subpixbuf($x, $y, $w, $h);
@@ -109,7 +107,6 @@ sub capture_editor {
     die "editor is required" unless $editor;
     die "output_path is required" unless defined $output_path;
 
-    # Get the widget
     my $widget = $editor->get_widget();
     die "Cannot get editor widget" unless $widget;
 
@@ -121,25 +118,16 @@ sub capture_editor {
     $window->add($widget);
 
     $window->show_all();
-    _process_pending_events();
-
-    # Give GTK time to layout and render
-    for (1..10) {
-        _process_pending_events();
-        select(undef, undef, undef, 0.01);  # 10ms pause
-    }
 
     my $result;
+    my $err;
     eval { $result = capture_window($window, $output_path) };
-    my $err = $@;
+    $err = $@;
 
-    # Remove widget from window before destroying so editor stays valid
+    # Clean up: remove widget from window before destroying
     eval { $window->remove($widget) };
-    # Destroy the temporary window
     eval { $window->destroy() };
-
-    # Clean up any pending events after destruction
-    eval { _process_pending_events() };
+    eval { _drain_events() };
 
     die $err if $err;
     return $result;
@@ -150,10 +138,6 @@ sub capture_editor {
 #
 # High-level capture: takes a screenshot and saves it with a
 # descriptive name.  Returns the full path to the PNG.
-#
-# $name is used to build the filename:  $output_dir/$name.png
-#
-# This is the main entry point for visual tests.
 # ----------------------------------------------------------------
 sub capture_editor_state {
     my ($editor, $name, $output_dir, %opts) = @_;
@@ -161,19 +145,16 @@ sub capture_editor_state {
     die "name is required" unless defined $name && length $name;
     $output_dir //= '.';
 
-    # Sanitize name for use as filename
     my $safe_name = $name;
     $safe_name =~ s/[^a-zA-Z0-9_-]/_/g;
 
-    my $output_path = "$output_dir/${safe_name}.png";
-
-    return capture_editor($editor, $output_path, %opts);
+    return capture_editor($editor, "$output_dir/${safe_name}.png", %opts);
 }
 
 # ----------------------------------------------------------------
 # save_screenshot( $pixbuf, $output_path )
 #
-# Save a GdkPixbuf to a PNG file.  Dies on failure.
+# Save a GdkPixbuf to a PNG file.
 # ----------------------------------------------------------------
 sub save_screenshot {
     my ($pixbuf, $output_path) = @_;
@@ -187,10 +168,97 @@ sub save_screenshot {
 # ==================================================================
 
 # ----------------------------------------------------------------
+# _wait_for_gdk_window( $window, $max_attempts )
+#
+# Wait for the window to be mapped and have a GdkWindow.
+# Uses signal_connect on 'map-event' for reliable detection,
+# with a main loop that runs until mapped or timeout.
+# ----------------------------------------------------------------
+sub _wait_for_gdk_window {
+    my ($window, $max_attempts) = @_;
+    $max_attempts //= 100;
+
+    # Quick check first
+    my $gdk_window = $window->get_window();
+    return $gdk_window if $gdk_window;
+
+    # Use the main loop to wait for the map-event signal
+    my $mapped = 0;
+    my $sig_id = $window->signal_connect('map-event' => sub {
+        $mapped = 1;
+        return 0;  # propagate
+    });
+
+    _flush();
+
+    for my $i (1..$max_attempts) {
+        _process_pending_events();
+        _flush();
+
+        $gdk_window = $window->get_window();
+        return $gdk_window if $gdk_window;
+        last if $mapped;
+
+        select(undef, undef, undef, 0.01);  # 10ms
+    }
+
+    # Disconnect signal
+    eval { $window->signal_handler_disconnect($sig_id) } if $sig_id;
+
+    return $window->get_window();
+}
+
+# ----------------------------------------------------------------
+# _settle()
+#
+# Give the window time to fully render after mapping.
+# Runs the event loop for a short period.
+# ----------------------------------------------------------------
+sub _settle {
+    for (1..20) {
+        _process_pending_events();
+        _flush();
+        select(undef, undef, undef, 0.01);  # 10ms
+    }
+}
+
+# ----------------------------------------------------------------
+# _flush()
+#
+# Flush the GDK/X11 command buffer to the server.
+# ----------------------------------------------------------------
+sub _flush {
+    eval { Gtk3::Gdk::flush() };
+}
+
+# ----------------------------------------------------------------
+# _process_pending_events()
+#
+# Drain the GTK event queue.
+# ----------------------------------------------------------------
+sub _process_pending_events {
+    for (1..20) {
+        last unless Gtk3::events_pending();
+        Gtk3::main_iteration();
+    }
+}
+
+# ----------------------------------------------------------------
+# _drain_events()
+#
+# Process any remaining events after widget cleanup.
+# ----------------------------------------------------------------
+sub _drain_events {
+    for (1..5) {
+        _process_pending_events();
+        _flush();
+    }
+}
+
+# ----------------------------------------------------------------
 # _window_to_pixbuf( $gdk_window, $width, $height )
 #
-# Extract a GdkPixbuf from a GdkWindow.  Tries multiple methods
-# depending on GTK version.
+# Extract a GdkPixbuf from a GdkWindow.
 # ----------------------------------------------------------------
 sub _window_to_pixbuf {
     my ($gdk_window, $width, $height) = @_;
@@ -228,19 +296,6 @@ sub _window_to_pixbuf {
     };
 
     die "No method available to capture screenshot from GdkWindow";
-}
-
-# ----------------------------------------------------------------
-# _process_pending_events()
-#
-# Flush the GTK event queue so widgets get drawn/rendered.
-# Critical for getting accurate screenshots.
-# ----------------------------------------------------------------
-sub _process_pending_events {
-    for (1..20) {
-        last unless Gtk3::events_pending();
-        Gtk3::main_iteration();
-    }
 }
 
 1;
@@ -281,14 +336,10 @@ screenshot, then destroys the window so tests don't accumulate windows.
 
 Captures the entire window to a PNG file.
 
-=head2 capture_widget( $gtk_widget, $output_path, %opts )
-
-Captures a specific widget region to a PNG.
-
 =head2 capture_editor( $editor, $output_path, %opts )
 
-Captures a Gtk3::SourceEditor instance.  Handles window creation
-and sizing automatically.  Cleans up the temporary window after capture.
+Captures a Gtk3::SourceEditor instance.  Creates and destroys a
+temporary window for each capture.
 
 =head2 capture_editor_state( $editor, $name, $output_dir, %opts )
 
