@@ -868,6 +868,7 @@ sub build_cmd {
     push @cmd, '--line-numbers', $t->{line_numbers} if defined $t->{line_numbers};
     push @cmd, '--cursor-line', $t->{cursor_line}  if defined $t->{cursor_line};
     push @cmd, '--vim-mode',   $t->{vim_mode}      if defined $t->{vim_mode};
+    push @cmd, '--code',       $t->{code}          if defined $t->{code};
     return @cmd;
 }
 
