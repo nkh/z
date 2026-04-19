@@ -851,6 +851,10 @@ sub compare_images {
              pixels_diff => $diff_pixels, max_diff => $max_diff };
 }
 
+# --- Temp-file tracking for code content ---
+my @tmp_files;
+END { unlink for @tmp_files }
+
 # ==========================================================================
 # Build command for snapshot_editor.pl (macro-based)
 # ==========================================================================
@@ -927,10 +931,6 @@ sub write_description {
     }
     close $fh;
 }
-
-# --- Temp-file tracking for code content ---
-my @tmp_files;
-END { unlink for @tmp_files }
 
 # ==========================================================================
 # Run tests
