@@ -1,0 +1,2 @@
+# Visual test: Empty editor buffer
+sub { my ($ctx) = @_; $ctx->snapshot() }

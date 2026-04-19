@@ -1,0 +1,9 @@
+# Visual test: Visual character mode selection (v$)
+sub {
+    my ($ctx) = @_;
+    $ctx->snapshot('1');
+    $ctx->delay(100);
+    $ctx->keys('v$');
+    $ctx->delay(100);
+    $ctx->snapshot('2');
+}

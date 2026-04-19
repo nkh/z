@@ -1,0 +1,2 @@
+# Visual test: Dark theme rendering
+sub { my ($ctx) = @_; $ctx->snapshot() }

@@ -1,0 +1,2 @@
+# Visual test: C syntax highlighting
+sub { my ($ctx) = @_; $ctx->snapshot() }

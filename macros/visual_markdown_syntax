@@ -1,0 +1,2 @@
+# Visual test: Markdown syntax highlighting
+sub { my ($ctx) = @_; $ctx->snapshot() }

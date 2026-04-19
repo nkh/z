@@ -1,0 +1,2 @@
+# Visual test: Editor without line numbers
+sub { my ($ctx) = @_; $ctx->snapshot() }

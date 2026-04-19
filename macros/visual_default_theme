@@ -1,0 +1,2 @@
+# Visual test: Default theme rendering
+sub { my ($ctx) = @_; $ctx->snapshot() }

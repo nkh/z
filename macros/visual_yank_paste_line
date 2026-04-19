@@ -1,0 +1,9 @@
+# Visual test: Yank and paste line (yyp)
+sub {
+    my ($ctx) = @_;
+    $ctx->snapshot('1');
+    $ctx->delay(100);
+    $ctx->keys('yyp');
+    $ctx->delay(100);
+    $ctx->snapshot('2');
+}

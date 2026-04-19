@@ -4,19 +4,14 @@
 #
 # HOW IT WORKS
 # ============
-# Each test defines an editor configuration and optionally an action
-# (simulated keystrokes).  For each test the runner:
+# Each test is defined by a Perl macro file in macros/.  The macro takes
+# one or two snapshots: a single snapshot for static tests, or _1 and _2
+# for action tests (before/after an editor action).
 #
-#   Single-step tests (no action):
-#     1. Launches snapshot_editor.pl which opens a GTK window, renders the
-#        editor, and captures a PNG via GdkPixbuf.
-#     2. Compares the screenshot against a golden image.
-#
-#   Two-step tests (with action):
-#     1. Captures a "before" screenshot (editor in initial state).
-#     2. Injects simulated keystrokes (e.g. /search\n, Vjj, etc.).
-#     3. Captures an "after" screenshot showing the visual result.
-#     4. Compares both against their golden images.
+# The runner:
+#   1. Launches snapshot_editor.pl with --macro and --macro-run for each test
+#   2. The macro creates PNG files in the output directory
+#   3. Compares output against golden images
 #
 # WORKFLOW
 # ========
@@ -24,13 +19,13 @@
 #       perl xt/visual/run_visual_tests.pl --init
 #
 #   Re-generate a SINGLE test (after intentional change):
-#       perl xt/visual/run_visual_tests.pl --init --target search_highlight
+#       perl xt/visual/run_visual_tests.pl --init --target visual_dark_theme
 #
 #   Run all tests to check for regressions:
 #       perl xt/visual/run_visual_tests.pl
 #
 #   Run a single test:
-#       perl xt/visual/run_visual_tests.pl --target dark_theme
+#       perl xt/visual/run_visual_tests.pl --target visual_dark_theme
 #
 #   List all test names:
 #       perl xt/visual/run_visual_tests.pl --list
@@ -40,12 +35,11 @@
 # GOLDEN IMAGES & DESCRIPTION FILES
 # ==================================
 #   golden/<name>.png           - single-step golden image
-#   golden/<name>_start.png     - two-step "before" golden image
-#   golden/<name>_end.png       - two-step "after" golden image
+#   golden/<name>_1.png         - action test "before" golden image
+#   golden/<name>_2.png         - action test "after" golden image
 #   golden/<name>.txt           - human-readable description of what the
 #                                 test checks and what to verify visually.
 #                                 These are created/updated during --init.
-#                                 Review them when verifying golden images.
 #
 # OPTIONS
 # =======
@@ -55,7 +49,7 @@
 #   --list               List test names
 #   --target NAME        Run only the named test
 #   --threshold N        Max diff ratio 0.0-1.0 (default: 0.01)
-#   --snapshot-delay MS  Delay before first capture (default: 500)
+#   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings from child processes
 # ==========================================================================
 
@@ -95,6 +89,7 @@ my $golden_dir = "$RealBin/golden";
 my $output_dir = "$RealBin/output";
 my $diffs_dir  = "$RealBin/diffs";
 my $script     = "$RealBin/snapshot_editor.pl";
+my $macros_dir = "$RealBin/../../macros";
 
 make_path($golden_dir, $output_dir, $diffs_dir);
 
@@ -295,19 +290,17 @@ UNICODE
 # Test definitions
 # ==========================================================================
 # Each test is a hash with:
-#   name    - unique identifier used for golden files and --target
-#   desc    - one-line description shown in test output
+#   name        - unique identifier used for golden files and --target
+#   desc        - one-line description shown in test output
+#   macro       - macro file path (relative to macros/)
+#   is_action   - 1 if test produces _1 and _2 snapshots, 0 if single snapshot
 #   (editor options): theme, language, code, line_numbers, cursor_line, vim_mode
-#   keystrokes    - optional: keys to inject between start and end snapshots
-#   description   - human-readable text written to golden/<name>.txt during --init
-#
-# Tests without keystrokes produce one golden: golden/<name>.png
-# Tests with keystrokes produce two goldens: golden/<name>_start.png + _end.png
+#   description - human-readable text written to golden/<name>.txt during --init
 
 my @tests = (
 
-    # --- Theme tests ---
-    { name => 'default_theme', desc => 'Default theme',
+    # --- Theme tests (single snapshot) ---
+    { name => 'visual_default_theme', desc => 'Default theme',
       code => $PERL_SAMPLE,
       description => <<'DESC',
 Theme: default (white background, black text)
@@ -322,7 +315,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'dark_theme', desc => 'Dark theme',
+    { name => 'visual_dark_theme', desc => 'Dark theme',
       theme => 'dark', code => $PERL_SAMPLE,
       description => <<'DESC',
 Theme: dark (#1E1E1E background, IntelliJ-style colors)
@@ -335,7 +328,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'light_theme', desc => 'Light theme',
+    { name => 'visual_light_theme', desc => 'Light theme',
       theme => 'light', code => $PERL_SAMPLE,
       description => <<'DESC',
 Theme: light (solarized-light inspired, #FDF6E3 background)
@@ -347,7 +340,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'solarized_theme', desc => 'Solarized theme',
+    { name => 'visual_solarized_theme', desc => 'Solarized theme',
       theme => 'solarized', code => $PERL_SAMPLE,
       description => <<'DESC',
 Theme: solarized dark (#002B36 background, classic Solarized palette)
@@ -360,7 +353,7 @@ DESC
     },
 
     # --- Syntax highlighting tests ---
-    { name => 'perl_syntax', desc => 'Perl syntax',
+    { name => 'visual_perl_syntax', desc => 'Perl syntax',
       language => 'perl', code => $PERL_SAMPLE,
       description => <<'DESC',
 Syntax highlighting: Perl
@@ -375,7 +368,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'python_syntax', desc => 'Python syntax',
+    { name => 'visual_python_syntax', desc => 'Python syntax',
       language => 'python', code => $PYTHON_SAMPLE,
       description => <<'DESC',
 Syntax highlighting: Python
@@ -389,7 +382,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'c_syntax', desc => 'C syntax',
+    { name => 'visual_c_syntax', desc => 'C syntax',
       language => 'c', code => $C_SAMPLE,
       description => <<'DESC',
 Syntax highlighting: C
@@ -403,7 +396,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'json_syntax', desc => 'JSON syntax',
+    { name => 'visual_json_syntax', desc => 'JSON syntax',
       language => 'json', code => $JSON_SAMPLE,
       description => <<'DESC',
 Syntax highlighting: JSON
@@ -416,7 +409,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'html_syntax', desc => 'HTML syntax',
+    { name => 'visual_html_syntax', desc => 'HTML syntax',
       language => 'html', code => $HTML_SAMPLE,
       description => <<'DESC',
 Syntax highlighting: HTML
@@ -429,7 +422,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'css_syntax', desc => 'CSS syntax',
+    { name => 'visual_css_syntax', desc => 'CSS syntax',
       language => 'css', code => $CSS_SAMPLE,
       description => <<'DESC',
 Syntax highlighting: CSS
@@ -442,7 +435,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'markdown_syntax', desc => 'Markdown syntax',
+    { name => 'visual_markdown_syntax', desc => 'Markdown syntax',
       language => 'markdown', code => $MARKDOWN_SAMPLE,
       description => <<'DESC',
 Syntax highlighting: Markdown
@@ -456,7 +449,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'sql_syntax', desc => 'SQL syntax',
+    { name => 'visual_sql_syntax', desc => 'SQL syntax',
       language => 'sql', code => $SQL_SAMPLE,
       description => <<'DESC',
 Syntax highlighting: SQL
@@ -470,7 +463,7 @@ DESC
     },
 
     # --- Editor option tests ---
-    { name => 'no_line_numbers', desc => 'No line numbers',
+    { name => 'visual_no_line_numbers', desc => 'No line numbers',
       line_numbers => 0, code => $PERL_SAMPLE,
       description => <<'DESC',
 Option: line numbers disabled
@@ -482,7 +475,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'no_cursor_line', desc => 'No cursor line',
+    { name => 'visual_no_cursor_line', desc => 'No cursor line',
       cursor_line => 0, code => $PERL_SAMPLE,
       description => <<'DESC',
 Option: current-line highlighting disabled
@@ -493,7 +486,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'vim_mode_off', desc => 'Vim mode off',
+    { name => 'visual_vim_mode_off', desc => 'Vim mode off',
       vim_mode => 0, code => $PERL_SAMPLE,
       description => <<'DESC',
 Option: vim mode disabled (native GTK keybindings)
@@ -506,7 +499,7 @@ DESC
     },
 
     # --- Content edge cases ---
-    { name => 'empty_buffer', desc => 'Empty buffer',
+    { name => 'visual_empty_buffer', desc => 'Empty buffer',
       code => '',
       description => <<'DESC',
 Edge case: completely empty buffer
@@ -518,7 +511,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'single_line', desc => 'Single line',
+    { name => 'visual_single_line', desc => 'Single line',
       code => "hello world\n",
       description => <<'DESC',
 Edge case: single line of text
@@ -530,7 +523,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'long_lines', desc => 'Long lines',
+    { name => 'visual_long_lines', desc => 'Long lines',
       code => join("\n", ('x' x 200) x 30) . "\n",
       description => <<'DESC',
 Edge case: very long lines (200 chars each, 30 lines)
@@ -542,7 +535,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'unicode_content', desc => 'Unicode content',
+    { name => 'visual_unicode_content', desc => 'Unicode content',
       language => 'perl', code => $UNICODE_SAMPLE,
       description => <<'DESC',
 Edge case: Unicode characters (accented, Greek, box drawing, currency)
@@ -557,7 +550,7 @@ DESC
     },
 
     # --- Theme + option combinations ---
-    { name => 'dark_no_numbers', desc => 'Dark, no line numbers',
+    { name => 'visual_dark_no_numbers', desc => 'Dark, no line numbers',
       theme => 'dark', line_numbers => 0, code => $PERL_SAMPLE,
       description => <<'DESC',
 Theme: dark, option: no line numbers
@@ -569,7 +562,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'dark_minimal', desc => 'Dark, minimal chrome',
+    { name => 'visual_dark_minimal', desc => 'Dark, minimal chrome',
       theme => 'dark', line_numbers => 0, cursor_line => 0, code => $PERL_SAMPLE,
       description => <<'DESC',
 Theme: dark, options: no line numbers, no cursor line highlight
@@ -581,7 +574,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'light_no_numbers', desc => 'Light, no line numbers',
+    { name => 'visual_light_no_numbers', desc => 'Light, no line numbers',
       theme => 'light', line_numbers => 0, code => $PERL_SAMPLE,
       description => <<'DESC',
 Theme: light, option: no line numbers
@@ -592,7 +585,7 @@ Visual checks:
 DESC
     },
 
-    { name => 'solarized_perl', desc => 'Solarized + Perl',
+    { name => 'visual_solarized_perl', desc => 'Solarized + Perl',
       theme => 'solarized', language => 'perl', code => $PERL_SAMPLE,
       description => <<'DESC',
 Theme: solarized + language: perl
@@ -604,26 +597,26 @@ DESC
     },
 
     # ==================================================================
-    # ACTION TESTS (two-step: start -> keystrokes -> end)
+    # ACTION TESTS (two-step: _1 -> keystrokes -> _2)
     #
     # These test the visual effect of editor actions.  Each produces
-    # two golden images: <name>_start.png and <name>_end.png.
+    # two golden images: <name>_1.png and <name>_2.png.
     # ==================================================================
 
-    { name => 'search_highlight', desc => 'Search highlighting',
+    { name => 'visual_search_highlight', desc => 'Search highlighting',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => '/process\n',
+      is_action => 1,
       description => <<'DESC',
 Action: /search highlights matching text
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme with Perl code
 - Normal mode, no search highlights
 - Cursor at line 1, column 0
 
 Action: keystrokes "/process\\n"
 
-_end.png (after search):
+_2.png (after search):
 - All occurrences of "process" highlighted with search-match color
 - Cursor moved to first match
 - Search pattern visible in status bar or mini-buffer
@@ -632,166 +625,166 @@ DESC
 
     { name => 'visual_char_selection', desc => 'Visual char selection',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => 'v\$',
+      is_action => 1,
       description => <<'DESC',
 Action: visual character mode (v) selects text
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme with Perl code
 - Normal mode, no selection
 - Cursor at line 1, column 0
 
 Action: keystrokes "v$" (v enters visual mode, $ moves to end of line)
 
-_end.png (after selection):
+_2.png (after selection):
 - First line highlighted with selection color (from column 0 to end of line)
-- Mode label shows "-- VISUAL --" or "-- INSERT --" style
+- Mode label shows "-- VISUAL --"
 - Selection coloring covers the full first line
 DESC
     },
 
     { name => 'visual_line_selection', desc => 'Visual line selection',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => 'Vjj',
+      is_action => 1,
       description => <<'DESC',
 Action: visual line mode (V) selects lines
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme with Perl code
 - Normal mode, no selection
 
 Action: keystrokes "Vjj" (V enters line visual, j moves down twice)
 
-_end.png (after selection):
+_2.png (after selection):
 - First 3 lines highlighted with selection color
 - Mode label shows "-- VISUAL LINE --"
 - Full lines highlighted including entire line width
 DESC
     },
 
-    { name => 'command_entry', desc => 'Command entry visible',
+    { name => 'visual_command_entry', desc => 'Command entry visible',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => ':',
+      is_action => 1,
       description => <<'DESC',
 Action: : enters command mode, showing the command entry
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme, Normal mode
 - Command entry not visible
 
 Action: keystrokes ":" (colon enters command mode)
 
-_end.png (after action):
+_2.png (after action):
 - Command entry visible at bottom of editor
 - Cursor/insert point active in command entry
 - Mode label may change
 DESC
     },
 
-    { name => 'insert_mode', desc => 'Insert mode indicator',
+    { name => 'visual_insert_mode', desc => 'Insert mode indicator',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => 'i',
+      is_action => 1,
       description => <<'DESC',
 Action: i enters insert mode
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme, Normal mode
 - Mode label shows "-- NORMAL --"
 - Cursor at line 1, column 0
 
 Action: keystrokes "i" (enters insert mode)
 
-_end.png (after action):
+_2.png (after action):
 - Mode label shows "-- INSERT --"
 - Cursor shape may change (i-beam or block depending on settings)
 - No text content change (no characters typed yet)
 DESC
     },
 
-    { name => 'delete_line', desc => 'Delete line (dd)',
+    { name => 'visual_delete_line', desc => 'Delete line (dd)',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => 'dd',
+      is_action => 1,
       description => <<'DESC',
 Action: dd deletes the current line
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme with Perl code (starts with #!/usr/bin/perl)
 
 Action: keystrokes "dd" (delete current line)
 
-_end.png (after action):
+_2.png (after action):
 - First line (#!/usr/bin/perl) is gone
 - Cursor at new line 1
 - Buffer content is one line shorter
 DESC
     },
 
-    { name => 'yank_paste_line', desc => 'Yank and paste line (yy p)',
+    { name => 'visual_yank_paste_line', desc => 'Yank and paste line (yy p)',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => 'yyp',
+      is_action => 1,
       description => <<'DESC',
 Action: yy copies line, p pastes it below
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme with Perl code
 
 Action: keystrokes "yyp" (yank line, paste below)
 
-_end.png (after action):
+_2.png (after action):
 - First line is duplicated (appears twice)
 - Cursor on the pasted copy (line 2)
 - Total line count increased by 1
 DESC
     },
 
-    { name => 'search_next_match', desc => 'Search next (n)',
+    { name => 'visual_search_next_match', desc => 'Search next (n)',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => '/sub\nn',
+      is_action => 1,
       description => <<'DESC',
 Action: /sub then n moves to next match
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme, Normal mode
 
 Action: keystrokes "/sub\\nn" (search for "sub", then n for next match)
 
-_end.png (after action):
+_2.png (after action):
 - First "sub" on line 7 highlighted (n moved past the first match on line 6)
 - Or cursor on the second occurrence of "sub"
 - Search highlights still active
 DESC
     },
 
-    { name => 'goto_bottom', desc => 'Go to bottom (G)',
+    { name => 'visual_goto_bottom', desc => 'Go to bottom (G)',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => 'G',
+      is_action => 1,
       description => <<'DESC',
 Action: G jumps to last line
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme, cursor at line 1
 
 Action: keystrokes "G" (go to last line)
 
-_end.png (after action):
+_2.png (after action):
 - Viewport scrolled to show bottom of buffer
 - Cursor on last line
-- Position label in status bar shows "27:3" (or whatever last line is)
+- Position label in status bar shows last line position
 DESC
     },
 
-    { name => 'replace_char', desc => 'Replace mode (r)',
+    { name => 'visual_replace_char', desc => 'Replace mode (r)',
       theme => 'dark', language => 'perl', code => $PERL_SAMPLE,
-      keystrokes => 'rx',
+      is_action => 1,
       description => <<'DESC',
 Action: rx replaces character under cursor with 'x'
 
-_start.png (initial state):
+_1.png (initial state):
 - Dark theme, cursor at line 1, col 0 (the '#' character)
 
 Action: keystrokes "rx" (replace # with x)
 
-_end.png (after action):
+_2.png (after action):
 - Line 1 starts with "x!/usr/bin/perl" (first char changed)
 - Cursor moved one position to the right
 DESC
@@ -801,8 +794,8 @@ DESC
 # --- List mode ---
 if ($mode eq 'list') {
     for my $t (@tests) {
-        my $tag = $t->{keystrokes} ? ' [action]' : '';
-        printf "  %-30s %s%s\n", $t->{name}, $t->{desc}, $tag;
+        my $tag = $t->{is_action} ? ' [action]' : '';
+        printf "  %-40s %s%s\n", $t->{name}, $t->{desc}, $tag;
     }
     exit 0;
 }
@@ -857,26 +850,24 @@ sub compare_images {
 }
 
 # ==========================================================================
-# Build command for snapshot_editor.pl
+# Build command for snapshot_editor.pl (macro-based)
 # ==========================================================================
 
 sub build_cmd {
-    my ($t, $output_path, $output_path2) = @_;
-    my @cmd = ($^X, $script, '--snapshot', $output_path,
-               '--snapshot-delay', $delay, '--widget-only');
+    my ($t) = @_;
+    my @cmd = (
+        $^X, $script,
+        '--macro',       "$macros_dir/$t->{name}",
+        '--macro-run',   $t->{name},
+        '--snapshot-dir', $output_dir,
+        '--snapshot-delay', $delay,
+        '--size', '800x400',
+    );
     push @cmd, '--theme',    $t->{theme}      if defined $t->{theme};
     push @cmd, '--language', $t->{language}   if defined $t->{language};
     push @cmd, '--line-numbers', $t->{line_numbers} if defined $t->{line_numbers};
     push @cmd, '--cursor-line', $t->{cursor_line}  if defined $t->{cursor_line};
     push @cmd, '--vim-mode',   $t->{vim_mode}      if defined $t->{vim_mode};
-    push @cmd, '--size', '800x400';
-
-    # Two-step test
-    if ($t->{keystrokes} && $output_path2) {
-        push @cmd, '--keystrokes', $t->{keystrokes};
-        push @cmd, '--snapshot2', $output_path2;
-        push @cmd, '--snapshot2-delay', $t->{snapshot2_delay} // 300;
-    }
     return @cmd;
 }
 
@@ -938,25 +929,29 @@ for my $t (@tests) {
     my $name = $t->{name};
     next TEST if $target && $name ne $target;
 
-    my $is_action = $t->{keystrokes} && length $t->{keystrokes};
-    printf "  %-30s ", $t->{desc};
+    my $is_action = $t->{is_action};
+    printf "  %-40s ", $t->{desc};
 
-    # --- Build paths ---
-    my ($output_path, $output_path2);
-    my ($golden_path, $golden_path2);
+    # --- Build expected paths ---
+    my $output_png;
+    my $golden_png;
+    my $output_1;
+    my $golden_1;
+    my $output_2;
+    my $golden_2;
 
     if ($is_action) {
-        $output_path  = "$output_dir/${name}_start.png";
-        $output_path2 = "$output_dir/${name}_end.png";
-        $golden_path  = "$golden_dir/${name}_start.png";
-        $golden_path2 = "$golden_dir/${name}_end.png";
+        $output_1 = "$output_dir/${name}_1.png";
+        $output_2 = "$output_dir/${name}_2.png";
+        $golden_1 = "$golden_dir/${name}_1.png";
+        $golden_2 = "$golden_dir/${name}_2.png";
     } else {
-        $output_path = "$output_dir/${name}.png";
-        $golden_path = "$golden_dir/${name}.png";
+        $output_png = "$output_dir/${name}.png";
+        $golden_png = "$golden_dir/${name}.png";
     }
 
-    # --- Run snapshot_editor.pl ---
-    my @cmd = build_cmd($t, $output_path, $output_path2);
+    # --- Run snapshot_editor.pl with macro ---
+    my @cmd = build_cmd($t);
     my $rc = run_child(@cmd);
 
     if ($rc != 0) {
@@ -967,78 +962,86 @@ for my $t (@tests) {
         next TEST;
     }
 
-    # --- Check output files exist ---
-    unless (-f $output_path && -s $output_path) {
-        print "FAIL (no start output)\n";
-        $failed++;
-        push @failures, { name => $name, error => "no start output" };
-        next TEST;
-    }
-    if ($is_action && !(-f $output_path2 && -s $output_path2)) {
-        print "FAIL (no end output)\n";
-        $failed++;
-        push @failures, { name => $name, error => "no end output" };
-        next TEST;
-    }
-
     # --- Init mode: copy to golden + write description ---
     if ($mode eq 'init') {
-        copy($output_path, $golden_path);
-        print "OK";
         if ($is_action) {
-            copy($output_path2, $golden_path2);
-            print " [2 images]";
+            unless (-f $output_1 && -s $output_1) {
+                print "FAIL (no _1 output)\n"; $failed++;
+                push @failures, { name => $name, error => "no _1 output" };
+                next TEST;
+            }
+            unless (-f $output_2 && -s $output_2) {
+                print "FAIL (no _2 output)\n"; $failed++;
+                push @failures, { name => $name, error => "no _2 output" };
+                next TEST;
+            }
+            copy($output_1, $golden_1);
+            copy($output_2, $golden_2);
+            print "OK (golden saved)";
+        } else {
+            unless (-f $output_png && -s $output_png) {
+                print "FAIL (no output)\n"; $failed++;
+                push @failures, { name => $name, error => "no output" };
+                next TEST;
+            }
+            copy($output_png, $golden_png);
+            print "OK (golden saved)";
         }
         write_description($t);
-        print " (golden saved)\n";
+        print "\n";
         $passed++;
         next TEST;
     }
 
     # --- Test mode: compare against golden ---
-    unless (-f $golden_path) {
-        print "SKIP (no golden)\n";
-        $skipped++;
-        next TEST;
-    }
-
-    my $test_fail = 0;
-
-    # Compare start (or single) image
-    my $r1 = compare_images($golden_path, $output_path);
-    unless ($r1->{match}) {
-        $test_fail = 1;
-    }
-
-    # Compare end image for action tests
-    my $r2;
     if ($is_action) {
-        unless (-f $golden_path2) {
-            print "SKIP (no end golden)\n";
-            $skipped++;
-            next TEST;
+        unless (-f $output_1 && -s $output_1 && -f $output_2 && -s $output_2) {
+            print "SKIP (no output)\n"; $skipped++; next TEST;
         }
-        $r2 = compare_images($golden_path2, $output_path2);
-        unless ($r2->{match}) {
-            $test_fail = 1;
+        unless (-f $golden_1 && -f $golden_2) {
+            print "SKIP (no golden)\n"; $skipped++; next TEST;
         }
-    }
 
-    if ($test_fail) {
-        my $d1 = sprintf("%.2f%%", ($r1->{diff_pct} // 0) * 100);
-        my $d2 = $is_action ? sprintf(", end %.2f%%", ($r2->{diff_pct} // 0) * 100) : '';
-        print "FAIL (start $d1$d2)\n";
-        $failed++;
-        push @failures, {
-            name => $name,
-            diff_pct => $r1->{diff_pct},
-            diff_pct2 => $is_action ? $r2->{diff_pct} : undef,
-        };
+        my $r1 = compare_images($golden_1, $output_1);
+        my $r2 = compare_images($golden_2, $output_2);
+        my $fail = !$r1->{match} || !$r2->{match};
+
+        if ($fail) {
+            my $d1 = sprintf("%.2f%%", ($r1->{diff_pct} // 0) * 100);
+            my $d2 = sprintf("%.2f%%", ($r2->{diff_pct} // 0) * 100);
+            print "FAIL (_1: $d1, _2: $d2)\n";
+            $failed++;
+            push @failures, {
+                name => $name,
+                diff_pct  => $r1->{diff_pct},
+                diff_pct2 => $r2->{diff_pct},
+            };
+        } else {
+            my $d1 = sprintf("%.2f%%", ($r1->{diff_pct} // 0) * 100);
+            my $d2 = sprintf("%.2f%%", ($r2->{diff_pct} // 0) * 100);
+            print "OK (_1: $d1, _2: $d2)\n";
+            $passed++;
+        }
     } else {
-        my $d1 = sprintf("%.2f%%", ($r1->{diff_pct} // 0) * 100);
-        my $d2 = $is_action ? sprintf(" + %.2f%%", ($r2->{diff_pct} // 0) * 100) : '';
-        print "OK ($d1$d2)\n";
-        $passed++;
+        unless (-f $output_png && -s $output_png) {
+            print "SKIP (no output)\n"; $skipped++; next TEST;
+        }
+        unless (-f $golden_png) {
+            print "SKIP (no golden)\n"; $skipped++; next TEST;
+        }
+
+        my $r = compare_images($golden_png, $output_png);
+
+        if (!$r->{match}) {
+            my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
+            print "FAIL ($d)\n";
+            $failed++;
+            push @failures, { name => $name, diff_pct => $r->{diff_pct} };
+        } else {
+            my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
+            print "OK ($d)\n";
+            $passed++;
+        }
     }
 }
 
@@ -1050,9 +1053,9 @@ print "\n";
 
 if (@failures) {
     for my $f (@failures) {
-        my $d = sprintf("%.2f%%", ($f->{diff_pct} // 0) * 100);
-        my $d2 = defined $f->{diff_pct2} ? sprintf(", end %.2f%%", $f->{diff_pct2} * 100) : '';
-        printf "  FAIL: %-30s start %s%s\n", $f->{name}, $d, $d2;
+        my $d1 = sprintf("%.2f%%", ($f->{diff_pct} // 0) * 100);
+        my $d2 = defined $f->{diff_pct2} ? sprintf(", _2: %.2f%%", $f->{diff_pct2} * 100) : '';
+        printf "  FAIL: %-40s _1: %s%s\n", $f->{name}, $d1, $d2;
     }
 }
 

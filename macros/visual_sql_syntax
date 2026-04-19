@@ -1,0 +1,2 @@
+# Visual test: SQL syntax highlighting
+sub { my ($ctx) = @_; $ctx->snapshot() }

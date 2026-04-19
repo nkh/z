@@ -1,0 +1,9 @@
+# Visual test: Search highlights matching text (/process)
+sub {
+    my ($ctx) = @_;
+    $ctx->snapshot('1');
+    $ctx->delay(100);
+    $ctx->keys('/process\n');
+    $ctx->delay(300);
+    $ctx->snapshot('2');
+}

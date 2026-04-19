@@ -1,0 +1,2 @@
+# Visual test: Very long lines (200 chars each)
+sub { my ($ctx) = @_; $ctx->snapshot() }

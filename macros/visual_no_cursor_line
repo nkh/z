@@ -1,0 +1,2 @@
+# Visual test: Editor without cursor line highlight
+sub { my ($ctx) = @_; $ctx->snapshot() }

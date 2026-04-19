@@ -1,0 +1,2 @@
+# Visual test: Solarized theme rendering
+sub { my ($ctx) = @_; $ctx->snapshot() }

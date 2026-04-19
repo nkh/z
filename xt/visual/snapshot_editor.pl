@@ -11,9 +11,14 @@
 #   --snapshot-delay MS      Delay before capturing step 1 (default: 500)
 #   --snapshot2 PATH         Save second PNG after injecting keystrokes
 #   --snapshot2-delay MS     Delay after keystrokes before step 2 (default: 300)
+#   --snapshot-dir DIR       Directory for macro snapshots (default: .)
 #   --keystrokes STRING      Keys to inject between snapshots (step 1 -> step 2)
 #                            Supports \n (Enter), \e (Escape), \t (Tab),
 #                            \b (Backspace), \d (Delete)
+#   --macro FILE             Load a macro file (Perl script returning coderef)
+#   --macro-run 'NAME ARGS'  Run named macro with optional args (single string)
+#   --macro-dir DIR          Load all macros from directory
+#   --macro-list             List loaded macros and exit
 #   --theme NAME             Theme: default, dark, light, solarized
 #   --language ID            Force syntax highlighting (perl, python, c, ...)
 #   --size WxH               Window size (default: 800x400)
@@ -25,7 +30,10 @@
 #   --file PATH               Load file into buffer
 #   --widget-only             Crop screenshot to widget area
 #
-# Single snapshot mode (default):
+# Macro mode (--macro + --macro-run):
+#   show_all -> delay -> run macro -> exit
+#
+# Single snapshot mode (--snapshot only):
 #   show_all -> delay -> snapshot -> exit
 #
 # Two-step snapshot mode (--snapshot + --snapshot2):
@@ -50,7 +58,12 @@ my %opt = (
     snapshot_delay  => 500,
     snapshot2       => undef,
     snapshot2_delay => 300,
+    snapshot_dir    => '.',
     keystrokes      => undef,
+    macro           => undef,
+    macro_run       => undef,
+    macro_dir       => undef,
+    macro_list      => 0,
     theme           => undef,
     language        => undef,
     size            => '800x400',
@@ -68,7 +81,12 @@ GetOptions(
     'snapshot-delay=i'  => \$opt{snapshot_delay},
     'snapshot2=s'       => \$opt{snapshot2},
     'snapshot2-delay=i' => \$opt{snapshot2_delay},
+    'snapshot-dir=s'    => \$opt{snapshot_dir},
     'keystrokes=s'      => \$opt{keystrokes},
+    'macro=s'           => \$opt{macro},
+    'macro-run=s'       => \$opt{macro_run},
+    'macro-dir=s'       => \$opt{macro_dir},
+    'macro-list'        => \$opt{macro_list},
     'theme=s'           => \$opt{theme},
     'language=s'        => \$opt{language},
     'size=s'            => \$opt{size},
@@ -79,7 +97,7 @@ GetOptions(
     'code=s'            => \$opt{code},
     'file=s'            => \$opt{file},
     'widget-only'       => \$opt{widget_only},
-) or die "Usage: $0 [--snapshot PATH] [--snapshot2 PATH] [--keystrokes STR] [options]\n";
+) or die "Usage: $0 [--macro FILE --macro-run 'NAME ARGS'] [--snapshot PATH] [options]\n";
 
 # Parse size
 my ($win_w, $win_h) = (800, 400);
@@ -133,11 +151,75 @@ $window->add($editor->get_widget);
 $window->show_all;
 
 # ==========================================================================
-# Keystroke injection
-#
-# Simulates key-press and key-release events on the textview so that vim
-# bindings (and any other signal handlers) process them as if the user typed
-# them.  Uses GdkEvent creation via the Perl GTK3 bindings.
+# Macro support
+# ==========================================================================
+
+sub _parse_macro_run {
+    my ($str) = @_;
+    return () unless defined $str && length $str;
+    # First whitespace-delimited token is the macro name.
+    # Everything after it is passed as arguments (split on whitespace).
+    if ($str =~ /^(\S+)(?:\s+(.*))?$/) {
+        my $name = $1;
+        my $args_str = $2 // '';
+        my @args = split(/\s+/, $args_str);
+        @args = () if @args == 1 && $args[0] eq '';
+        return ($name, @args);
+    }
+    return ($str);
+}
+
+# Load macros
+if ($opt{macro} || $opt{macro_dir}) {
+    require Gtk3::SourceEditor::Macro;
+
+    if ($opt{macro}) {
+        Gtk3::SourceEditor::Macro->load(file => $opt{macro});
+    }
+    if ($opt{macro_dir}) {
+        Gtk3::SourceEditor::Macro->load(dir => $opt{macro_dir});
+    }
+
+    # --macro-list: print and exit
+    if ($opt{macro_list}) {
+        for my $name (Gtk3::SourceEditor::Macro->list) {
+            print "  $name\n";
+        }
+        Gtk3->main_quit;
+        exit 0;
+    }
+
+    # Run a macro
+    if ($opt{macro_run}) {
+        my ($macro_name, @macro_args) = _parse_macro_run($opt{macro_run});
+
+        Glib::Timeout->add($opt{snapshot_delay}, sub {
+            require Gtk3::SourceEditor::Macro::Context;
+            my $ctx = Gtk3::SourceEditor::Macro::Context->new(
+                editor       => $editor,
+                window       => $window,
+                snapshot_dir => $opt{snapshot_dir},
+                macro_name   => $macro_name,
+            );
+
+            eval {
+                Gtk3::SourceEditor::Macro->run($macro_name, $ctx, @macro_args);
+            };
+            if ($@) {
+                print STDERR "Macro '$macro_name' failed: $@\n";
+            }
+
+            Gtk3->main_quit;
+            return FALSE;
+        });
+
+        Gtk3->main;
+        exit 0;
+    }
+}
+
+# ==========================================================================
+# Keystroke injection (legacy --keystrokes support)
 # ==========================================================================
 
 sub _parse_keys {
@@ -147,8 +229,8 @@ sub _parse_keys {
         if    ($str =~ s/^\\n//) { push @chars, "\n" }
         elsif ($str =~ s/^\\e//) { push @chars, "\x1b" }
         elsif ($str =~ s/^\\t//) { push @chars, "\t" }
-        elsif ($str =~ s/^\\b//) { push @chars, "\x08" }   # BackSpace
-        elsif ($str =~ s/^\\d//) { push @chars, "\x7f" }   # Delete
+        elsif ($str =~ s/^\\b//) { push @chars, "\x08" }
+        elsif ($str =~ s/^\\d//) { push @chars, "\x7f" }
         elsif ($str =~ s/^(.)//s) { push @chars, $1 }
     }
     return @chars;
@@ -175,7 +257,6 @@ sub _keyval_for {
         return $kv if defined $kv && $kv > 0;
         return $fallback{$ch};
     }
-    # Printable character
     my $kv = eval { Gtk3::Gdk::unicode_to_keyval(ord($ch)) };
     return $kv if defined $kv && $kv > 0;
     return ord($ch);
@@ -186,7 +267,6 @@ sub inject_keystrokes {
     my $view = $editor->get_textview;
     return unless $view;
 
-    # Need a mapped GdkWindow on the view for key events
     my $gdk_win = $view->get_window;
     $gdk_win ||= eval { $window->get_window };
     return unless $gdk_win;
@@ -196,7 +276,6 @@ sub inject_keystrokes {
         my $keyval = _keyval_for($ch);
 
         eval {
-            # --- key-press ---
             my $ev = Gtk3::Gdk::Event->new('key-press');
             $ev->window($gdk_win);
             $ev->keyval($keyval);
@@ -204,17 +283,14 @@ sub inject_keystrokes {
             $ev->send_event(1);
             $ev->time(Gtk3::get_current_event_time() || 0);
             $ev->string( (ord($ch) >= 32 && ord($ch) < 127) ? $ch : '' );
-
             $view->signal_emit('key-press-event', $ev);
 
-            # --- key-release ---
             my $rel = Gtk3::Gdk::Event->new('key-release');
             $rel->window($gdk_win);
             $rel->keyval($keyval);
             $rel->state(0);
             $rel->send_event(1);
             $rel->time(Gtk3::get_current_event_time() || 0);
-
             $view->signal_emit('key-release-event', $rel);
         };
         if ($@) {
@@ -224,14 +300,13 @@ sub inject_keystrokes {
 }
 
 # ==========================================================================
-# Snapshot scheduling
+# Snapshot scheduling (legacy --snapshot/--snapshot2 support)
 # ==========================================================================
 
 if ($opt{snapshot}) {
     my $path1  = $opt{snapshot};
     my $delay1 = $opt{snapshot_delay};
 
-    # --- Single snapshot mode ---
     unless ($opt{snapshot2}) {
         Glib::Timeout->add($delay1, sub {
             eval { $editor->snapshot($path1, widget_only => $opt{widget_only}) };
@@ -243,12 +318,10 @@ if ($opt{snapshot}) {
         exit 0;
     }
 
-    # --- Two-step snapshot mode ---
     my $path2  = $opt{snapshot2};
     my $delay2 = $opt{snapshot2_delay};
 
     Glib::Timeout->add($delay1, sub {
-        # Step 1: initial snapshot
         eval { $editor->snapshot($path1, widget_only => $opt{widget_only}) };
         if ($@) {
             print STDERR "Snapshot 1 failed: $@\n";
@@ -256,7 +329,6 @@ if ($opt{snapshot}) {
             return FALSE;
         }
 
-        # Inject keystrokes between snapshots
         if (defined $opt{keystrokes} && length $opt{keystrokes}) {
             eval { inject_keystrokes($editor, $opt{keystrokes}) };
             if ($@) {
@@ -266,12 +338,9 @@ if ($opt{snapshot}) {
             }
         }
 
-        # Step 2: schedule second snapshot after delay
         Glib::Timeout->add($delay2, sub {
             eval { $editor->snapshot($path2, widget_only => $opt{widget_only}) };
-            if ($@) {
-                print STDERR "Snapshot 2 failed: $@\n";
-            }
+            if ($@) { print STDERR "Snapshot 2 failed: $@\n" }
             Gtk3->main_quit;
             return FALSE;
         });
@@ -282,5 +351,5 @@ if ($opt{snapshot}) {
     exit 0;
 }
 
-# --- Interactive mode (no --snapshot) ---
+# --- Interactive mode (no --snapshot, no --macro) ---
 Gtk3->main;

@@ -1,0 +1,9 @@
+# Visual test: Insert mode indicator (i)
+sub {
+    my ($ctx) = @_;
+    $ctx->snapshot('1');
+    $ctx->delay(100);
+    $ctx->key('i');
+    $ctx->delay(100);
+    $ctx->snapshot('2');
+}

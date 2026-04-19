@@ -1,0 +1,2 @@
+# Visual test: Unicode characters (accented, Greek, box drawing)
+sub { my ($ctx) = @_; $ctx->snapshot() }

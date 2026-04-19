@@ -1,0 +1,2 @@
+# Visual test: Native GTK mode (vim disabled)
+sub { my ($ctx) = @_; $ctx->snapshot() }

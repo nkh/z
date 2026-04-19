@@ -1,0 +1,64 @@
+# Example macro demonstrating macro API features
+#
+# Usage:
+#   perl xt/visual/snapshot_editor.pl \
+#     --macro macros/example \
+#     --macro-run 'example' \
+#     --snapshot-dir /tmp/macro-demo \
+#     --theme dark --language perl \
+#     --code 'sub hello { print "world\n" }' \
+#     --size 800x400
+#
+# This macro demonstrates:
+#   - Taking labeled snapshots (_1, _2, _3, etc.)
+#   - Injecting keystrokes (key, type, keys)
+#   - Using delays for GTK rendering
+#   - Querying editor state
+#   - Ex-command execution
+
+sub {
+    my ($ctx) = @_;
+
+    # --- Step 1: Initial state ---
+    $ctx->echo("Example macro started");
+    $ctx->snapshot('1');
+    $ctx->echo("  Snapshot 1 saved: initial state");
+
+    # --- Step 2: Delete the first line (dd) ---
+    $ctx->delay(100);
+    $ctx->keys('dd');
+    $ctx->delay(100);
+    $ctx->snapshot('2');
+    $ctx->echo("  Snapshot 2 saved: after dd");
+
+    # --- Step 3: Enter insert mode, type text, exit ---
+    $ctx->key('i');
+    $ctx->type('# restored');
+    $ctx->key('Escape');
+    $ctx->delay(100);
+    $ctx->snapshot('3');
+    $ctx->echo("  Snapshot 3 saved: after insert");
+
+    # --- Step 4: Undo ---
+    $ctx->keys('u');
+    $ctx->delay(100);
+    $ctx->keys('u');
+    $ctx->delay(100);
+    $ctx->snapshot('4');
+    $ctx->echo("  Snapshot 4 saved: after undo x2");
+
+    # --- Step 5: Search ---
+    $ctx->keys('/sub\n');
+    $ctx->delay(300);
+    $ctx->snapshot('5');
+    $ctx->echo("  Snapshot 5 saved: after /sub search");
+
+    # --- State query example ---
+    $ctx->echo("  Current mode: " . $ctx->mode);
+    $ctx->echo("  Cursor: line " . ($ctx->cursor_line + 1) . ", col " . $ctx->cursor_col);
+    $ctx->echo("  Line count: " . $ctx->line_count);
+    $ctx->echo("  First line: " . $ctx->line_text(0));
+    $ctx->echo("  Buffer modified: " . ($ctx->is_modified ? "yes" : "no"));
+
+    $ctx->echo("Example macro finished");
+}

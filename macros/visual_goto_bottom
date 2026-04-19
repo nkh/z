@@ -1,0 +1,9 @@
+# Visual test: Go to bottom (G)
+sub {
+    my ($ctx) = @_;
+    $ctx->snapshot('1');
+    $ctx->delay(100);
+    $ctx->key('G');
+    $ctx->delay(300);
+    $ctx->snapshot('2');
+}

@@ -1,0 +1,9 @@
+# Visual test: Delete line (dd)
+sub {
+    my ($ctx) = @_;
+    $ctx->snapshot('1');
+    $ctx->delay(100);
+    $ctx->keys('dd');
+    $ctx->delay(100);
+    $ctx->snapshot('2');
+}

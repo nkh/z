@@ -1,0 +1,2 @@
+# Visual test: Light theme without line numbers
+sub { my ($ctx) = @_; $ctx->snapshot() }
