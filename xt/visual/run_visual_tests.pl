@@ -266,12 +266,14 @@ sub run_child {
     }
     my $devnull = File::Spec->devnull;
     open(my $saved_out, '>&', \*STDOUT) or die "dup stdout: $!";
-    open(my $saved_err, '>&', \*STDERR) or die "dup stderr: $!";
     open(STDOUT, '>', $devnull)         or die "redirect stdout: $!";
-    open(STDERR, '>', $devnull)         or die "redirect stderr: $!";
+    # Keep STDERR visible when --debug is active so timing info shows
+    if (!$debug) {
+        open(my $saved_err, '>&', \*STDERR) or die "dup stderr: $!";
+        open(STDERR, '>', $devnull)      or die "redirect stderr: $!";
+    }
     my $rc = system(@cmd);
     open(STDOUT, '>&', $saved_out) or die "restore stdout: $!";
-    open(STDERR, '>&', $saved_err) or die "restore stderr: $!";
     return $rc;
 }
 
