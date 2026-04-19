@@ -243,6 +243,15 @@ if ($macro_file) {
 
         Glib::Timeout->add($snapshot_delay, sub {
             _dbg("running macro '$macro_name'");
+
+            # Ensure the text view has keyboard focus so that
+            # selection highlighting uses the focused (non-backdrop)
+            # colours from the style scheme.  In a headless Xvfb
+            # environment no window receives focus automatically,
+            # so the selection may be rendered with a nearly
+            # invisible backdrop colour unless we grab focus here.
+            eval { $editor->get_textview->grab_focus() };
+
             require Gtk3::SourceEditor::Macro::Context;
             my $ctx = Gtk3::SourceEditor::Macro::Context->new(
                 editor       => $editor,

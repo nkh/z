@@ -466,6 +466,14 @@ sub snapshot {
 
         if ($w > 0 && $h > 0) {
             $pixbuf = eval {
+                # Ensure the text view has re-rendered any pending state
+                # changes (selections, syntax highlighting, cursor moves)
+                # before we draw directly to the Cairo surface.  Without
+                # this, gtk_widget_draw() may use a stale layout that
+                # doesn't yet reflect recent select_range() calls.
+                $textview->queue_draw();
+                while (Gtk3::events_pending()) { Gtk3::main_iteration() }
+
                 my $surface = Cairo::ImageSurface->create('argb32', $w, $h);
                 my $cr = Cairo::Context->create($surface);
 
