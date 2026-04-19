@@ -54,11 +54,27 @@ sub register {
         $_enable_search_highlight->($ctx, $pattern);
 
         for (1 .. $count) {
+            my $cl = $vb->cursor_line;
+            my $cc = $vb->cursor_col;
+            my $line_text = $vb->line_text($cl);
+
+            # For regex patterns, skip past the end of the current match
+            # so 'n' doesn't re-find the same match at col+1.
+            my $start_col = $cc + 1;
+            my $re = eval { qr/$pattern/ };
+            if ($re && length($line_text) > $cc) {
+                my $text_from_cursor = substr($line_text, $cc);
+                if ($text_from_cursor =~ /$re/ && $-[0] == 0) {
+                    # Cursor is on a match — start after it
+                    $start_col = $cc + length($&);
+                }
+            }
+
             my $result;
             if ($dir eq 'forward') {
-                $result = $vb->search_forward($pattern);
+                $result = $vb->search_forward($pattern, $cl, $start_col);
             } else {
-                $result = $vb->search_backward($pattern);
+                $result = $vb->search_backward($pattern, $cl, $cc - 1);
             }
             if ($result) {
                 $vb->set_cursor($result->{line}, $result->{col});
@@ -86,11 +102,30 @@ sub register {
         $_enable_search_highlight->($ctx, $pattern);
 
         for (1 .. $count) {
+            my $cl = $vb->cursor_line;
+            my $cc = $vb->cursor_col;
+            my $line_text = $vb->line_text($cl);
+
+            # For regex patterns in forward direction, skip past current match
+            my $start_col;
+            if ($opposite eq 'forward') {
+                $start_col = $cc + 1;
+                my $re = eval { qr/$pattern/ };
+                if ($re && length($line_text) > $cc) {
+                    my $text_from_cursor = substr($line_text, $cc);
+                    if ($text_from_cursor =~ /$re/ && $-[0] == 0) {
+                        $start_col = $cc + length($&);
+                    }
+                }
+            } else {
+                $start_col = $cc - 1;
+            }
+
             my $result;
             if ($opposite eq 'forward') {
-                $result = $vb->search_forward($pattern);
+                $result = $vb->search_forward($pattern, $cl, $start_col);
             } else {
-                $result = $vb->search_backward($pattern);
+                $result = $vb->search_backward($pattern, $cl, $start_col);
             }
             if ($result) {
                 $vb->set_cursor($result->{line}, $result->{col});

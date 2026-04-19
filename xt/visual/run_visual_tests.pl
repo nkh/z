@@ -132,6 +132,8 @@ make_path($golden_dir, $output_dir, $diffs_dir);
 # ==========================================================================
 
 for my $p (@paths) {
+    # Convert to absolute path so they survive chdir in child process
+    $p = File::Spec->rel2abs($p);
     if (-d $p) {
         Gtk3::SourceEditor::Macro->load(dir => $p);
     } elsif (-f $p) {

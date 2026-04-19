@@ -527,9 +527,13 @@ sub add_vim_bindings {
             my $is_forward = ($text =~ m{^/});
             my $pattern = substr($text, 1);  # strip leading / or ?
 
-            # Update search settings in real-time
+            # Update search settings in real-time (regex-enabled so
+            # metacharacters like . \d+ \w+ work during incremental typing)
             if (length($pattern) && $ctx->{search_settings}) {
-                eval { $ctx->{search_settings}->set_search_text($pattern) };
+                eval {
+                    $ctx->{search_settings}->set_search_text($pattern);
+                    $ctx->{search_settings}->set_regex_enabled(TRUE);
+                };
                 warn "inc-search set_search_text failed: $@" if $@;
             } elsif (!length($pattern) && $ctx->{search_settings}) {
                 eval { $ctx->{search_settings}->set_search_text(undef) };
