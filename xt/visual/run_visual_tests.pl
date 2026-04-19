@@ -1,24 +1,53 @@
 #!/usr/bin/perl
 # ==========================================================================
-# run_visual_tests.pl - Visual regression test runner
+# run_visual_tests.pl - Visual regression test runner for Gtk3::SourceEditor
 #
-# Runs each test configuration through snapshot_editor.pl, then compares
-# the output against golden images using GdkPixbuf (pure Perl/GTK).
+# HOW IT WORKS
+# ============
+# Each test case defines an editor configuration (theme, language, options).
+# For each test, this runner:
+#   1. Launches snapshot_editor.pl as a child process with the config.
+#   2. The child opens a real GTK window, renders the editor, and captures
+#      a PNG screenshot using GdkPixbuf (no Xvfb, no external tools).
+#   3. The runner compares the screenshot against a golden image.
 #
-# Usage:
-#   perl xt/visual/run_visual_tests.pl [options]
+# WORKFLOW
+# ========
+#   First run (create golden images):
+#       perl xt/visual/run_visual_tests.pl --init
 #
-# Options:
-#   --init           Create golden images (save output as golden)
-#   --accept         Accept current output as new golden (same as --init)
-#   --test           Compare output against golden (default)
-#   --list           List test names
-#   --target NAME    Run only the named test
-#   --threshold N    Max diff ratio (0.0-1.0, default: 0.01)
-#   --snapshot-delay MS  Delay before capture (default: 500)
+#   After making code changes, re-run to detect regressions:
+#       perl xt/visual/run_visual_tests.pl
 #
-# No Xvfb, no external tools, no system() calls for capture.
-# Each test is a separate Perl process that runs its own GTK main loop.
+#   If screenshots changed intentionally (new feature, theme tweak):
+#       perl xt/visual/run_visual_tests.pl --init     # re-generate golden
+#       perl xt/visual/run_visual_tests.pl           # verify clean
+#
+#   Run a single test by name:
+#       perl xt/visual/run_visual_tests.pl --target dark_theme
+#
+#   List available test names:
+#       perl xt/visual/run_visual_tests.pl --list
+#
+#   The script exits with code 0 if all tests pass, 1 on any failure.
+#   GTK warnings/criticals from the child process are suppressed.
+#
+# REQUIREMENTS
+# ============
+#   - A working X display (or Wayland with XWayland). No Xvfb needed.
+#   - Perl modules: Gtk3, Gtk3::SourceView, Glib, Pango, File::Slurper.
+#   - No extra dependencies beyond what the editor itself needs.
+#
+# OPTIONS
+# =======
+#   --init               Create golden images (save output as golden)
+#   --accept             Alias for --init
+#   --test               Compare output against golden (default)
+#   --list               List test names
+#   --target NAME        Run only the named test
+#   --threshold N        Max diff ratio 0.0-1.0 (default: 0.01)
+#   --snapshot-delay MS  Delay before capture in ms (default: 500)
+#   --verbose            Show GTK warnings from child processes
 # ==========================================================================
 
 use strict;
@@ -30,6 +59,7 @@ use Getopt::Long qw(:config no_ignore_case bundling);
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use File::Compare qw(compare);
+use File::Spec ();
 use Gtk3 '-init';
 
 # --- Parse options ---
@@ -37,6 +67,7 @@ my $mode      = 'test';
 my $target    = '';
 my $threshold = 0.01;
 my $delay     = 500;
+my $verbose   = 0;
 
 GetOptions(
     'init'            => sub { $mode = 'init' },
@@ -46,10 +77,10 @@ GetOptions(
     'target=s'        => \$target,
     'threshold=f'     => \$threshold,
     'snapshot-delay=i'=> \$delay,
-) or die "Usage: $0 [--init|--test|--list] [--target NAME] [--threshold N]\n";
+    'verbose|v'       => \$verbose,
+) or die "Usage: $0 [--init|--test|--list] [--target NAME] [--threshold N] [--verbose]\n";
 
 # --- Directories ---
-my $base_dir   = "$RealBin/../..";
 my $golden_dir = "$RealBin/golden";
 my $output_dir = "$RealBin/output";
 my $diffs_dir  = "$RealBin/diffs";
@@ -57,7 +88,7 @@ my $script     = "$RealBin/snapshot_editor.pl";
 
 make_path($golden_dir, $output_dir, $diffs_dir);
 
-# --- Sample code ---
+# --- Sample code for syntax highlighting tests ---
 my $PERL_SAMPLE = <<'PERL';
 #!/usr/bin/perl
 use strict;
@@ -141,8 +172,156 @@ int main(int argc, char *argv[]) {
 }
 C
 
+my $JSON_SAMPLE = <<'JSON';
+{
+    "name": "Gtk3::SourceEditor",
+    "version": "0.04",
+    "description": "Embeddable Vim-like text editor",
+    "dependencies": {
+        "Gtk3": "0",
+        "Gtk3::SourceView": "0",
+        "Glib": "0",
+        "Pango": "0"
+    },
+    "features": [
+        "syntax highlighting",
+        "vim keybindings",
+        "theme support",
+        "visual selection"
+    ]
+}
+JSON
+
+my $HTML_SAMPLE = <<'HTML';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gtk3::SourceEditor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Gtk3::SourceEditor</h1>
+    <p>An embeddable text editor widget.</p>
+    <div class="features">
+        <ul>
+            <li>Syntax highlighting</li>
+            <li>Vim keybindings</li>
+        </ul>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
+HTML
+
+my $CSS_SAMPLE = <<'CSS';
+/* Gtk3::SourceEditor theme overrides */
+.editor-container {
+    font-family: 'Monospace', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #d4d4d4;
+    background: #1e1e1e;
+}
+
+.editor-container .gutter {
+    width: 50px;
+    padding-right: 10px;
+    text-align: right;
+    color: #858585;
+    border-right: 1px solid #333;
+}
+
+.editor-container .cursor-line {
+    background: rgba(255, 255, 255, 0.04);
+}
+CSS
+
+my $MARKDOWN_SAMPLE = <<'MARKDOWN';
+# Gtk3::SourceEditor
+
+An embeddable **Vim-like** text editor widget for Gtk3 applications.
+
+## Features
+
+- Syntax highlighting via GtkSourceView
+- Vim modal keybindings (Normal, Insert, Visual, Command)
+- Theme support with dark, light, and solarized presets
+- Block cursor rendering via Cairo
+
+## Usage
+
+```perl
+use Gtk3::SourceEditor;
+
+my $editor = Gtk3::SourceEditor->new(
+    file       => 'my_script.pl',
+    theme_file => 'themes/theme_dark.xml',
+);
+$vbox->pack_start($editor->get_widget, TRUE, TRUE, 0);
+```
+
+> No Xvfb, no external tools needed.
+MARKDOWN
+
+my $SQL_SAMPLE = <<'SQL';
+-- Visual test: SQL syntax highlighting
+CREATE TABLE users (
+    id       SERIAL PRIMARY KEY,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    email    VARCHAR(255) NOT NULL,
+    created  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_users_username ON users (username);
+
+INSERT INTO users (username, email)
+VALUES ('admin', 'admin@example.com'),
+       ('guest', 'guest@example.com');
+
+SELECT u.id, u.username, u.email, u.created
+FROM users u
+WHERE u.created >= '2024-01-01'
+ORDER BY u.created DESC
+LIMIT 10 OFFSET 0;
+SQL
+
+my $UNICODE_SAMPLE = <<'UNICODE';
+# Unicode and special characters
+use utf8;
+use strict;
+use warnings;
+
+# Latin-1 Supplement
+my $deutsch   = "\x{00FC}ber \x{00F6}ffnen";
+my $french    = "caf\x{00E9} r\x{00E9}sum\x{00E9}";
+my $spanish   = "se\x{00F1}or \x{00F1}o\x{00F1}o";
+
+# Greek
+my $greek     = "\x{03B1}\x{03B2}\x{03B3}\x{03B4}\x{03B5}";
+
+# Mathematical
+my $pi        = 3.14159;  # \x{03C0}
+my $infinity  = "\x{221E}";
+
+# Box drawing (common in terminal output)
+my $box = "\x{250C}\x{2500}\x{2510}\n"
+        . "\x{2502}    \x{2502}\n"
+        . "\x{2514}\x{2500}\x{2518}\n";
+
+# Currency
+my $price_eur = "\x{20AC}19.99";
+my $price_gbp = "\x{00A3}14.99";
+my $price_jpy = "\x{00A5}2000";
+
+print "$deutsch\n$box";
+UNICODE
+
 # --- Test definitions ---
+# Each test is a hash: name, desc, and any snapshot_editor.pl options.
 my @tests = (
+
+    # --- Theme tests ---
     { name => 'default_theme',   theme => undef,         code => $PERL_SAMPLE,
       desc => 'Default theme' },
     { name => 'dark_theme',      theme => 'dark',       code => $PERL_SAMPLE,
@@ -151,26 +330,52 @@ my @tests = (
       desc => 'Light theme' },
     { name => 'solarized_theme', theme => 'solarized',  code => $PERL_SAMPLE,
       desc => 'Solarized theme' },
+
+    # --- Syntax highlighting tests ---
     { name => 'perl_syntax',     theme => undef, language => 'perl',   code => $PERL_SAMPLE,
       desc => 'Perl syntax' },
     { name => 'python_syntax',   theme => undef, language => 'python', code => $PYTHON_SAMPLE,
       desc => 'Python syntax' },
     { name => 'c_syntax',        theme => undef, language => 'c',      code => $C_SAMPLE,
       desc => 'C syntax' },
+    { name => 'json_syntax',     theme => undef, language => 'json',   code => $JSON_SAMPLE,
+      desc => 'JSON syntax' },
+    { name => 'html_syntax',     theme => undef, language => 'html',   code => $HTML_SAMPLE,
+      desc => 'HTML syntax' },
+    { name => 'css_syntax',      theme => undef, language => 'css',    code => $CSS_SAMPLE,
+      desc => 'CSS syntax' },
+    { name => 'markdown_syntax', theme => undef, language => 'markdown', code => $MARKDOWN_SAMPLE,
+      desc => 'Markdown syntax' },
+    { name => 'sql_syntax',      theme => undef, language => 'sql',    code => $SQL_SAMPLE,
+      desc => 'SQL syntax' },
+
+    # --- Editor option tests ---
     { name => 'no_line_numbers', theme => undef, line_numbers => 0, code => $PERL_SAMPLE,
       desc => 'No line numbers' },
     { name => 'no_cursor_line',  theme => undef, cursor_line => 0,    code => $PERL_SAMPLE,
       desc => 'No cursor line' },
+    { name => 'vim_mode_off',    theme => undef, vim_mode => 0,       code => $PERL_SAMPLE,
+      desc => 'Vim mode off (no mode label)' },
+
+    # --- Content edge cases ---
     { name => 'empty_buffer',    theme => undef, code => '',
       desc => 'Empty buffer' },
     { name => 'single_line',     theme => undef, code => "hello world\n",
       desc => 'Single line' },
     { name => 'long_lines',      theme => undef, code => join("\n", ('x' x 200) x 30) . "\n",
       desc => 'Long lines' },
-    { name => 'dark_no_numbers', theme => 'dark', line_numbers => 0,   code => $PERL_SAMPLE,
-      desc => 'Dark no line numbers' },
-    { name => 'dark_minimal',    theme => 'dark', line_numbers => 0, cursor_line => 0, code => $PERL_SAMPLE,
-      desc => 'Dark minimal' },
+    { name => 'unicode_content', theme => undef, language => 'perl', code => $UNICODE_SAMPLE,
+      desc => 'Unicode content' },
+
+    # --- Theme + option combinations ---
+    { name => 'dark_no_numbers',  theme => 'dark', line_numbers => 0,   code => $PERL_SAMPLE,
+      desc => 'Dark, no line numbers' },
+    { name => 'dark_minimal',     theme => 'dark', line_numbers => 0, cursor_line => 0, code => $PERL_SAMPLE,
+      desc => 'Dark, minimal chrome' },
+    { name => 'light_no_numbers', theme => 'light', line_numbers => 0, code => $PERL_SAMPLE,
+      desc => 'Light, no line numbers' },
+    { name => 'solarized_perl',   theme => 'solarized', language => 'perl', code => $PERL_SAMPLE,
+      desc => 'Solarized + Perl' },
 );
 
 # --- List mode ---
@@ -183,11 +388,10 @@ if ($mode eq 'list') {
 
 # --- Compare function (pure Perl/GdkPixbuf) ---
 sub compare_images {
-    my ($file_a, $file_b, $diff_out) = @_;
+    my ($file_a, $file_b) = @_;
 
     return { match => 1, diff_pct => 0 } if compare($file_a, $file_b) == 0;
 
-    # Load both images via GdkPixbuf
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
     my $pix_b = Gtk3::Gdk::Pixbuf->new_from_file($file_b);
     unless ($pix_a && $pix_b) {
@@ -238,17 +442,38 @@ sub build_cmd {
     push @cmd, '--language', $t->{language}   if defined $t->{language};
     push @cmd, '--line-numbers', $t->{line_numbers} if defined $t->{line_numbers};
     push @cmd, '--cursor-line', $t->{cursor_line}  if defined $t->{cursor_line};
+    push @cmd, '--vim-mode',   $t->{vim_mode}      if defined $t->{vim_mode};
     push @cmd, '--size', '800x400';
     return @cmd;
 }
 
+# --- Run a child process, optionally suppressing output ---
+sub run_child {
+    my @cmd = @_;
+
+    if ($verbose) {
+        return system(@cmd);
+    }
+
+    # Redirect child stdout and stderr to /dev/null to suppress
+    # GTK warnings, CRITICALs, and "Snapshot saved:" messages.
+    my $devnull = File::Spec->devnull;
+    open(my $saved_out, '>&', \*STDOUT) or die "dup stdout: $!";
+    open(my $saved_err, '>&', \*STDERR) or die "dup stderr: $!";
+    open(STDOUT, '>', $devnull)         or die "redirect stdout: $!";
+    open(STDERR, '>', $devnull)         or die "redirect stderr: $!";
+
+    my $rc = system(@cmd);
+
+    open(STDOUT, '>&', $saved_out) or die "restore stdout: $!";
+    open(STDERR, '>&', $saved_err) or die "restore stderr: $!";
+    return $rc;
+}
+
 # --- Run tests ---
-print "=== Visual Regression Tests ===\n";
-printf "Mode:      %s\n", $mode;
-printf "Threshold: %.3f\n", $threshold;
-printf "Golden:    %s\n", $golden_dir;
-printf "Output:    %s\n", $output_dir;
-printf "Diffs:     %s\n", $diffs_dir;
+print "visual tests: ";
+if ($mode eq 'init') { print "initializing golden images\n" }
+else                 { print "comparing against golden\n" }
 print "---\n";
 
 my $passed = 0;
@@ -260,25 +485,24 @@ for my $t (@tests) {
     my $name = $t->{name};
     next if $target && $name ne $target;
 
-    printf "  %-25s ... ", $t->{desc};
+    printf "  %-25s ", $t->{desc};
 
     my $output_path = "$output_dir/$name.png";
     my $golden_path = "$golden_dir/$name.png";
-    my $diff_path   = "$diffs_dir/${name}_diff.png";
 
-    # Run snapshot_editor.pl as a child process
     my @cmd = build_cmd($t, $output_path);
-    my $rc = system(@cmd);
+    my $rc = run_child(@cmd);
 
     if ($rc != 0) {
-        print "FAIL (snapshot_editor exited " . ($rc >> 8) . ")\n";
+        my $exit_code = $rc >> 8;
+        print "FAIL (exit $exit_code)\n";
         $failed++;
-        push @failures, { name => $name, error => "exit $rc" };
+        push @failures, { name => $name, error => "exit $exit_code" };
         next;
     }
 
     unless (-f $output_path && -s $output_path) {
-        print "FAIL (no output file)\n";
+        print "FAIL (no output)\n";
         $failed++;
         push @failures, { name => $name, error => "no output" };
         next;
@@ -288,43 +512,42 @@ for my $t (@tests) {
     if ($mode eq 'init') {
         require File::Copy;
         File::Copy::copy($output_path, $golden_path);
-        print "OK (golden created)\n";
+        print "OK (golden saved)\n";
         $passed++;
         next;
     }
 
     # Test mode: compare
     unless (-f $golden_path) {
-        print "NEW (no golden — run with --init)\n";
+        print "SKIP (no golden)\n";
         $skipped++;
         next;
     }
 
-    my $result = compare_images($golden_path, $output_path, $diff_path);
+    my $result = compare_images($golden_path, $output_path);
 
     if ($result->{match}) {
-        printf "OK (diff: %.4f%%)\n", $result->{diff_pct};
+        printf "OK\n";
         $passed++;
     } else {
-        printf "FAIL (diff: %.4f%%, %d px changed)\n",
-            $result->{diff_pct}, $result->{pixels_diff} // 0;
+        printf "FAIL (diff %.2f%%, %d px)\n",
+            $result->{diff_pct} * 100, $result->{pixels_diff} // 0;
         $failed++;
         push @failures, { name => $name, diff_pct => $result->{diff_pct} };
     }
 }
 
 # --- Summary ---
+print "---\n";
+printf "visual tests: %d passed, %d failed", $passed, $failed;
+printf ", %d skipped", $skipped if $skipped;
 print "\n";
-printf "Passed:  %d\n", $passed;
-printf "Failed:  %d\n", $failed;
-printf "Skipped: %d\n", $skipped;
 
 if (@failures) {
-    print "\nFailed tests:\n";
     for my $f (@failures) {
-        printf "  %-25s diff=%.4f%%\n", $f->{name}, $f->{diff_pct} // 0;
+        printf "  FAIL: %-25s diff=%.2f%%\n",
+            $f->{name}, ($f->{diff_pct} // 0) * 100;
     }
 }
 
-print "\n";
 exit($failed > 0 ? 1 : 0);

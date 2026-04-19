@@ -69,6 +69,8 @@ themes/default.xml
 themes/theme_dark.xml
 themes/theme_light.xml
 themes/theme_solarized.xml
+xt/visual/run_visual_tests.pl
+xt/visual/snapshot_editor.pl
 project_skills/binding-creation/SKILL.md
 project_skills/binding-creation/rationale.md
 project_skills/p5-sourceeditor-dev/SKILL.md
