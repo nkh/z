@@ -82,14 +82,9 @@ check_xvfb() {
     fi
 }
 
-check_python() {
-    if ! command -v python3 &>/dev/null; then
-        echo "ERROR: python3 is required for visual tests"
-        exit 1
-    fi
-    if ! python3 -c "from PIL import Image; import numpy" 2>/dev/null; then
-        echo "ERROR: Python Pillow and numpy are required"
-        echo "Install with: pip install Pillow numpy"
+check_gtk() {
+    if ! perl -e 'use Gtk3; 1' 2>/dev/null; then
+        echo "ERROR: Gtk3 Perl module is required for visual tests"
         exit 1
     fi
 }
@@ -123,7 +118,7 @@ case "$MODE" in
     init|accept|update|test)
         setup_dirs
         cleanup_output
-        check_python
+        check_gtk
         check_xvfb
 
         echo "=== Visual Regression Tests ==="

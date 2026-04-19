@@ -3,7 +3,7 @@ package Gtk3::SourceEditor::VisualTest::Compare;
 use strict;
 use warnings;
 use Exporter 'import';
-use JSON::PP;
+use List::Util qw(sum min max);
 
 our @EXPORT_OK = qw(
     compare_screenshots
@@ -17,7 +17,8 @@ our $VERSION = '0.01';
 # ----------------------------------------------------------------
 # compare_screenshots( $image_a_path, $image_b_path, %opts )
 #
-# Compare two PNG screenshots.  Options:
+# Compare two PNG screenshots using GdkPixbuf (pure Perl/GTK).
+# Options:
 #   threshold   - max allowed difference (0.0-1.0, default: 0.01 = 1%)
 #   diff_output - path to save diff image (optional)
 #
@@ -29,6 +30,8 @@ our $VERSION = '0.01';
 #       pixels_diff    => 33,
 #       max_diff       => 187,
 #       mean_diff      => 12.3,
+#       size           => [800, 400],
+#       sizes_match    => 1,
 #       diff_image     => '/path/to/diff.png',  # if diff_output specified
 #   }
 # ----------------------------------------------------------------
@@ -40,15 +43,46 @@ sub compare_screenshots {
 
     my $threshold = $opts{threshold} // 0.01;
 
-    # Use Python/Pillow for the actual comparison
-    my $python_script = _build_compare_script($path_a, $path_b, $opts{diff_output});
+    # Load images via GdkPixbuf
+    my $pixbuf_a = Gtk3::Gdk::Pixbuf->new_from_file($path_a);
+    die "Failed to load image A: $path_a" unless $pixbuf_a;
 
-    my $json_str = _run_python($python_script);
-    die "Python comparison failed" unless defined $json_str;
+    my $pixbuf_b = Gtk3::Gdk::Pixbuf->new_from_file($path_b);
+    die "Failed to load image B: $path_b" unless $pixbuf_b;
 
-    my $result = decode_json($json_str);
+    my $wa = $pixbuf_a->get_width();
+    my $ha = $pixbuf_a->get_height();
+    my $wb = $pixbuf_b->get_width();
+    my $hb = $pixbuf_b->get_height();
 
-    $result->{match} = ($result->{diff_pct} <= $threshold) ? 1 : 0;
+    my $sizes_match = ($wa == $wb && $ha == $hb) ? 1 : 0;
+
+    # Compare at the minimum common size
+    my $w = $wa < $wb ? $wa : $wb;
+    my $h = $ha < $hb ? $ha : $hb;
+
+    my ($pixels_total, $pixels_diff, $max_channel_diff, $sum_diff) =
+        _compare_pixels($pixbuf_a, $pixbuf_b, $w, $h);
+
+    my $diff_pct = $pixels_total > 0 ? $pixels_diff / $pixels_total : 0.0;
+    my $mean_diff = $pixels_diff > 0 ? $sum_diff / ($pixels_diff * 3) : 0.0;
+
+    my $result = {
+        match          => ($diff_pct <= $threshold) ? 1 : 0,
+        diff_pct       => sprintf("%.6f", $diff_pct) + 0.0,
+        pixels_total   => $pixels_total,
+        pixels_diff    => $pixels_diff,
+        max_diff       => $max_channel_diff,
+        mean_diff      => sprintf("%.2f", $mean_diff) + 0.0,
+        size           => [$wa, $ha],
+        sizes_match    => $sizes_match,
+    };
+
+    # Generate diff image if requested
+    if ($opts{diff_output}) {
+        _generate_diff($pixbuf_a, $pixbuf_b, $w, $h, $opts{diff_output});
+        $result->{diff_image} = $opts{diff_output};
+    }
 
     return $result;
 }
@@ -61,7 +95,6 @@ sub compare_screenshots {
 # ----------------------------------------------------------------
 sub diff_percentage {
     my ($path_a, $path_b) = @_;
-
     my $result = compare_screenshots($path_a, $path_b);
     return $result->{diff_pct};
 }
@@ -117,98 +150,127 @@ sub is_visual_match {
 }
 
 # ==================================================================
-# Internal: Python/Pillow bridge
+# Internal: pixel comparison using GdkPixbuf raw data
 # ==================================================================
 
-sub _build_compare_script {
-    my ($path_a, $path_b, $diff_output) = @_;
+sub _compare_pixels {
+    my ($pixbuf_a, $pixbuf_b, $w, $h) = @_;
 
-    my $script = <<"PYTHON";
-import json
-import numpy as np
-from PIL import Image
+    my $pixels_total = $w * $h;
 
-path_a = "$path_a"
-path_b = "$path_b"
+    # Extract raw pixel bytes from both images
+    my $data_a   = $pixbuf_a->get_pixels();
+    my $data_b   = $pixbuf_b->get_pixels();
+    my $rowstride_a = $pixbuf_a->get_rowstride();
+    my $rowstride_b = $pixbuf_b->get_rowstride();
+    my $n_channels_a = $pixbuf_a->get_n_channels();
+    my $n_channels_b = $pixbuf_b->get_n_channels();
+    my $bps_a   = $pixbuf_a->get_bits_per_sample();
+    my $bps_b   = $pixbuf_b->get_bits_per_sample();
 
-try:
-    img_a = Image.open(path_a).convert('RGB')
-    img_b = Image.open(path_b).convert('RGB')
-except Exception as e:
-    print(json.dumps({"error": str(e)}))
-    import sys
-    sys.exit(1)
+    # We compare at most the first 3 channels (R, G, B)
+    my $n_ch = $n_channels_a < $n_channels_b ? $n_channels_a : $n_channels_b;
+    $n_ch = $n_ch > 3 ? 3 : $n_ch;
 
-w = min(img_a.width, img_b.width)
-h = min(img_a.height, img_b.height)
+    my $bytes_per_pixel_a = $n_channels_a * ($bps_a / 8);
+    my $bytes_per_pixel_b = $n_channels_b * ($bps_b / 8);
 
-if img_a.size != img_b.size:
-    img_a = img_a.resize((w, h))
-    img_b = img_b.resize((w, h))
+    my $pixels_diff   = 0;
+    my $max_channel_diff = 0;
+    my $sum_channel_diff = 0;
 
-pixels_a = np.array(img_a, dtype=np.int16)
-pixels_b = np.array(img_b, dtype=np.int16)
+    # Compare each pixel row by row
+    for my $y (0 .. $h - 1) {
+        my $row_offset_a = $y * $rowstride_a;
+        my $row_offset_b = $y * $rowstride_b;
 
-diff = np.abs(pixels_a - pixels_b)
-pixels_diff = int(np.any(diff > 0, axis=2).sum())
-pixels_total = w * h
+        for my $x (0 .. $w - 1) {
+            my $px_offset_a = $row_offset_a + $x * $bytes_per_pixel_a;
+            my $px_offset_b = $row_offset_b + $x * $bytes_per_pixel_b;
 
-diff_pct = pixels_diff / pixels_total if pixels_total > 0 else 0.0
-max_diff = int(diff.max())
-mean_diff = float(diff[diff > 0].mean()) if pixels_diff > 0 else 0.0
+            my $pixel_differs = 0;
 
-result = {
-    "match": diff_pct <= 0.01,
-    "diff_pct": round(diff_pct, 6),
-    "pixels_total": pixels_total,
-    "pixels_diff": pixels_diff,
-    "max_diff": max_diff,
-    "mean_diff": round(mean_diff, 2),
-    "size": [img_a.width, img_a.height],
-    "sizes_match": True,
-}
+            for my $ch (0 .. $n_ch - 1) {
+                my $va = ord(substr($data_a, $px_offset_a + $ch, 1));
+                my $vb = ord(substr($data_b, $px_offset_b + $ch, 1));
+                my $d  = abs($va - $vb);
 
-PYTHON
+                if ($d > 0) {
+                    $pixel_differs = 1;
+                    $sum_channel_diff += $d;
+                    if ($d > $max_channel_diff) {
+                        $max_channel_diff = $d;
+                    }
+                }
+            }
 
-    if ($diff_output) {
-        $script .= <<"DIFFPY";
-
-diff_out = Image.new('RGB', (w, h), (128, 128, 128))
-for y in range(h):
-    for x in range(w):
-        pa = img_a.getpixel((x, y))
-        pb = img_b.getpixel((x, y))
-        if pa != pb:
-            diff_out.putpixel((x, y), (255, 50, 50))
-        else:
-            diff_out.putpixel((x, y), (pa[0]//3 + 40, pa[1]//3 + 40, pa[2]//3 + 40))
-
-diff_out.save("$diff_output")
-DIFFPY
+            $pixels_diff++ if $pixel_differs;
+        }
     }
 
-    return $script;
+    return ($pixels_total, $pixels_diff, $max_channel_diff, $sum_channel_diff);
 }
 
-sub _run_python {
-    my ($script) = @_;
+# ==================================================================
+# Internal: generate visual diff image
+# ==================================================================
 
-    require File::Temp;
-    my ($fh, $tmpfile) = File::Temp::tempfile(
-        SUFFIX => '.py',
-        UNLINK => 1,
-    );
-    print $fh $script;
-    close $fh;
+sub _generate_diff {
+    my ($pixbuf_a, $pixbuf_b, $w, $h, $output_path) = @_;
 
-    my $output = `python3 $tmpfile 2>&1`;
-    my $exit_code = $? >> 8;
+    # Create a new RGB pixbuf for the diff image
+    my $diff_pixbuf = Gtk3::Gdk::Pixbuf->new('rgb', 0, 8, $w, $h);
+    die "Failed to create diff pixbuf" unless $diff_pixbuf;
 
-    if ($exit_code != 0) {
-        die "Python script failed (exit $exit_code): $output";
+    my $data_a   = $pixbuf_a->get_pixels();
+    my $data_b   = $pixbuf_b->get_pixels();
+    my $data_d   = $diff_pixbuf->get_pixels();
+
+    my $rowstride_a = $pixbuf_a->get_rowstride();
+    my $rowstride_b = $pixbuf_b->get_rowstride();
+    my $rowstride_d = $diff_pixbuf->get_rowstride();
+
+    my $n_channels_a = $pixbuf_a->get_n_channels();
+    my $n_channels_b = $pixbuf_b->get_n_channels();
+    my $n_channels_d = $diff_pixbuf->get_n_channels();
+
+    my $bytes_per_pixel_a = $n_channels_a;
+    my $bytes_per_pixel_b = $n_channels_b;
+    my $bytes_per_pixel_d = $n_channels_d;
+
+    for my $y (0 .. $h - 1) {
+        my $off_a = $y * $rowstride_a;
+        my $off_b = $y * $rowstride_b;
+        my $off_d = $y * $rowstride_d;
+
+        for my $x (0 .. $w - 1) {
+            my $px_a = $off_a + $x * $bytes_per_pixel_a;
+            my $px_b = $off_b + $x * $bytes_per_pixel_b;
+            my $px_d = $off_d + $x * $bytes_per_pixel_d;
+
+            my $r_a = ord(substr($data_a, $px_a + 0, 1));
+            my $g_a = ord(substr($data_a, $px_a + 1, 1));
+            my $b_a = ord(substr($data_a, $px_a + 2, 1));
+
+            my $r_b = ord(substr($data_b, $px_b + 0, 1));
+            my $g_b = ord(substr($data_b, $px_b + 1, 1));
+            my $b_b = ord(substr($data_b, $px_b + 2, 1));
+
+            if ($r_a != $r_b || $g_a != $g_b || $b_a != $b_b) {
+                # Pixel differs: highlight in red
+                substr($data_d, $px_d + 0, 1) = chr(255);
+                substr($data_d, $px_d + 1, 1) = chr(50);
+                substr($data_d, $px_d + 2, 1) = chr(50);
+            } else {
+                # Pixel matches: dimmed version of the original
+                substr($data_d, $px_d + 0, 1) = chr(int($r_a / 3) + 40);
+                substr($data_d, $px_d + 1, 1) = chr(int($g_a / 3) + 40);
+                substr($data_d, $px_d + 2, 1) = chr(int($b_a / 3) + 40);
+            }
+        }
     }
 
-    return $output;
+    $diff_pixbuf->save($output_path, 'png');
 }
 
 1;
@@ -244,9 +306,10 @@ Gtk3::SourceEditor::VisualTest::Compare - Screenshot comparison for visual regre
 
 =head1 DESCRIPTION
 
-Compares PNG screenshots pixel-by-pixel using Python/Pillow as a backend.
-Returns detailed statistics about the differences and can generate
-visual diff images highlighting changed regions.
+Compares PNG screenshots pixel-by-pixel using GdkPixbuf (pure Perl/GTK).
+No external dependencies beyond GTK3 are required. Returns detailed
+statistics about the differences and can generate visual diff images
+highlighting changed regions.
 
 =head1 FUNCTIONS
 
@@ -260,7 +323,7 @@ Returns the percentage of differing pixels (0.0 - 1.0).
 
 =head2 generate_diff_image( $path_a, $path_b, $output_path )
 
-Creates a diff image with changes highlighted.
+Creates a diff image with changes highlighted in red.
 
 =head2 is_visual_match( $golden, $candidate, %opts )
 
