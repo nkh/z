@@ -4,7 +4,7 @@
 # runner (it has no 'desc' field so it is filtered out by --list).
 #
 # Usage:
-#   perl xt/visual/snapshot_editor.pl \
+#   perl script/source-editor \
 #     --macro xt/visual/macros/example \
 #     --macro-run 'example' \
 #     --snapshot-dir /tmp/macro-demo \

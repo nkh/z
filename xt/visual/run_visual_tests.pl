@@ -12,7 +12,7 @@
 # The runner:
 #   1. Loads macros from directories and/or individual files given on the
 #      command line
-#   2. Launches snapshot_editor.pl with --macro for each test
+#   2. Launches source-editor with --macro for each test
 #   3. The macro creates PNG files in the output directory
 #   4. Compares output against golden images
 #
@@ -64,7 +64,7 @@
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings from child processes
 #   --generate-diff      Generate diff images on failure (default: off)
-#   --debug              Pass --debug to snapshot_editor.pl
+#   --debug              Pass --debug to source-editor
 #
 # ARGUMENTS
 # ========
@@ -123,7 +123,7 @@ unless (@paths) {
 my $golden_dir = "$RealBin/golden";
 my $output_dir = "$RealBin/output";
 my $diffs_dir  = "$RealBin/diffs";
-my $script     = "$RealBin/snapshot_editor.pl";
+my $script     = "$RealBin/../../script/source-editor";
 
 make_path($golden_dir, $output_dir, $diffs_dir);
 
@@ -262,7 +262,7 @@ sub compare_images {
 }
 
 # ==========================================================================
-# Build command for snapshot_editor.pl
+# Build command for source-editor
 # ==========================================================================
 
 sub build_cmd {
@@ -375,7 +375,7 @@ for my $name (@test_names) {
         next TEST;
     }
 
-    # --- Run snapshot_editor.pl with macro ---
+    # --- Run source-editor with macro ---
     my @cmd = build_cmd($name, $meta);
     my $rc = run_child(@cmd);
 
