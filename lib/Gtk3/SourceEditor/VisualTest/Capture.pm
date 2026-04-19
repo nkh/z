@@ -226,17 +226,12 @@ sub _window_to_pixbuf {
 # Critical for getting accurate screenshots.
 # ----------------------------------------------------------------
 sub _process_pending_events {
-    # Run the main loop iteratively until no more events
+    # Flush the GTK event queue so widgets get drawn/rendered.
+    # Critical for getting accurate screenshots.
     for (1..20) {
-        while (Gtk3::Glib::MainContext::default()->iteration(0)) {
-            # Process all pending events
-        }
-        # Also try pending with may_block=0
-        Gtk3::Glib::MainContext::default()->pending(0);
+        last unless Gtk3::events_pending();
+        Gtk3::main_iteration();
     }
-
-    # Let GTK process any idle callbacks
-    Gtk3::Glib::MainContext::default()->iteration(1) for 1..3;
 }
 
 1;

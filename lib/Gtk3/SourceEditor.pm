@@ -449,8 +449,9 @@ sub set_theme {
 
     # Apply new CSS to the widget hierarchy (mode label, command entry)
     if ($self->{widget} && $css_provider) {
-        Gtk3::StyleContext::add_provider_for_screen(
-            $self->{widget}->get_screen(),
+        my $screen = $self->{widget}->get_screen();
+        Gtk3::StyleContext->add_provider_for_screen(
+            $screen,
             $css_provider,
             600,  # GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
         );
