@@ -571,11 +571,18 @@ sub register {
         $col = 0 if $col < 0;
         my $mode = ${$ctx->{vim_mode}};
         if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
-            $vb->move_cursor($line, $col);
+            # GTK's select_range() excludes the character at the insert
+            # mark, so in visual mode we place the insert one past the
+            # last character to ensure the final character is included
+            # in the highlight.  desired_col stays at the actual cursor
+            # column for vertical-movement memory.
+            my $sel_col = $vb->line_length($line);
+            $vb->move_cursor($line, $sel_col);
+            $ctx->{desired_col} = $col;
         } else {
             $vb->set_cursor($line, $col);
+            $ctx->{desired_col} = $col;
         }
-        $ctx->{desired_col} = $vb->cursor_col;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 

@@ -542,12 +542,20 @@ DESC
       description => <<'DESC',
 Edge case: Unicode characters (accented, Greek, box drawing, currency)
 
-Visual checks:
-- Accented characters (e with accent, u with umlaut) render correctly
-- Greek letters (alpha-beta-gamma) render
-- Box drawing characters (corners, horizontal/vertical lines) align
-- Currency symbols (euro sign) render
-- No replacement characters (tofu) visible
+The editor receives UTF-8 encoded text via File::Slurper::read_text().
+How each character renders depends on the font's glyph coverage:
+
+- Latin-1 Supplement (e-acute, u-umlaut): usually supported by
+  monospace fonts and renders as the real character.
+- Greek letters (alpha beta gamma delta epsilon): may show as
+  replacement glyphs (two-box tofu) if the font lacks coverage.
+- Box drawing (U+250C U+2500 U+2510 etc.): require a font with box
+  drawing glyphs; many monospace fonts only support a subset.
+- Currency (euro sign U+20AC): usually supported.
+
+The purpose of this test is to verify that the editor passes through
+UTF-8 bytes correctly to GTK/Pango without double-encoding or
+truncation.  Glyph substitution is a font issue, not an editor bug.
 DESC
     },
 
