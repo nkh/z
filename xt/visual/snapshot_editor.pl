@@ -34,6 +34,7 @@ use FindBin qw($RealBin);
 use lib "$RealBin/../../lib";
 
 use Getopt::Long qw(:config no_ignore_case bundling);
+use Glib ('TRUE', 'FALSE');
 use Gtk3 '-init';
 use Gtk3::SourceEditor;
 
@@ -83,8 +84,19 @@ my %editor_opts = (
     block_cursor           => 0,
 );
 
-if ($opt{theme}) {
-    $editor_opts{theme} = $opt{theme};
+# Resolve --theme name to absolute theme_file path
+my $project_root = "$RealBin/../..";
+if (defined $opt{theme}) {
+    if ($opt{theme} eq 'default') {
+        $editor_opts{theme_file} = "$project_root/themes/default.xml";
+    } elsif ($opt{theme} !~ m{[/\\.]}) {
+        $editor_opts{theme_file} = "$project_root/themes/theme_$opt{theme}.xml";
+    } else {
+        $editor_opts{theme_file} = $opt{theme};  # already a path
+    }
+} else {
+    # Default theme when no --theme given
+    $editor_opts{theme_file} = "$project_root/themes/default.xml";
 }
 if ($opt{language}) {
     $editor_opts{force_language} = $opt{language};
