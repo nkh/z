@@ -430,6 +430,23 @@ sub snapshot {
     my $widget     = $self->{widget};
     my $textview   = $self->{textview};
 
+    # --- Step 0: ensure rendering is complete ---
+    # GTK uses double-buffered rendering.  After simulate_keys() updates
+    # selection marks, the redraw is queued but may not have been committed
+    # to the GdkWindow surface yet.  Without synchronisation here the
+    # captured pixels can be stale (e.g. a visual-mode selection that is
+    # one character short of where it should be).
+    eval {
+        # 1. Drain any pending GTK events (layout, redraw requests, etc.)
+        while (Gtk3::events_pending()) { Gtk3::main_iteration() }
+        # 2. Request a fresh paint pass and wait for it
+        $textview->queue_draw();
+        while (Gtk3::events_pending()) { Gtk3::main_iteration() }
+        # 3. Flush the GDK connection so the X server has committed the
+        #    latest surface contents (matters for X11; harmless on Wayland)
+        Gtk3::Gdk::flush();
+    };
+
     # --- Step 1: obtain a GdkWindow ---
     # Walk up to the toplevel window to get a mapped GdkWindow
     my $toplevel = $widget;
