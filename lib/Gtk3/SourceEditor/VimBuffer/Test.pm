@@ -594,7 +594,7 @@ sub search_forward {
 
     my $total = $self->line_count;
 
-    for my $offset ( 0 .. $total - 1 ) {
+    for my $offset ( 0 .. $total ) {
         my $ln   = ( $start_line + $offset ) % $total;
         my $text = $self->{_lines}[$ln];
         my $from = ( $offset == 0 ) ? $start_col : 0;
@@ -622,7 +622,7 @@ sub search_backward {
 
     my $total = $self->line_count;
 
-    for my $offset ( 0 .. $total - 1 ) {
+    for my $offset ( 0 .. $total ) {
         my $ln   = ( $start_line - $offset + $total ) % $total;
         my $text = $self->{_lines}[$ln];
         my $from;

@@ -498,7 +498,7 @@ sub search_forward {
     my $re = eval { qr/$str/ };
     if ($re) {
         my $total = $self->line_count;
-        for my $offset ( 0 .. $total - 1 ) {
+        for my $offset ( 0 .. $total ) {
             my $ln   = ( $start_line + $offset ) % $total;
             my $text = $self->line_text($ln);
             my $from = ( $offset == 0 ) ? $start_col : 0;
@@ -526,7 +526,7 @@ sub search_forward {
     if ( !$success ) {
         # Fallback: Perl literal search through buffer lines.
         my $total = $self->line_count;
-        for my $offset ( 0 .. $total - 1 ) {
+        for my $offset ( 0 .. $total ) {
             my $ln   = ( $start_line + $offset ) % $total;
             my $text = $self->line_text($ln);
             my $from = ( $offset == 0 ) ? $start_col : 0;
@@ -564,7 +564,7 @@ sub search_backward {
     my $re = eval { qr/$str/ };
     if ($re) {
         my $total = $self->line_count;
-        for my $offset ( 0 .. $total - 1 ) {
+        for my $offset ( 0 .. $total ) {
             my $ln   = ( $start_line - $offset + $total ) % $total;
             my $text = $self->line_text($ln);
             my $from;
@@ -600,7 +600,7 @@ sub search_backward {
     if ( !$success ) {
         # Fallback: Perl literal search through buffer lines.
         my $total = $self->line_count;
-        for my $offset ( 0 .. $total - 1 ) {
+        for my $offset ( 0 .. $total ) {
             my $ln   = ( $start_line - $offset + $total ) % $total;
             my $text = $self->line_text($ln);
             my $from;

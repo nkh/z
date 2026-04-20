@@ -195,23 +195,60 @@ subtest 'Search: 3n repeats search 3 times' => sub {
     ok($vb->cursor_line != $start, '3n advances to a different match');
 };
 
-subtest 'Search: colon slash then Return' => sub {
+subtest 'Search: colon slash wraps to find match at cursor line' => sub {
     my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "findme\nother\n");
     my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
 
-    # Use colon to enter command mode, then type /findme
+    # cursor at (0,0), search from (0,1): "indme" no match on first attempt.
+    # Wraps past "other" and empty line, then back to line 0 from col 0
+    # where "findme" is found.
     $ctx->{set_mode}->('command');
     $ctx->{cmd_entry}->set_text('/findme');
     Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
-    # cursor at (0,0), search from (0,1): "indme" no match.
-    # offset 1 line 1: "other" no. offset 2 line 2 (empty) no.
-    # offset 3... wait, total = 3 lines. offset 0..2. No match found.
-    # Pattern not found.
-    # But test expects found on line 0. The issue is cursor starts at (0,0)
-    # and search starts at (0,1) which skips the match.
-    # Fix: use ?findme for backward search from bottom, or set cursor differently.
-    like($ctx->{mode_label}->get_text, qr/not found/i,
-         '/findme from top of file skips match at cursor position (by design)');
+    is($vb->cursor_line, 0, 'wrap finds findme on line 0');
+    is($vb->cursor_col,  0, 'wrap finds findme at col 0');
+};
+
+subtest 'Search: regex m. n navigates all match types with wrap' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "move max moon\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # /m. via search_set_pattern (test has no incremental search signals)
+    # search_forward starts from (0,1), finds "ma" in "max" at col 5
+    $ctx->{set_mode}->('command');
+    $ctx->{cmd_entry}->set_text('/m.');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+    is($ctx->{search_pattern}, 'm.', 'pattern stored');
+    is($vb->cursor_line, 0, 'on line 0');
+    is($vb->cursor_col, 5, 'cursor at "max" (first match after col 0)');
+
+    # n from "max": skip past "ma", find "mo" in "moon" at col 9
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_col, 9, 'n goes to "mo" in moon');
+
+    # n from "moon": wrap to "mo" in "move" at col 0
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_col, 0, 'n wraps to "mo" in move');
+
+    # n from "move": back to "ma" in "max" at col 5
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_col, 5, 'n cycles back to "ma" in max');
+};
+
+subtest 'Search: n from empty line finds next match' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aaa\n\nbbb\naaa\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_mode}->('command');
+    $ctx->{cmd_entry}->set_text('/aaa');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    # Move to empty line
+    $vb->set_cursor(1, 0);
+
+    # n should find next aaa (wrapping around the empty line)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_line, 3, 'n from empty line finds aaa on line 3');
 };
 
 done_testing;
