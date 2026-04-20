@@ -1,0 +1,36 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{Read-only blocks insert},
+    description => <<'END_DESC',
+Action: Read-only mode prevents editing
+
+_1.png (initial state):
+- Normal mode
+
+Action: keystrokes "ixEscape" (attempt insert in read-only)
+
+_2.png (after action):
+- Buffer unchanged (insert blocked by read-only)
+- Mode may briefly show INSERT but text not modified
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->editor->get_textview->set_editable(0);
+        $ctx->delay(50);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->key('i');
+        $ctx->type('X');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

@@ -1,0 +1,48 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+line five
+line six
+line seven
+line eight
+line nine
+line ten
+line eleven
+line twelve
+line thirteen
+line fourteen
+line fifteen
+line sixteen
+line seventeen
+line eighteen
+line nineteen
+line twenty
+END_CODE
+
+{
+    desc => q{Viewport 2H (2nd from top)},
+    description => <<'END_DESC',
+Action: 2H moves cursor to 2nd line from top of viewport
+
+_1.png (initial state):
+- Cursor at line 1
+
+Action: keystrokes "G2H" (go to bottom, then 2nd from top)
+
+_2.png (after action):
+- Cursor on 2nd line from top of viewport
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('G2H');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

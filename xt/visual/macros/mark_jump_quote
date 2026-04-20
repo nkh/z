@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+    line one
+line two
+line three
+line four
+END_CODE
+
+{
+    desc => q{Mark jump 'a to first-non-blank},
+    description => <<'END_DESC',
+Action: ma sets mark, move, then 'a jumps to first-non-blank
+
+_1.png (initial state):
+- Cursor at line 1, col 0 (indented line)
+
+Action: keystrokes "majj'a" (set mark on indented line, move, jump to first-non-blank)
+
+_2.png (after action):
+- Cursor at line 1, col 4 (first non-blank character)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys("majj'a");
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

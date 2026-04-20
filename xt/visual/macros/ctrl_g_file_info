@@ -1,0 +1,38 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+line five
+line six
+line seven
+line eight
+line nine
+line ten
+END_CODE
+
+{
+    desc => q{Ctrl-G file info},
+    description => <<'END_DESC',
+Action: Ctrl-G shows file info in mode label
+
+_1.png (initial state):
+- Normal mode, cursor at line 1
+
+Action: keystrokes "Control-g" (show file info)
+
+_2.png (after action):
+- Mode label shows file info: "[No Name]" or filename, line count, position
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Control-g');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

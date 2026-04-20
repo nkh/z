@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{:set nocursorline},
+    description => <<'END_DESC',
+Action: :set nocursorline removes cursor line highlight
+
+_1.png (initial state):
+- Cursor line highlighted (set via :set cursorline first)
+
+Action: ex command ":set nocursorline"
+
+_2.png (after action):
+- Cursor line highlight removed
+- All lines have same background
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->ex('set cursorline');
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set nocursorline');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

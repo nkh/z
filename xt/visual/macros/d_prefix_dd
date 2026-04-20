@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{D prefix waits then dd},
+    description => <<'END_DESC',
+Action: d prefix waits for motion, then dd completes delete
+
+_1.png (initial state):
+- Cursor at line 2
+
+Action: keystrokes "jdd" (delete line 2)
+
+_2.png (after action):
+- Line 2 deleted
+- Buffer: line one, line three
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->keys('j');
+        $ctx->delay(50);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('dd');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

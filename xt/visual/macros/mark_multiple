@@ -1,0 +1,33 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+END_CODE
+
+{
+    desc => q{Multiple marks coexist},
+    description => <<'END_DESC',
+Action: Set marks a and b, jump between them
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "majjmbk`a`b`a" (set mark a, set mark b, jump between)
+
+_2.png (after action):
+- Cursor at line 1 after jumping between marks
+- Both marks a and b stored and functional
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('majjmbk`a`b`a');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{:set cursorline toggle},
+    description => <<'END_DESC',
+Action: :set cursorline highlights current line
+
+_1.png (initial state):
+- No cursor line highlight
+
+Action: ex command ":set cursorline"
+
+_2.png (after action):
+- Current line (line 1) highlighted with background color
+- Cursor line visibly distinct from other lines
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set cursorline');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

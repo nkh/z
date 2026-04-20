@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{:set nonumber},
+    description => <<'END_DESC',
+Action: :set nonumber hides line numbers
+
+_1.png (initial state):
+- Line numbers visible (set via :set number first)
+
+Action: ex command ":set nonumber"
+
+_2.png (after action):
+- Line numbers hidden
+- Gutter area collapsed
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->ex('set number');
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set nonumber');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}
