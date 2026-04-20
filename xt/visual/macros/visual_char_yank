@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+hello world this is a test
+line two
+END_CODE
+
+{
+    desc => q{Visual char yank},
+    description => <<'END_DESC',
+Action: v selects chars, y yanks (no visual change)
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "vlly" (select 4 chars, yank)
+
+_2.png (after action):
+- Text unchanged (yank does not modify buffer)
+- Mode back to NORMAL
+- Cursor at line 1, col 0
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('vlly');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

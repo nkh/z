@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+HELLO WORLD
+THIS IS LINE TWO
+the third line here
+END_CODE
+
+{
+    desc => q{Visual line lowercase u},
+    description => <<'END_DESC',
+Action: V selects lines, u lowercases entire selection
+
+_1.png (initial state):
+- Cursor at line 1
+
+Action: keystrokes "Vju" (select 2 lines, lowercase)
+
+_2.png (after action):
+- Lines 1-2 lowercased: "hello world", "this is line two"
+- Line 3 unchanged
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Vju');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

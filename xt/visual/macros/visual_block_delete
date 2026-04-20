@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+abcd
+efgh
+ijkl
+mnop
+END_CODE
+
+{
+    desc => q{Visual block mode select and delete},
+    description => <<'END_DESC',
+Action: Ctrl-V selects block, d deletes columns
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "Control-vjjld" (block select 3 rows x 2 cols, delete)
+
+_2.png (after action):
+- First 2 columns removed from each of first 3 lines
+- Lines become "cd", "gh", "kl"
+- Line 4 unchanged: "mnop"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Control-vjjld');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

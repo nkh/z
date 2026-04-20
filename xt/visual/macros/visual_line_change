@@ -1,0 +1,36 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+END_CODE
+
+{
+    desc => q{Visual line change},
+    description => <<'END_DESC',
+Action: V selects lines, c changes (replaces with typed text)
+
+_1.png (initial state):
+- Cursor at line 1
+
+Action: keystrokes "VjcREPLACEDEscape" (select 2 lines, change)
+
+_2.png (after action):
+- First 2 lines replaced with "REPLACED"
+- Buffer now has 3 lines (REPLACED + line three + line four)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Vjc');
+        $ctx->delay(50);
+        $ctx->type('REPLACED');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+hello world
+line two
+END_CODE
+
+{
+    desc => q{Visual toggle case ~},
+    description => <<'END_DESC',
+Action: v selects chars, ~ toggles case
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "v4l~" (select 5 chars, toggle case)
+
+_2.png (after action):
+- "HELLO" (first 5 chars uppercased)
+- Line 1: "HELLO world"
+- Cursor at end of toggled region
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('v4l~');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

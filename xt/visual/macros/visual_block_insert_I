@@ -1,0 +1,36 @@
+my $CODE = <<'END_CODE';
+abcd
+efgh
+ijkl
+END_CODE
+
+{
+    desc => q{Visual block insert I},
+    description => <<'END_DESC',
+Action: Ctrl-V selects block, I inserts text at left edge
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "Control-vjjI>Escape" (block select 3 rows, insert '>')
+
+_2.png (after action):
+- '>' prepended to each of first 3 lines
+- Lines: ">abcd", ">efgh", ">ijkl"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Control-vjj');
+        $ctx->delay(50);
+        $ctx->key('I');
+        $ctx->type('>');
+        $ctx->key('Escape');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

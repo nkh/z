@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+hello world
+this is line two
+the third line here
+END_CODE
+
+{
+    desc => q{Visual char multiline delete},
+    description => <<'END_DESC',
+Action: v selects across multiple lines, d deletes
+
+_1.png (initial state):
+- Cursor at line 1, col 5 (on 'w')
+
+Action: keystrokes "5vj$ld" (select from mid-line-1 to mid-line-2, delete)
+
+_2.png (after action):
+- Selected text spanning 2 lines deleted
+- Line 1 truncated, line 2 content changed
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('5vj$ld');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

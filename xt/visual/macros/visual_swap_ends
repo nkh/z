@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+hello world
+line two
+END_CODE
+
+{
+    desc => q{Visual swap ends o},
+    description => <<'END_DESC',
+Action: v selects chars, o swaps cursor/anchor, d deletes
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "v$od" (select to EOL, swap ends, delete backward)
+
+_2.png (after action):
+- All characters except the last deleted (backward selection deleted)
+- Line 1: "d" (only the last char remains)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('v$od');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

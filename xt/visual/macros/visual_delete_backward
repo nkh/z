@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+hello world this is
+line two
+END_CODE
+
+{
+    desc => q{Visual delete backward},
+    description => <<'END_DESC',
+Action: v select, move left to create backward selection, d deletes
+
+_1.png (initial state):
+- Cursor at line 1, col 5 (on 'w')
+
+Action: keystrokes "5lvhhd" (enter visual at col 5, move left 2, delete)
+
+_2.png (after action):
+- Characters deleted backward from cursor position
+- "lo" removed from "hello"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('5lvhhd');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

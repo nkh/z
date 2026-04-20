@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+hello world
+line two
+END_CODE
+
+{
+    desc => q{Visual gv re-select},
+    description => <<'END_DESC',
+Action: v selects, d deletes, gv re-selects the deleted region
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "vllldgv" (select 4 chars, delete, gv re-select)
+
+_2.png (after action):
+- "hell" deleted: "o world"
+- gv re-selected the region (selection visible on the remaining text)
+- Mode label shows "-- VISUAL --"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('vllldgv');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}
