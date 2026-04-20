@@ -499,10 +499,6 @@ sub search_forward {
     $start_col = $max_col if $start_col > $max_col;
     $start_col = 0         if $start_col < 0;
 
-    if ($ENV{Z_DEBUG_SEARCH}) {
-        warn "[search_forward] pattern='$str' start=($start_line,$start_col) max_col=$max_col total_lines=" . $self->line_count . "\n";
-    }
-
     # --- Try Perl regex first (supports full Perl regex syntax) ---
     my $re = eval { qr/$str/ };
     if ($re) {
@@ -520,14 +516,11 @@ sub search_forward {
                 # so a match beyond line_length is a false positive.
                 my $actual_len = $self->line_length($ln);
                 if ($pos < $actual_len) {
-                    if ($ENV{Z_DEBUG_SEARCH}) {
-                        warn "  [search_forward] MATCH at ($ln,$pos) offset=$offset substr='" . substr($substr, 0, 20) . "'\n";
-                    }
-                    return { line => $ln, col => $pos };
+                        return { line => $ln, col => $pos };
                 }
             }
         }
-        warn "  [search_forward] NOT FOUND after " . ($total + 1) . " iterations\n" if $ENV{Z_DEBUG_SEARCH};
+
         return undef;
     }
 

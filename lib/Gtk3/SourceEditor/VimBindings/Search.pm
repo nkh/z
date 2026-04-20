@@ -70,10 +70,6 @@ sub register {
                 }
             }
 
-            if ($ENV{Z_DEBUG_SEARCH}) {
-                warn "[search_next] cursor=($cl,$cc) line='" . substr($line_text, 0, 30) . "' start_col=$start_col dir=$dir pattern='$pattern'\n";
-            }
-
             my $result;
             if ($dir eq 'forward') {
                 $result = $vb->search_forward($pattern, $cl, $start_col);
@@ -81,9 +77,6 @@ sub register {
                 $result = $vb->search_backward($pattern, $cl, $cc - 1);
             }
             if ($result) {
-                if ($ENV{Z_DEBUG_SEARCH}) {
-                    warn "[search_next] -> moving cursor to (" . $result->{line} . "," . $result->{col} . ")\n";
-                }
                 $vb->set_cursor($result->{line}, $result->{col});
                 $ctx->{after_move}->($ctx) if $ctx->{after_move};
             } else {
