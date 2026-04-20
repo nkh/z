@@ -330,14 +330,39 @@ sub write_description {
 }
 
 # ==========================================================================
-# Determine if output is action (two snapshots) or single
+# Determine output type and collect snapshot labels
+#
+#   single:  <name>.png
+#   labeled: <name>_1.png, <name>_2.png, ... <name>_N.png
+#
+# Returns (type, [labels]) where type is 'single' or 'labeled'.
 # ==========================================================================
 
+sub collect_output_snapshots {
+    my ($name, $dir) = @_;
+    $dir //= $output_dir;
+
+    # Single (unlabeled) output
+    if (-f "$dir/${name}.png" && -s _) {
+        return ('single', []);
+    }
+
+    # Labeled snapshots: collect all <name>_<label>.png files
+    my @labels;
+    for my $f (sort glob "$dir/${name}_*.png") {
+        next unless -s $f;
+        if ($f =~ /\b${name}_(\w+)\.png$/) {
+            push @labels, $1;
+        }
+    }
+    return (@labels ? ('labeled', \@labels) : (undef, []));
+}
+
+# Backwards-compatible alias
 sub is_action_output {
     my ($name) = @_;
-    return (-f "$output_dir/${name}_1.png" && -s _
-         && -f "$output_dir/${name}_2.png" && -s _)
-        && !(-f "$output_dir/${name}.png" && -s _);
+    my ($type, $labels) = collect_output_snapshots($name);
+    return $type eq 'labeled' && @$labels >= 2;
 }
 
 # ==========================================================================
@@ -358,8 +383,7 @@ my @failures;
 sub has_all_goldens {
     my ($name) = @_;
     return (-f "$golden_dir/${name}.png" && -s _)
-        || (-f "$golden_dir/${name}_1.png" && -s _
-          && -f "$golden_dir/${name}_2.png" && -s _);
+        || (collect_output_snapshots($name, $golden_dir))[0];
 }
 
 TEST:
@@ -390,21 +414,20 @@ for my $name (@test_names) {
     }
 
     # --- Determine output type ---
-    my $is_action = is_action_output($name);
+    my ($out_type, $out_labels) = collect_output_snapshots($name);
 
     # --- Init mode: copy to golden + write description ---
     if ($mode eq 'init' || $mode eq 'init-missing') {
-        if ($is_action) {
-            my $out1 = "$output_dir/${name}_1.png";
-            my $out2 = "$output_dir/${name}_2.png";
-            unless (-f $out1 && -s $out1 && -f $out2 && -s $out2) {
-                print "FAIL (no _1/_2 output)\n"; $failed++;
-                push @failures, { name => $name, error => "no _1/_2 output" };
+        if ($out_type eq 'labeled') {
+            unless (@$out_labels) {
+                print "FAIL (no labeled output)\n"; $failed++;
+                push @failures, { name => $name, error => "no labeled output" };
                 next TEST;
             }
-            copy($out1, "$golden_dir/${name}_1.png");
-            copy($out2, "$golden_dir/${name}_2.png");
-            print "OK (golden saved)";
+            for my $lbl (@$out_labels) {
+                copy("$output_dir/${name}_${lbl}.png", "$golden_dir/${name}_${lbl}.png");
+            }
+            print "OK (golden saved, " . scalar(@$out_labels) . " snapshots)";
         } else {
             my $out = "$output_dir/${name}.png";
             unless (-f $out && -s $out) {
@@ -422,50 +445,57 @@ for my $name (@test_names) {
     }
 
     # --- Test mode: compare against golden ---
-    if ($is_action) {
-        my $out1 = "$output_dir/${name}_1.png";
-        my $out2 = "$output_dir/${name}_2.png";
-        my $gld1 = "$golden_dir/${name}_1.png";
-        my $gld2 = "$golden_dir/${name}_2.png";
+    if ($out_type eq 'labeled') {
+        my ($gld_type, $gld_labels) = collect_output_snapshots($name, $golden_dir);
 
-        unless (-f $out1 && -s $out1 && -f $out2 && -s $out2) {
+        unless (@$out_labels) {
             print "SKIP (no output)\n"; $skipped++; next TEST;
         }
-        unless (-f $gld1 && -f $gld2) {
+        unless (@$gld_labels) {
             print "SKIP (no golden)\n"; $skipped++; next TEST;
         }
 
-        my $r1 = compare_images($gld1, $out1);
-        my $r2 = compare_images($gld2, $out2);
-        my $fail = !$r1->{match} || !$r2->{match};
+        my $all_match = 1;
+        my @diffs;
+        for my $lbl (sort @$out_labels) {
+            my $out_f = "$output_dir/${name}_${lbl}.png";
+            my $gld_f = "$golden_dir/${name}_${lbl}.png";
+            next unless -f $out_f && -s $out_f;
+            next unless -f $gld_f && -s $gld_f;
 
-        if ($fail) {
-            my $d1 = sprintf("%.2f%%", ($r1->{diff_pct} // 0) * 100);
-            my $d2 = sprintf("%.2f%%", ($r2->{diff_pct} // 0) * 100);
-            print "FAIL (_1: $d1, _2: $d2)";
-            if ($generate_diff) {
-                if (!$r1->{match}) {
-                    my $dp = "$diffs_dir/${name}_1_diff.png";
-                    generate_diff_image($gld1, $out1, $dp);
-                    print "\n    diff: xt/visual/diffs/${name}_1_diff.png";
+            my $r = compare_images($gld_f, $out_f);
+            unless ($r->{match}) {
+                $all_match = 0;
+                push @diffs, { label => $lbl, diff_pct => $r->{diff_pct} };
+                if ($generate_diff) {
+                    my $dp = "$diffs_dir/${name}_${lbl}_diff.png";
+                    generate_diff_image($gld_f, $out_f, $dp);
                 }
-                if (!$r2->{match}) {
-                    my $dp = "$diffs_dir/${name}_2_diff.png";
-                    generate_diff_image($gld2, $out2, $dp);
-                    print "\n    diff: xt/visual/diffs/${name}_2_diff.png";
+            }
+        }
+
+        if (!$all_match) {
+            my $detail = join(', ', map {
+                sprintf("%s: %.2f%%", $_->{label}, ($_->{diff_pct} // 0) * 100)
+            } @diffs);
+            print "FAIL ($detail)";
+            if ($generate_diff) {
+                for my $d (@diffs) {
+                    print "\n    diff: xt/visual/diffs/${name}_" . $d->{label} . "_diff.png";
                 }
             }
             print "\n";
             $failed++;
             push @failures, {
-                name => $name,
-                diff_pct  => $r1->{diff_pct},
-                diff_pct2 => $r2->{diff_pct},
+                name      => $name,
+                diff_pct  => $diffs[0]{diff_pct},
+                diff_pct2 => $diffs[1] ? $diffs[1]{diff_pct} : undef,
             };
         } else {
-            my $d1 = sprintf("%.2f%%", ($r1->{diff_pct} // 0) * 100);
-            my $d2 = sprintf("%.2f%%", ($r2->{diff_pct} // 0) * 100);
-            print "OK (_1: $d1, _2: $d2)\n";
+            my $detail = join(', ', map {
+                sprintf("%s: %.2f%%", $_, 0)
+            } sort @$out_labels);
+            print "OK ($detail)\n";
             $passed++;
         }
     } else {

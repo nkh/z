@@ -289,8 +289,16 @@ sub buffer_text {
 
 sub line_text {
     my ($self, $n) = @_;
-    my $buf = $self->buffer;
+    # Use the VimBuffer's line_text method when available (handles
+    # the GTK forward_to_line_end empty-line bug).  Fall back to
+    # raw GTK buffer access only when vim context is absent.
+    my $vb = $self->buffer;
+    if ($vb && $vb->can('line_text')) {
+        return $vb->line_text($n);
+    }
+    my $buf = $self->{editor}->get_buffer;
     my $start = $buf->get_iter_at_line($n);
+    return '' if $start->ends_line;
     my $end = $start->copy;
     $end->forward_to_line_end;
     return $buf->get_text($start, $end, TRUE);

@@ -752,8 +752,23 @@ sub simulate_keys {
             if ($k eq 'Return' || $k eq 'Escape') {
                 handle_command_entry($ctx, $k);
             } else {
-                # Simulate typing into the command entry
-                $ctx->{cmd_entry}->set_text($ctx->{cmd_entry}->get_text . $k);
+                # Map GDK key name back to printable character.
+                # In production GTK, the default GtkEntry handler
+                # inserts the character from the keymap; we must
+                # replicate that here.  Without this translation,
+                # typing '.' would insert the string "period" into
+                # the search pattern instead of the character '.'.
+                my $ch = $k;
+                if (length($k) > 1) {
+                    eval {
+                        my $kv = Gtk3::Gdk::keyval_from_name($k);
+                        if ($kv) {
+                            my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
+                            $ch = chr($uc) if $uc && $uc > 0 && $uc < 0x10000;
+                        }
+                    };
+                }
+                $ctx->{cmd_entry}->set_text($ctx->{cmd_entry}->get_text . $ch);
             }
         }
     }
