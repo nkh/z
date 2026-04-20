@@ -1,0 +1,37 @@
+my $CODE = <<'END_CODE';
+abcd
+efgh
+ijkl
+END_CODE
+
+{
+    desc => 'Visual block change replaces block with typed text',
+    description => <<'END_DESC',
+Action: Ctrl-V block select, c changes to typed text
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "Control-vjjcXXEscape" (block select 3 rows, change to "XX")
+
+_2.png (after action):
+- First 2 chars of each of first 3 lines replaced with "XX"
+- Lines: "XXcd", "XXgh", "XXkl"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Control-vjj');
+        $ctx->delay(50);
+        $ctx->key('c');
+        $ctx->delay(50);
+        $ctx->type('XX');
+        $ctx->key('Escape');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

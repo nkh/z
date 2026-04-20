@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+abcd
+efgh
+ijkl
+END_CODE
+
+{
+    desc => 'Visual block indent with >> indents block lines',
+    description => <<'END_DESC',
+Action: Ctrl-V block select, >> indents all selected lines
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "Control-vjj>>" (block select 3 rows, indent)
+
+_2.png (after action):
+- All 3 lines indented by one tab
+- Lines: "    abcd", "    efgh", "    ijkl"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Control-vjj');
+        $ctx->delay(50);
+        $ctx->keys('>>');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}
