@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{:set cursor=ibeam},
+    description => <<'END_DESC',
+Action: :set cursor=ibeam changes cursor to I-beam
+
+_1.png (initial state):
+- Default block cursor
+
+Action: ex command ":set cursor=ibeam"
+
+_2.png (after action):
+- Cursor shape changed to I-beam (thin vertical line)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set cursor=ibeam');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

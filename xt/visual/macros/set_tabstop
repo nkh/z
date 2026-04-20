@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+one	two	three
+four	five	six
+END_CODE
+
+{
+    desc => q{:set tabstop=4},
+    description => <<'END_DESC',
+Action: :set tabstop=4 changes tab display width
+
+_1.png (initial state):
+- Default tab width
+
+Action: ex command ":set tabstop=4"
+
+_2.png (after action):
+- Tab width changed to 4 spaces visual width
+- Tab characters displayed narrower or wider depending on previous setting
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set tabstop=4');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

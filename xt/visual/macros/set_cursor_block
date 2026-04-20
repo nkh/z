@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{:set cursor=block},
+    description => <<'END_DESC',
+Action: :set cursor=block changes cursor shape
+
+_1.png (initial state):
+- Default cursor (block cursor)
+
+Action: ex command ":set cursor=block"
+
+_2.png (after action):
+- Cursor shape set to block
+- Mode label: "-- NORMAL --"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set cursor=block');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

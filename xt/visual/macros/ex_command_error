@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{:set unknown error},
+    description => <<'END_DESC',
+Action: :set with unknown setting shows error
+
+_1.png (initial state):
+- Normal mode
+
+Action: ex command ":set nonexistent_option"
+
+_2.png (after action):
+- Error message in mode label or status area
+- "Unknown option" or similar error displayed
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set nonexistent_option');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

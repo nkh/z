@@ -1,0 +1,39 @@
+my $CODE = <<'END_CODE';
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub hello {
+    print "world\n";
+}
+
+1;
+END_CODE
+
+{
+    desc => q{:set filetype=perl syntax},
+    description => <<'END_DESC',
+Action: :set filetype=perl enables Perl syntax highlighting
+
+_1.png (initial state):
+- No syntax highlighting (plain text)
+
+Action: ex command ":set filetype=perl"
+
+_2.png (after action):
+- Perl syntax highlighting active
+- Keywords colored (use, sub, my, etc.)
+- Strings and comments colored
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set filetype=perl');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

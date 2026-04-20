@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{:set filetype= unknown error},
+    description => <<'END_DESC',
+Action: :set filetype= with unknown language shows error
+
+_1.png (initial state):
+- Normal mode
+
+Action: ex command ":set filetype=nonexistent_lang"
+
+_2.png (after action):
+- Error message displayed for unknown filetype
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set filetype=nonexistent_lang');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

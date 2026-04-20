@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{:set theme=light},
+    description => <<'END_DESC',
+Action: :set theme=light switches to light theme
+
+_1.png (initial state):
+- Dark theme
+
+Action: ex command ":set theme=light"
+
+_2.png (after action):
+- Light theme applied (white/light background)
+- Text colors appropriate for light background
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set theme=light');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}
