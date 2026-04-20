@@ -251,4 +251,84 @@ subtest 'Search: n from empty line finds next match' => sub {
     is($vb->cursor_line, 3, 'n from empty line finds aaa on line 3');
 };
 
+# Regression test: regex m. must not get stuck on empty lines.
+# Bug: GTK line_text() returned next-line content for empty lines,
+# causing search_forward to find a match beyond the empty line's
+# actual length.  set_cursor clamped the out-of-bounds column to 0,
+# creating an infinite loop where n kept "finding" the same match.
+subtest 'Search: regex m. n does not get stuck on empty lines' => sub {
+    my $text = "# Vim Bindings Documentation\n\n"
+             . "> Version 0.04 -- P5-Gtk3-SourceEditor\n\n"
+             . "---\n\n"
+             . "## Normal Mode (Navigation)\n";
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => $text);
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # /m. finds "mi" in "Vim" at (0,4)
+    $ctx->{set_mode}->('command');
+    $ctx->{cmd_entry}->set_text('/m.');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+    is($ctx->{search_pattern}, 'm.', 'pattern stored');
+
+    # Track positions to ensure n makes progress through all matches
+    my %visited;
+    for (1 .. 20) {
+        my $key = $vb->cursor_line . ',' . $vb->cursor_col;
+        $visited{$key}++;
+        # If we visit the same position twice without cycling through
+        # all matches, we're stuck in a loop.
+        if ($visited{$key} > 1) {
+            # Count unique positions visited
+            my $n_unique = scalar keys %visited;
+            ok($n_unique > 1, "n made progress ($n_unique unique positions before repeat at $key)");
+            last;
+        }
+        Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    }
+
+    # Verify we can reach the match in "Navigation"
+    # "Normal Mode" has 'mo' at col 10 of line 6
+    # Re-do the search to check specific navigation
+    $vb->set_cursor(0, 0);
+    $ctx->{set_mode}->('command');
+    $ctx->{cmd_entry}->set_text('/m.');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    # First n: "mi" in Vim → skip to "me" in Documentation at (0,19)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_line, 0, 'n from Vim goes to Documentation');
+    is($vb->cursor_col, 19, 'at "me" in Documentation');
+
+    # Second n: skip "me" → find "mo" in Normal Mode at (6,10)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_line, 6, 'n skips empty lines to Normal Mode');
+    is($vb->cursor_col, 6, 'at "mo" in Normal Mode');
+};
+
+# Test that n works from a cursor position that was clamped to
+# an empty line (the original bug scenario).
+subtest 'Search: n from clamped empty line advances correctly' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aaa\n\nbbb\naaa\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    $ctx->{set_mode}->('command');
+    $ctx->{cmd_entry}->set_text('/aaa');
+    Gtk3::SourceEditor::VimBindings::handle_command_entry($ctx, 'Return');
+
+    # Move cursor to empty line (simulating the clamped position)
+    $vb->set_cursor(1, 0);
+
+    # First n from empty line should find aaa on line 3
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_line, 3, 'n from empty line finds aaa on line 3');
+
+    # Second n should wrap to aaa on line 0
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_line, 0, 'second n wraps to aaa on line 0');
+
+    # Third n should find aaa on line 3 again (skip line 0 match)
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'n');
+    is($vb->cursor_line, 3, 'third n advances to aaa on line 3');
+};
+
 done_testing;

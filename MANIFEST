@@ -51,6 +51,7 @@ xt/visual/macros/visual_sql_syntax
 xt/visual/macros/visual_unicode_content
 xt/visual/macros/visual_vim_mode_off
 xt/visual/macros/visual_yank_paste_line
+xt/visual/macros/search_regex_empty_lines
 bindings/AlignText.pm
 MANIFEST
 README.md

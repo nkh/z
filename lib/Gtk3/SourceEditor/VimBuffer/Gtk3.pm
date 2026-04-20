@@ -155,7 +155,12 @@ sub line_text {
     my ( $self, $line ) = @_;
     my $buf = $self->{_buffer};
     my $start = $buf->get_iter_at_line($line);
-    my $end   = $start->copy;
+    # For empty lines, get_iter_at_line positions the iterator AT
+    # the \n character.  forward_to_line_end() would then skip to
+    # the next line's end, returning content from the following line.
+    # Detect this case and return an empty string directly.
+    return '' if $start->ends_line;
+    my $end = $start->copy;
     $end->forward_to_line_end;
     return $start->get_text($end);
 }
@@ -509,10 +514,17 @@ sub search_forward {
             my $substr = length($text) > $from ? substr($text, $from) : '';
             if ($substr =~ /$re/) {
                 my $pos = $from + $-[0];
-                if ($ENV{Z_DEBUG_SEARCH}) {
-                    warn "  [search_forward] MATCH at ($ln,$pos) offset=$offset substr='" . substr($substr, 0, 20) . "'\n";
+                # Validate: match position must be within the actual
+                # line length.  line_text() may include adjacent-line
+                # content for empty lines (GTK forward_to_line_end bug),
+                # so a match beyond line_length is a false positive.
+                my $actual_len = $self->line_length($ln);
+                if ($pos < $actual_len) {
+                    if ($ENV{Z_DEBUG_SEARCH}) {
+                        warn "  [search_forward] MATCH at ($ln,$pos) offset=$offset substr='" . substr($substr, 0, 20) . "'\n";
+                    }
+                    return { line => $ln, col => $pos };
                 }
-                return { line => $ln, col => $pos };
             }
         }
         warn "  [search_forward] NOT FOUND after " . ($total + 1) . " iterations\n" if $ENV{Z_DEBUG_SEARCH};
@@ -584,7 +596,13 @@ sub search_backward {
             while ( $from >= 0 ) {
                 my $sub = substr( $text, 0, $from + 1 );
                 if ( $sub =~ /$re/ ) {
-                    return { line => $ln, col => $-[0] };
+                    my $pos = $-[0];
+                    # Validate: match position must be within the
+                    # actual line length (see search_forward).
+                    my $actual_len = $self->line_length($ln);
+                    if ($pos < $actual_len) {
+                        return { line => $ln, col => $pos };
+                    }
                 }
                 $from--;
             }

@@ -1,0 +1,71 @@
+my $CODE = <<'END_CODE';
+# Vim Bindings Documentation
+
+> Version 0.04 -- P5-Gtk3-SourceEditor
+
+---
+
+## Normal Mode (Navigation)
+
+### Motions
+move max moon menu map method
+END_CODE
+
+{
+    desc => 'Regex n navigates across empty lines',
+    description => <<'END_DESC',
+Action: /m. then n repeatedly — must skip empty lines correctly
+
+Regression test for GTK forward_to_line_end bug on empty lines.
+Bug: line_text() returned next-line content for empty lines,
+causing search_forward to find matches beyond the empty line's
+actual length. set_cursor clamped the out-of-bounds column to 0,
+creating an infinite loop where n kept "finding" the same match.
+
+_1.png (initial state):
+- Dark theme, Normal mode, cursor at line 1, col 0
+- Multiple empty lines between content
+
+Action: keystrokes "/m.\\nn" (search regex m., press n once)
+
+_2.png (first n):
+- First /m. highlights all matches on non-empty lines
+- First n moves from "mi" in "Vim" (line 1) to "me" in
+  "Documentation" (line 1, col 19)
+
+Action: keystrokes "n" (second n)
+
+_3.png (second n — crosses empty line):
+- Second n skips past "me", crosses the empty line (line 2),
+  and lands on "me" in "Version" (line 3, col 14)
+- This is the critical test: n must NOT get stuck on the
+  empty line between "Documentation" and "Version"
+
+Action: keystrokes "nnnnnn" (six more n presses to cycle through all matches)
+
+_4.png (all matches visited):
+- Cursor has cycled through all m. matches without getting stuck
+- Matches visited: Vim(mi), Documentation(me), Version(me),
+  SourceEditor(me), Normal(mo), Motions(mo), move(mo),
+  max(ma), moon(mo), menu(me), map(ma), method(me)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('/m.\n');
+        $ctx->delay(300);
+        $ctx->snapshot('2');
+        $ctx->delay(100);
+        $ctx->keys('n');
+        $ctx->delay(200);
+        $ctx->snapshot('3');
+        $ctx->delay(100);
+        $ctx->keys('nnnnnn');
+        $ctx->delay(300);
+        $ctx->snapshot('4');
+    },
+}
