@@ -1,0 +1,49 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+line five
+line six
+line seven
+line eight
+line nine
+line ten
+line eleven
+line twelve
+line thirteen
+line fourteen
+line fifteen
+line sixteen
+line seventeen
+line eighteen
+line nineteen
+line twenty
+END_CODE
+
+{
+    desc => q{Ctrl-b full page backward},
+    description => <<'END_DESC',
+Action: Ctrl-b scrolls viewport backward one full page
+
+_1.png (initial state):
+- Cursor at line 1
+
+Action: keystrokes "GControl-b" (go to bottom, then page backward)
+
+_2.png (after action):
+- Viewport scrolled up one full page from bottom
+- Cursor near top of viewport
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('GControl-b');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

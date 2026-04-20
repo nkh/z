@@ -1,0 +1,49 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+line five
+line six
+line seven
+line eight
+line nine
+line ten
+line eleven
+line twelve
+line thirteen
+line fourteen
+line fifteen
+line sixteen
+line seventeen
+line eighteen
+line nineteen
+line twenty
+END_CODE
+
+{
+    desc => q{Ctrl-u half-page up},
+    description => <<'END_DESC',
+Action: Ctrl-u scrolls viewport up by half a page
+
+_1.png (initial state):
+- Cursor at line 1
+
+Action: keystrokes "GControl-u" (go to bottom, then half-page up)
+
+_2.png (after action):
+- Viewport scrolled up from bottom (approximately half a page)
+- Cursor moved up
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('GControl-u');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}
