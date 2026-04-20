@@ -1,0 +1,30 @@
+my $CODE = <<'END_CODE';
+obj = { key: value }
+line two
+END_CODE
+
+{
+    desc => q{Bracket match % curly braces},
+    description => <<'END_DESC',
+Action: % jumps to matching curly brace
+
+_1.png (initial state):
+- Cursor at line 1, col 6 (on '{')
+
+Action: keystrokes "6l%" (move to '{', match)
+
+_2.png (after action):
+- Cursor on matching '}' at end of line
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('6l%');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

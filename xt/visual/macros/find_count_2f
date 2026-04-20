@@ -1,0 +1,30 @@
+my $CODE = <<'END_CODE';
+abracadabra
+line two
+END_CODE
+
+{
+    desc => q{Count find 2f},
+    description => <<'END_DESC',
+Action: 2f finds 2nd occurrence of character
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "2fa" (find 2nd 'a')
+
+_2.png (after action):
+- Cursor on 2nd 'a' in "abracadabra" (col 3)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('2fa');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+short
+a much longer line here
+tiny
+another very long line to test
+END_CODE
+
+{
+    desc => q{Virtual column preserved across j/k},
+    description => <<'END_DESC',
+Action: Move to long line end, j/k preserves virtual column
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "j$jj" (to long line, end, down twice)
+
+_2.png (after action):
+- After $, cursor at col 26 on line 2
+- j to line 3 ("tiny"): cursor clamped to col 4
+- j to line 4: cursor at col 26 again (virtual col restored)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('j$jj');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}
