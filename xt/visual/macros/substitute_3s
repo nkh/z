@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+END_CODE
+
+{
+    desc => q{Substitute 3 chars 3s},
+    description => <<'END_DESC',
+Action: 3s deletes 3 chars and enters insert mode
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "3sXXEscape" (substitute 3 chars)
+
+_2.png (after action):
+- First 3 chars "lin" replaced with "XX"
+- Line 1 now: "XXe one"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('3sXX\\e');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

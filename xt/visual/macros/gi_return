@@ -1,0 +1,38 @@
+my $CODE = <<'END_CODE';
+hello world
+line two
+END_CODE
+
+{
+    desc => q{gi return to last insert point},
+    description => <<'END_DESC',
+Action: Insert text at position, move away, gi returns
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "iXEscapejjgiYEscape" (insert X, move, gi returns)
+
+_2.png (after action):
+- X inserted at line 1, cursor moved to line 3
+- gi returned to insert mode at line 1 where X was typed
+- Y inserted after X
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->key('i');
+        $ctx->type('X');
+        $ctx->key('Escape');
+        $ctx->keys('jj');
+        $ctx->keys('gi');
+        $ctx->type('Y');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

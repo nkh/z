@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+hello
+world
+this is a test
+END_CODE
+
+{
+    desc => q{Join 3 lines 2J},
+    description => <<'END_DESC',
+Action: 2J joins 3 lines into one
+
+_1.png (initial state):
+- Cursor at line 1
+
+Action: keystrokes "2J" (join 2 times = 3 lines become 1)
+
+_2.png (after action):
+- All 3 lines joined: "hello world this is a test"
+- Buffer now has 1 line
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('2J');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

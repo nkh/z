@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{Substitute char s},
+    description => <<'END_DESC',
+Action: s deletes char and enters insert mode
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "sXEscape" (substitute first char with X)
+
+_2.png (after action):
+- First char replaced: "Xine one"
+- Cursor at line 1, col 1
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('sX\\e');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

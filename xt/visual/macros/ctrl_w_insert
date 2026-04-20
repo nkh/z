@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+hello world this is a test
+line two
+END_CODE
+
+{
+    desc => q{Ctrl-w in insert mode},
+    description => <<'END_DESC',
+Action: Ctrl-w deletes word backward in insert mode
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "iworld Control-wEscape" (type, ctrl-w back, exit)
+
+_2.png (after action):
+- "world" typed then deleted by Ctrl-w
+- Line 1 unchanged (or only partial text remains)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->key('i');
+        $ctx->type('hello ');
+        $ctx->key('Control-w');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

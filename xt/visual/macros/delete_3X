@@ -1,0 +1,30 @@
+my $CODE = <<'END_CODE';
+hello world this is a test
+line two
+END_CODE
+
+{
+    desc => q{Delete 3 before cursor 3X},
+    description => <<'END_DESC',
+Action: 3X deletes 3 characters before cursor
+
+_1.png (initial state):
+- Cursor at line 1, col 8 (after "hello wo")
+
+Action: keystrokes "8l3X" (delete 3 chars before cursor)
+
+_2.png (after action):
+- 3 chars deleted before cursor: "hell this is a test"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('8l3X');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

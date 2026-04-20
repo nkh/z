@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{2p paste 2 copies},
+    description => <<'END_DESC',
+Action: yy then 2p pastes 2 copies below
+
+_1.png (initial state):
+- Cursor at line 1
+
+Action: keystrokes "yy2p" (yank, paste 2 copies)
+
+_2.png (after action):
+- Line 1 duplicated twice below (3 total copies)
+- Buffer now has 5 lines
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('yy2p');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}
