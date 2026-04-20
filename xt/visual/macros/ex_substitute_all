@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+hello world hello again
+foo bar baz hello
+END_CODE
+
+{
+    desc => ':%s/pat/repl/g substitutes all occurrences in entire file',
+    description => <<'END_DESC',
+Action: :%s/pat/repl/g replaces all matches in all lines
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: ex command ":%s/hello/HI/g"
+
+_2.png (after action):
+- ALL "hello" occurrences in the file replaced with "HI"
+- Line 1: "HI world HI again"
+- Line 2: "foo bar baz HI"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('%s/hello/HI/g');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

@@ -1,0 +1,33 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => ':set nocul abbreviation disables cursorline',
+    description => <<'END_DESC',
+Action: :set nocul is an abbreviation for :set nocursorline
+
+_1.png (initial state):
+- Cursorline enabled (set via :set cursorline first)
+
+Action: ex commands ":set cursorline" then ":set nocul"
+
+_2.png (after action):
+- Cursorline highlight removed
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->ex('set cursorline');
+        $ctx->delay(200);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set nocul');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

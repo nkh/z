@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+my $x = 1;
+my $y = 2;
+my $z = 3;
+END_CODE
+
+{
+    desc => ':set ft=perl abbreviation sets filetype for syntax highlighting',
+    description => <<'END_DESC',
+Action: :set ft= is an abbreviation for :set filetype=
+
+_1.png (initial state):
+- No syntax highlighting
+
+Action: ex command ":set ft=perl"
+
+_2.png (after action):
+- Perl syntax highlighting applied (keywords colored)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set ft=perl');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

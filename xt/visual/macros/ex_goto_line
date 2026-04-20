@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+line five
+END_CODE
+
+{
+    desc => ':N jumps to line number N',
+    description => <<'END_DESC',
+Action: :3 jumps to line 3
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: ex command ":3" (goto line 3)
+
+_2.png (after action):
+- Cursor moved to line 3, col 0
+- "line three" is current line
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('3');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

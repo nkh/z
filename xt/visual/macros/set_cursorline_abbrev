@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => ':set cul abbreviation enables cursorline',
+    description => <<'END_DESC',
+Action: :set cul is an abbreviation for :set cursorline
+
+_1.png (initial state):
+- No cursorline highlight
+
+Action: ex command ":set cul"
+
+_2.png (after action):
+- Current line highlighted with cursorline color
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set cul');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

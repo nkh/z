@@ -1,0 +1,33 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => ':set nonu abbreviation hides line numbers',
+    description => <<'END_DESC',
+Action: :set nonu is an abbreviation for :set nonumber
+
+_1.png (initial state):
+- Line numbers displayed (set via :set number first)
+
+Action: ex commands ":set number" then ":set nonu"
+
+_2.png (after action):
+- Line numbers hidden
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->ex('set number');
+        $ctx->delay(200);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set nonu');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

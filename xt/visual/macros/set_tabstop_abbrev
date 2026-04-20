@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+my $x = 1;
+my $y = 2;
+my $z = 3;
+END_CODE
+
+{
+    desc => ':set ts=N abbreviation sets tabstop width',
+    description => <<'END_DESC',
+Action: :set ts=N is an abbreviation for :set tabstop=N
+
+_1.png (initial state):
+- Default tabstop width
+
+Action: ex command ":set ts=8"
+
+_2.png (after action):
+- Tabstop set to 8 characters
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->editor->set_language('perl');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set ts=8');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => ':set nu abbreviation shows line numbers',
+    description => <<'END_DESC',
+Action: :set nu is an abbreviation for :set number
+
+_1.png (initial state):
+- No line numbers visible
+
+Action: ex command ":set nu"
+
+_2.png (after action):
+- Line numbers displayed in left margin
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->ex('set nu');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}
