@@ -1,0 +1,37 @@
+my $CODE = <<'END_CODE';
+func({key => "value"});
+my %h = (a => 1, b => 2);
+END_CODE
+
+{
+    desc => 'ci{ changes text inside curly braces',
+    description => <<'END_DESC',
+Action: ci{ deletes text inside braces and enters insert mode
+
+_1.png (initial state):
+- Cursor at line 1, col 7 (inside braces)
+
+Action: keystrokes "ci{x => 1\\e" (change inner braces)
+
+_2.png (after action):
+- Text between { and } changed to "x => 1"
+- Line 1: 'func({x => 1});'
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->editor->set_language('perl');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('lllllll');
+        $ctx->delay(50);
+        $ctx->keys('ci{');
+        $ctx->delay(50);
+        $ctx->type('x => 1');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

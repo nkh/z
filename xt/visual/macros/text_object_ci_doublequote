@@ -1,0 +1,38 @@
+my $CODE = <<'END_CODE';
+my $x = "hello";
+my $y = 'world';
+my $z = ($x + $y);
+END_CODE
+
+{
+    desc => 'ci" changes text inside double quotes',
+    description => <<'END_DESC',
+Action: ci" deletes text inside double quotes and enters insert mode
+
+_1.png (initial state):
+- Cursor at line 1, col 10 (on 'h' inside quotes)
+
+Action: keystrokes 'ci"replaced\\e' (change inner double quotes)
+
+_2.png (after action):
+- Text between quotes changed to "replaced"
+- Line 1: 'my $x = "replaced";'
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->editor->set_language('perl');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('llllllllll');
+        $ctx->delay(50);
+        $ctx->keys('ci"');
+        $ctx->delay(50);
+        $ctx->type('replaced');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

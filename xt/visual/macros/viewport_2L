@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+one
+two
+three
+END_CODE
+
+{
+    desc => '2L jumps to 2 lines above viewport bottom',
+    description => <<'END_DESC',
+Action: 2L jumps to 2 lines above the bottom of the viewport
+
+_1.png (initial state):
+- Cursor at line 3, col 0
+
+Action: keystrokes "gg2L" (go to top, then 2L)
+
+_2.png (after action):
+- Cursor positioned 2 lines above viewport bottom
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('gg2L');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}
