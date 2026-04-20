@@ -248,7 +248,7 @@ sub add_vim_bindings {
             my $buf = $vb->gtk_buffer;
             if (Gtk3::SourceView::SearchSettings->can('new')) {
                 $ctx->{search_settings} = Gtk3::SourceView::SearchSettings->new();
-                $ctx->{search_settings}->set_case_sensitive(FALSE);
+                $ctx->{search_settings}->set_case_sensitive(TRUE);
                 $ctx->{search_settings}->set_wrap_around(TRUE);
                 $ctx->{search_settings}->set_regex_enabled(FALSE);
                 $ctx->{search_settings}->set_search_text(undef);

@@ -1,0 +1,36 @@
+my $CODE = <<'END_CODE';
+move max moon
+END_CODE
+
+{
+    desc => 'Regex n navigates to all match types',
+    description => <<'END_DESC',
+Action: /m. then n navigates to mo, ma, mo matches in order
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "/m.\\nn" (search regex m., press n twice)
+
+_2.png (after action):
+- First /m. highlights all matches: "mo" in move, "ma" in max, "mo" in moon
+- First n goes to next match after "move": "ma" in "max"
+- Second n goes to next match after "max": "mo" in "moon"
+- Cursor at "moon" on line 1
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('/m.\n');
+        $ctx->delay(300);
+        $ctx->keys('n');
+        $ctx->delay(200);
+        $ctx->keys('n');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}
