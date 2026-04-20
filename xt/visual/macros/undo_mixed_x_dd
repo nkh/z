@@ -1,0 +1,33 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+END_CODE
+
+{
+    desc => q{Undo mixed x and dd},
+    description => <<'END_DESC',
+Action: Mix of x and dd, undo restores all
+
+_1.png (initial state):
+- Cursor at line 1
+
+Action: keystrokes "xjdduu" (x on line 1, dd on line 2, undo twice)
+
+_2.png (after action):
+- Both operations undone
+- Buffer restored to original state
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('xjdduu');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

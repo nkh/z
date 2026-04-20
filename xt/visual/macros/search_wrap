@@ -1,0 +1,30 @@
+my $CODE = <<'END_CODE';
+hello world
+goodbye world
+END_CODE
+
+{
+    desc => q{Search wrap around buffer},
+    description => <<'END_DESC',
+Action: n wraps around to find next match
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "/worldReturnn" (search, then next match)
+
+_2.png (after action):
+- First match on line 1, n wraps to line 2 "world"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('/world\\nn');
+        $ctx->delay(300);
+        $ctx->snapshot('2');
+    },
+}

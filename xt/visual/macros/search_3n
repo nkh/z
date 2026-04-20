@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+hello world
+hello again
+goodbye world
+END_CODE
+
+{
+    desc => q{Search 3n repeat 3 times},
+    description => <<'END_DESC',
+Action: 3n repeats search 3 times
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "/helloReturn3n" (search, repeat 3x)
+
+_2.png (after action):
+- First match line 1 "hello", 3n wraps around to find matches
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('/hello\\n3n');
+        $ctx->delay(300);
+        $ctx->snapshot('2');
+    },
+}
