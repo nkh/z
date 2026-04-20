@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+  hello world
+line two
+END_CODE
+
+{
+    desc => 's at EOL does nothing (no char to substitute)',
+    description => <<'END_DESC',
+Action: s at end of line is a no-op
+
+_1.png (initial state):
+- Cursor at line 1, col 12 (at end of "  hello world")
+
+Action: keystrokes "$s" (go to EOL, substitute)
+
+_2.png (after action):
+- Buffer unchanged (s at EOL is no-op)
+- Still in normal mode
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('$s');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

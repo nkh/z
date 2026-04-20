@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => 'Visual join 3 lines merges multiple lines',
+    description => <<'END_DESC',
+Action: V select 3 lines, J joins them all
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "VjjJ" (line-select 3 lines, join)
+
+_2.png (after action):
+- All 3 lines joined into one
+- Line: "line one line two line three"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('VjjJ');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

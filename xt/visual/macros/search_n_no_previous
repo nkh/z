@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+hello world
+line two
+END_CODE
+
+{
+    desc => 'n with no previous search shows error',
+    description => <<'END_DESC',
+Action: n pressed when no search has been performed
+
+_1.png (initial state):
+- Normal mode, no prior search
+
+Action: keystroke "n" (repeat search with no history)
+
+_2.png (after action):
+- Mode label shows error: "Error: No previous search pattern"
+- Buffer unchanged
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('n');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

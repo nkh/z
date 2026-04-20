@@ -1,0 +1,30 @@
+my $CODE = <<'END_CODE';
+hello world
+line two
+END_CODE
+
+{
+    desc => 'Ctrl-G on unnamed buffer shows [No Name]',
+    description => <<'END_DESC',
+Action: Ctrl-G displays file info for unnamed buffer
+
+_1.png (initial state):
+- Normal mode, no filename set
+
+Action: keystroke "Control-g" (show file info)
+
+_2.png (after action):
+- Mode label shows file info with [No Name]
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Control-g');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}
