@@ -1,0 +1,39 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+line five
+line six
+line seven
+line eight
+line nine
+line ten
+END_CODE
+
+{
+    desc => q{Count prefix 3j motion},
+    description => <<'END_DESC',
+Action: 3j moves cursor down 3 lines
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "3j" (count + down)
+
+_2.png (after action):
+- Cursor at line 4, col 0 (moved 3 lines down)
+- No text content change
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('3j');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+one two three four five
+six seven eight nine ten
+END_CODE
+
+{
+    desc => q{Word motion w/b/e},
+    description => <<'END_DESC',
+Action: w/b/e word motion commands
+
+_1.png (initial state):
+- Two lines of words
+- Cursor at line 1, col 0
+
+Action: keystrokes "w" (move to next word)
+
+_2.png (after action):
+- Cursor at line 1, col 4 (start of 'two')
+- No text content change
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('w');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

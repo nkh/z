@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+    indented line one
+    indented line two
+short line
+END_CODE
+
+{
+    desc => q{First non-blank ^ motion},
+    description => <<'END_DESC',
+Action: ^ moves to first non-blank character
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "^" (first non-blank)
+
+_2.png (after action):
+- Cursor at line 1, col 4 (first non-space character 'i')
+- No text change
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('^');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

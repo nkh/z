@@ -1,0 +1,32 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{Count delete 5x},
+    description => <<'END_DESC',
+Action: 5x deletes 5 characters
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "5x" (count + delete char)
+
+_2.png (after action):
+- First 5 chars removed from line 1: "one" remains (was "line one")
+- Cursor at line 1, col 0
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('5x');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

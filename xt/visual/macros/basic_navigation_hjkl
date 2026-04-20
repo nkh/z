@@ -1,0 +1,41 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+line five
+line six
+line seven
+line eight
+line nine
+line ten
+END_CODE
+
+{
+    desc => q{Basic navigation h/j/k/l},
+    description => <<'END_DESC',
+Action: h/j/k/l cursor movement
+
+_1.png (initial state):
+- Dark theme with 10 lines of text
+- Cursor at line 1, col 0
+
+Action: keystrokes "jj" (move cursor down 2 lines)
+
+_2.png (after action):
+- Cursor at line 3, col 0 (block cursor on 'l' of 'line three')
+- No text content change
+- Position label shows line 3
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('jj');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

@@ -1,0 +1,39 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+line four
+line five
+line six
+line seven
+line eight
+line nine
+line ten
+END_CODE
+
+{
+    desc => q{Go to top gg},
+    description => <<'END_DESC',
+Action: G goes to bottom, gg returns to top
+
+_1.png (initial state):
+- Cursor at line 1, col 0
+
+Action: keystrokes "Ggg" (bottom then top)
+
+_2.png (after action):
+- Cursor back at line 1, col 0
+- Viewport at top of buffer
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('Ggg');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}

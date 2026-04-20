@@ -1,0 +1,33 @@
+my $CODE = <<'END_CODE';
+    indented line
+    second line
+END_CODE
+
+{
+    desc => q{Insert at first non-blank I},
+    description => <<'END_DESC',
+Action: I enters insert mode at first non-blank character
+
+_1.png (initial state):
+- Normal mode, cursor at line 1, col 0
+
+Action: keystrokes "Ihello Escape" (insert at first non-blank)
+
+_2.png (after action):
+- Line 1 now starts with "    helloindented line" (inserted at col 4)
+- Cursor after "hello"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->key('I');
+        $ctx->type('hello');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

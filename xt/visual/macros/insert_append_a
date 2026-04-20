@@ -1,0 +1,34 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{Append after cursor a},
+    description => <<'END_DESC',
+Action: a appends text after cursor
+
+_1.png (initial state):
+- Normal mode, cursor at line 1, col 0
+
+Action: keystrokes "aXXEscape" (append XX then exit)
+
+_2.png (after action):
+- Line 1 starts with "lXXine one" (XX inserted after 'l')
+- Cursor between 'X' and 'i'
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->key('a');
+        $ctx->type('XX');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}

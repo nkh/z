@@ -1,0 +1,35 @@
+my $CODE = <<'END_CODE';
+line one
+line two
+line three
+END_CODE
+
+{
+    desc => q{Count open 2o},
+    description => <<'END_DESC',
+Action: 2o opens 2 new lines below
+
+_1.png (initial state):
+- 3 lines, cursor at line 1
+
+Action: keystrokes "2onewEscape" (open 2 lines, type, exit)
+
+_2.png (after action):
+- 2 new lines inserted, each with "new"
+- Buffer now has 5 lines
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('2o');
+        $ctx->delay(50);
+        $ctx->type('new');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}
