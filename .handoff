@@ -1,6 +1,6 @@
 # Project Handoff — P5-Gtk3-SourceEditor
 # Maintained by AI sessions. Read this FIRST at the start of every session.
-# Last updated: 2026-04-19
+# Last updated: 2026-04-21
 
 ## Repository Structure
 - `/home/z/my-project/z` — parent repo (submodule pointer) with remote at github.com/nkh/z
@@ -56,38 +56,15 @@ None. All 22 test files pass.
 
 ## Pending Tasks
 
-None. All requested work is complete.
+- Investigate 318ms startup delay: LanguageManager->get_default() suspected (scans all system .lang files). Granular timing added, awaiting user confirmation.
+- Implement custom LanguageManager with shipped `langs/` directory (user approved solution 1)
+- Visual test fixes: search_regex_empty_lines (2/4 screenshots, no match highlighting) and visual_char_selection (selection not shown)
 
 ## Completed Work (across sessions)
 
-1-21. (Previous work preserved — see previous .handoff for details)
-22. Search highlighting: Gtk3::SourceView::SearchContext + SearchSettings for match highlighting
-23. ThemeManager temp file fix: dedicated tempdir instead of random file in /tmp, force_rescan()
-24. Explicit search-match style retrieval: get_style('search-match') from buffer's scheme
-25. Plugin loader warn fix: hardcoded 'gal' replaced with actual action name, warnings suppressed in tests
-26. Block cursor default: changed to 1 (was 0 in script/source-editor), CLI option now toggle (--[no-]cursor-block)
-27. `:set filetype=<lang>` ex command: sets syntax highlighting language via GtkSourceLanguageManager
-28. `:set tabstop=<N>` ex command: sets tab width (1-32), also accepts `tab_width` as alias
-29. `:set theme=<name>` ex command: changes theme at runtime (dark, light, solarized, default, or full path)
-30. `F11` fullscreen toggle: toggles parent window between fullscreen and normal mode
-31. SourceEditor.pm runtime methods: set_language(), set_tab_width(), set_theme(), toggle_fullscreen()
-32. Bare `:set filetype`, `:set tabstop`, `:set theme` (no value) shows current value
-33. All theme XML files now include `search-match` and `cursor` style definitions
-34. GUI test automation suggestions documented (Xvfb+Dogtail, GTK::TestFixture, screenshot comparison)
-35. Documentation updated: doc/feature-reference.md sections 7, 4, 17-21
-36. `''` (double apostrophe) binding: jump to first non-blank of line of last mark jump (vim-style toggle)
-37. `` `` `` (double backtick) binding: jump to exact position of last mark jump (vim-style toggle)
-38. `_last_jump_pos` tracking: saved before every mark jump in jump_mark/jump_mark_line actions
-39. Char-action dispatch fix: multi-char GDK key names (apostrophe, grave, semicolon, etc.) now properly dispatched in pending char_action completion (was blocked by `length($char) == 1` check; replaced with explicit cancel-keys set)
-40. `Ctrl+G` binding: shows filename, modified status, line/col position, and percentage in status line
-41. `:set number` / `:set nonumber` ex commands: toggle line numbers (aliases: `:set nu` / `:set nonu`)
-42. `:set number=N` ex command: set line numbers with boolean value (1/0/true/false/on/off)
-43. `:set cursorline` / `:set nocursorline` ex commands: toggle current line highlight (aliases: `:set cul` / `:set nocul`)
-44. `:set cursorline=N` ex command: set current line highlighting with boolean value
-45. SourceEditor.pm new methods: toggle_line_numbers($show), toggle_highlight_current_line($show)
-46. VimBindings.pm new callbacks: toggle_line_numbers, toggle_highlight_current_line passed from SourceEditor
-47. Updated doc/bindings.md: added Ctrl-G, Ctrl-L, marks (``/'' toggle), :set number/nu/nonumber/nonu, :set cursorline/cul/nocursorline/nocul, :set filetype, :set tabstop, :set theme, F11 fullscreen
-48. New test file: t/vim_new_features.t (22 tests covering Ctrl-G, ''/`` toggle, :set number variants, :set cursorline variants, ex-command parser)
+1-48. (Previous work preserved — see git log for details)
+49. Removed Z_DEBUG_SEARCH debug instrumentation from Gtk3.pm and Search.pm (no longer needed)
+50. Added granular debug timing in _build_ui to isolate 318ms startup gap (LanguageManager suspected)
 
 ## Key Architectural Notes
 
