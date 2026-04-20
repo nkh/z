@@ -168,7 +168,9 @@ sub _build_ui {
     $self->{widget} = Gtk3::Box->new('vertical', 0);
 
     # Text Buffer & View
+    $_dbg->("LanguageManager->get_default()");
     my $lm = Gtk3::SourceView::LanguageManager->get_default();
+    $_dbg->("get_language / guess_language");
     my $lang;
     if ($self->{force_language}) {
         # Explicitly set language -- useful for files without extensions
@@ -187,6 +189,7 @@ sub _build_ui {
         $lang = $lm->guess_language($self->{filename}, undef)
              || $lm->get_language('perl');
     }
+    $_dbg->("Buffer->new_with_language");
     $self->{buffer} = Gtk3::SourceView::Buffer->new_with_language($lang);
     $_call->($self->{buffer}, 'set_highlight_syntax', TRUE);
 
