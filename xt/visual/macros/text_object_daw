@@ -1,0 +1,31 @@
+my $CODE = <<'END_CODE';
+hello world  this is a test
+line two
+END_CODE
+
+{
+    desc => q{daw deletes a word with surrounding whitespace},
+    description => <<'END_DESC',
+Action: daw deletes the word under cursor plus trailing whitespace
+
+_1.png (initial state):
+- Cursor at line 1, col 0 (on 'h' of 'hello')
+
+Action: keystrokes "daw" (delete a word)
+
+_2.png (after action):
+- "hello " deleted (word + trailing space), line 1 now starts with "world  this is a test"
+- Cursor at line 1, col 0
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_theme('dark');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('1');
+        $ctx->delay(100);
+        $ctx->keys('daw');
+        $ctx->delay(100);
+        $ctx->snapshot('2');
+    },
+}
