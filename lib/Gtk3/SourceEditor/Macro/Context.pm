@@ -35,7 +35,20 @@ sub new {
 sub editor   { $_[0]->{editor} }
 sub window   { $_[0]->{window} }
 sub textview { $_[0]->{editor}->get_textview }
-sub buffer   { $_[0]->{editor}->get_buffer }
+sub buffer   {
+    my ($self) = @_;
+    # Return the VimBuffer adapter, not the raw Gtk3::SourceView::Buffer.
+    # The VimBuffer wraps set_text() with place_cursor(start_iter) so that
+    # the cursor is properly reset to line 0, col 0 after loading text.
+    # Calling set_text() on the raw buffer leaves the "insert" mark at the
+    # end of the buffer (right-gravity mark moves past inserted text),
+    # which breaks visual-mode selections and other cursor-dependent macros.
+    my $vim_ctx = $self->{editor}->get_vim_ctx;
+    return $vim_ctx->{vb} if $vim_ctx && $vim_ctx->{vb};
+    # Fallback to raw buffer if vim context is not yet available
+    # (e.g. vim_mode is disabled).
+    return $self->{editor}->get_buffer;
+}
 
 # ==========================================================================
 # Keystroke injection
