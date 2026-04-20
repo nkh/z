@@ -24,6 +24,8 @@ Implements search actions for forward and backward searching, search repeat (`n`
 
 Repeats the last search in the same direction. If no previous search pattern exists, displays an error. Supports a numeric count to skip forward multiple matches. Highlights all matches in the buffer and jumps to each match sequentially.
 
+For regex patterns (e.g., `m.`, `\d+`), `n` correctly navigates to all regex matches in text order. The skip logic detects when the cursor is on a match and starts searching after the end of that match, so it does not re-find the same partial match.
+
 ```perl
 # Press n in normal mode -> calls search_next
 $ACTIONS->{search_next}->($ctx, 1);  # next match
@@ -87,3 +89,21 @@ While the user types a `/pattern` or `?pattern`, the command entry's `changed` s
 ## Fallback Behavior
 
 On GtkSourceView installations older than 3.10, the `SearchSettings` and `SearchContext` classes may not exist. The initialization code in `VimBindings.pm` guards all creation with `can()` checks and sets the context keys to `undef` if the classes are unavailable. The search actions check for `undef` before calling highlight methods, so search continues to work via the buffer's native `forward_search`/`backward_search` methods (with a Perl-based literal fallback in `VimBuffer::Gtk3`).
+
+## Regex and Case Sensitivity
+
+Search patterns are interpreted as **Perl regular expressions** using `qr//`. This means all standard Perl regex metacharacters are supported:
+
+- `.` — any character, `\d` — digit, `\w` — word char, `\s` — whitespace
+- `*`, `+`, `?`, `{n,m}` — quantifiers
+- `[abc]`, `[^abc]` — character classes
+- `\|` — alternation (OR), `\(` `\)` — capture groups
+- `^`, `$` — line anchors
+
+**Case sensitivity** is controlled by the `SearchSettings` object, initialized to **case-sensitive** (`TRUE`). Both the `n`/`N` cursor navigation (via Perl `qr//` regex) and the match highlighting (via GLib GRegex) use the same case sensitivity setting, ensuring they always agree on which text matches.
+
+> **Note**: The `\c` and `\C` inline flags (case-insensitive/force-case-sensitive) are supported by GRegex but not by the cursor navigation regex. For consistent behavior, prefer literal-case patterns or set `set_case_sensitive(FALSE)` on the search settings if case-insensitive search is desired.
+
+**Regex engine reference**:
+- Cursor navigation uses Perl's `qr//` — see [perlre](https://perldoc.perl.org/perlre.html)
+- Highlighting uses GLib's GRegex (PCRE-derived) — see [GRegex documentation](https://docs.gtk.org/Pango/stable/pango-Text-Processing.html)

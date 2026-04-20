@@ -159,6 +159,14 @@
 | `?`     | Enter search mode (backward).                                  |
 | `n`     | Repeat last search in the same direction.                      |
 | `N`     | Repeat last search in the opposite direction.                  |
+| `*`     | Search forward for the word under the cursor.                   |
+| `#`     | Search backward for the word under the cursor.                  |
+
+> **Search uses Perl-compatible regular expressions.** Typing `/m.` searches for `m` followed by any character. Typing `/\w+` matches whole words. All metacharacters are active during incremental typing — matches are highlighted in real time as you type, and pressing `n` navigates to each match.
+>
+> **Case sensitivity**: Search is case-sensitive by default (like vim with `set noignorecase`). `/foo` matches "foo" but not "Foo" or "FOO". Both the `n`/`N` navigation and the highlight overlay agree on match results.
+>
+> **Common patterns**: `/\d+` (digits), `/\w+` (words), `/func_\w+` (function names), `/TODO\|FIXME\|HACK` (multiple alternatives), `/if\s*\(.*\)` (if statements). The full Perl regex syntax is supported — see [perlre](https://perldoc.perl.org/perlre.html) for reference. The highlight overlay uses GLib's GRegex (PCRE-derived) for compatible syntax.
 
 ## Marks
 

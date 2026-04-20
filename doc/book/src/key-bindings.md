@@ -151,6 +151,36 @@ These keys initiate an operator that acts over a subsequent motion or text objec
 | `/` | Enter search mode (forward search) |
 | `?` | Enter search mode (backward search) |
 
+> **Search patterns use Perl-compatible regular expressions.** Typing `/m.\n` searches for the letter `m` followed by any character (e.g., "mo", "ma", "mx"). All metacharacters work during incremental typing — matches are highlighted in real time as you type.
+>
+> **Case sensitivity**: Search is case-sensitive by default (matching vim's `noignorecase` setting). `/foo` matches "foo" but not "Foo" or "FOO". This applies to both the `n`/`N` navigation and the match highlighting — they use the same Perl regex engine.
+>
+> **Supported regex features** (Perl `qr//` syntax):
+>
+> | Pattern | Meaning |
+> |---------|---------|
+> | `.` | Any single character (except newline) |
+> | `\d` | Any digit (`[0-9]`) |
+> | `\w` | Word character (`[a-zA-Z0-9_]`) |
+> | `\s` | Whitespace character |
+> | `^` / `$` | Start / end of line |
+> | `[abc]` | Character class: matches `a`, `b`, or `c` |
+> | `[^abc]` | Negated class: matches any char except `a`, `b`, `c` |
+> | `*` / `+` / `?` | Quantifiers: zero-or-more, one-or-more, zero-or-one |
+> | `{n,m}` | Repetition: between n and m times |
+> | `\(` / `\)` | Capture group (useful with `\|` alternation) |
+> | `\|` | Alternation: `foo\|bar` matches "foo" or "bar" |
+> | `\\` | Literal backslash |
+>
+> **Examples**:
+> - `/err\n` — find literal "err" (no metacharacters, works like plain text search)
+> - `/func_\w+\n` — find "func_" followed by a word (e.g., "func_name", "func_init")
+> - `/if\s*\(.*\)\n` — find `if (` with any arguments on the same line
+> - `/TODO\|FIXME\|HACK\n` — find any of the three markers
+> - `/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\n` — find IPv4-like addresses
+>
+> **Regex engine reference**: The search uses Perl's built-in `qr//` regex engine. For the full syntax reference, see [perlre — Perl regular expressions](https://perldoc.perl.org/perlre.html) and [perlretut — Perl regex tutorial](https://perldoc.perl.org/perlretut.html). The highlight overlay uses GLib's GRegex engine, which supports a compatible (PCRE-derived) syntax.
+
 ### Entering Other Modes
 
 | Key | Description |
