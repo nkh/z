@@ -1,14 +1,72 @@
 my $CODE = <<'END_CODE';
-# Vim Bindings Documentation
+# This is a standard test file used for visual regression testing.
+# It provides enough lines to test scrolling, navigation, and display.
+# The content is intentionally simple to avoid distracting from the
+# visual elements being tested (cursor position, selections, themes).
 
-> Version 0.04 -- P5-Gtk3-SourceEditor
+package Sample::Module;
+use strict;
+use warnings;
 
----
+our $VERSION = '1.00';
 
-## Normal Mode (Navigation)
+sub new {
+    my ($class, %opts) = @_;
+    my $self = bless { %opts }, $class;
+    return $self;
+}
 
-### Motions
-move max moon menu map method
+sub process {
+    my ($self, $data) = @_;
+    return undef unless defined $data;
+    my @results;
+    for my $item (@$data) {
+        push @results, $self->_transform($item);
+    }
+    return \@results;
+}
+
+sub _transform {
+    my ($self, $item) = @_;
+    return uc($item) if defined $item;
+    return '';
+}
+
+sub validate {
+    my ($self, $input) = @_;
+    die "Invalid input" unless $input && length($input) > 0;
+    return 1;
+}
+
+sub format_output {
+    my ($self, $data) = @_;
+    my @lines;
+    for my $entry (@$data) {
+        push @lines, sprintf("  - %s", $entry // 'undef');
+    }
+    return join("\n", @lines);
+}
+
+1;
+
+__END__
+
+=head1 NAME
+
+Sample::Module - A sample module for testing
+
+=head1 SYNOPSIS
+
+    use Sample::Module;
+    my $obj = Sample::Module->new(key => 'value');
+    my $result = $obj->process(\@data);
+
+=head1 DESCRIPTION
+
+This module exists solely to provide realistic-looking Perl code
+for visual regression tests. It is not intended for production use.
+
+=cut
 END_CODE
 
 {
@@ -23,10 +81,10 @@ actual length. set_cursor clamped the out-of-bounds column to 0,
 creating an infinite loop where n kept "finding" the same match.
 
 _1.png (initial state):
-- Dark theme, Normal mode, cursor at line 0, col 0
+- Default theme, Normal mode, cursor at line 1
 - Multiple empty lines between content
 
-Action: keystrokes "/m.\\n" (search regex m., press Enter)
+Sub-commands: keys('/m.\n'), keys('n'), keys('n'), keys('nnn')
 
 _2.png (search + first n):
 - Search highlights visible on all m. matches (mi, me, me, me, mo, mo, mo, ma, mo, me, ma, me)
@@ -46,9 +104,7 @@ _4.png (after three more n):
 - Cursor advances through Normal(mo), Motions(mo), move(mo)
 END_DESC
     run => sub {
-        my ($ctx) = @_;
-        $ctx->editor->set_theme('dark');
-        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
         $ctx->delay(200);
         $ctx->snapshot('1');
         $ctx->delay(200);

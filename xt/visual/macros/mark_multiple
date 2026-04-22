@@ -1,8 +1,72 @@
 my $CODE = <<'END_CODE';
-line one
-line two
-line three
-line four
+# This is a standard test file used for visual regression testing.
+# It provides enough lines to test scrolling, navigation, and display.
+# The content is intentionally simple to avoid distracting from the
+# visual elements being tested (cursor position, selections, themes).
+
+package Sample::Module;
+use strict;
+use warnings;
+
+our $VERSION = '1.00';
+
+sub new {
+    my ($class, %opts) = @_;
+    my $self = bless { %opts }, $class;
+    return $self;
+}
+
+sub process {
+    my ($self, $data) = @_;
+    return undef unless defined $data;
+    my @results;
+    for my $item (@$data) {
+        push @results, $self->_transform($item);
+    }
+    return \@results;
+}
+
+sub _transform {
+    my ($self, $item) = @_;
+    return uc($item) if defined $item;
+    return '';
+}
+
+sub validate {
+    my ($self, $input) = @_;
+    die "Invalid input" unless $input && length($input) > 0;
+    return 1;
+}
+
+sub format_output {
+    my ($self, $data) = @_;
+    my @lines;
+    for my $entry (@$data) {
+        push @lines, sprintf("  - %s", $entry // 'undef');
+    }
+    return join("\n", @lines);
+}
+
+1;
+
+__END__
+
+=head1 NAME
+
+Sample::Module - A sample module for testing
+
+=head1 SYNOPSIS
+
+    use Sample::Module;
+    my $obj = Sample::Module->new(key => 'value');
+    my $result = $obj->process(\@data);
+
+=head1 DESCRIPTION
+
+This module exists solely to provide realistic-looking Perl code
+for visual regression tests. It is not intended for production use.
+
+=cut
 END_CODE
 
 {
@@ -13,16 +77,14 @@ Action: Set marks a and b, jump between them
 _1.png (initial state):
 - Cursor at line 1, col 0
 
-Action: keystrokes "majjmbk`a`b`a" (set mark a, set mark b, jump between)
+Sub-commands: keys('majjmbk`a`b`a')
 
 _2.png (after action):
 - Cursor at line 1 after jumping between marks
 - Both marks a and b stored and functional
 END_DESC
     run => sub {
-        my ($ctx) = @_;
-        $ctx->editor->set_theme('dark');
-        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
         $ctx->snapshot('1');
         $ctx->delay(100);

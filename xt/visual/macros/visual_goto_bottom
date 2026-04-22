@@ -1,18 +1,24 @@
 my $CODE = <<'END_CODE';
-#!/usr/bin/perl
+# This is a standard test file used for visual regression testing.
+# It provides enough lines to test scrolling, navigation, and display.
+# The content is intentionally simple to avoid distracting from the
+# visual elements being tested (cursor position, selections, themes).
+
+package Sample::Module;
 use strict;
 use warnings;
 
-package My::Module;
+our $VERSION = '1.00';
 
 sub new {
     my ($class, %opts) = @_;
-    return bless \%opts, $class;
+    my $self = bless { %opts }, $class;
+    return $self;
 }
 
 sub process {
     my ($self, $data) = @_;
-    die "No data provided" unless $data;
+    return undef unless defined $data;
     my @results;
     for my $item (@$data) {
         push @results, $self->_transform($item);
@@ -22,10 +28,45 @@ sub process {
 
 sub _transform {
     my ($self, $item) = @_;
-    return uc($item);
+    return uc($item) if defined $item;
+    return '';
+}
+
+sub validate {
+    my ($self, $input) = @_;
+    die "Invalid input" unless $input && length($input) > 0;
+    return 1;
+}
+
+sub format_output {
+    my ($self, $data) = @_;
+    my @lines;
+    for my $entry (@$data) {
+        push @lines, sprintf("  - %s", $entry // 'undef');
+    }
+    return join("\n", @lines);
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+Sample::Module - A sample module for testing
+
+=head1 SYNOPSIS
+
+    use Sample::Module;
+    my $obj = Sample::Module->new(key => 'value');
+    my $result = $obj->process(\@data);
+
+=head1 DESCRIPTION
+
+This module exists solely to provide realistic-looking Perl code
+for visual regression tests. It is not intended for production use.
+
+=cut
 END_CODE
 
 {
@@ -34,9 +75,9 @@ END_CODE
 Action: G jumps to last line
 
 _1.png (initial state):
-- Dark theme, cursor at line 1
+- Default theme, cursor at line 1
 
-Action: keystrokes "G" (go to last line)
+Sub-commands: keys('G')
 
 _2.png (after action):
 - Viewport scrolled to show bottom of buffer
@@ -44,9 +85,7 @@ _2.png (after action):
 - Position label in status bar shows last line position
 END_DESC
     run => sub {
-        my ($ctx) = @_;
-        $ctx->editor->set_theme('dark');
-        $ctx->editor->set_language('perl');
+        my ($ctx) = @_;        $ctx->editor->set_language('perl');
         $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
         $ctx->snapshot('1');
