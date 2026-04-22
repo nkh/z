@@ -173,6 +173,26 @@ sub register {
         return ();
     };
 
+    # --- helper: scroll the viewport so a line is at top or bottom ---
+    # Used by page_up/page_down to ensure the viewport actually scrolls
+    # (scroll_mark_onscreen is a no-op when the cursor is already visible).
+    my $_scroll_to_line;
+    $_scroll_to_line = sub {
+        my ($ctx, $target_line, $position) = @_;
+        # $position: 'top' or 'bottom'
+        my $view = $ctx->{gtk_view};
+        return unless $view;
+        my $vb = $ctx->{vb};
+        return unless $vb->can('gtk_buffer');
+        eval {
+            my $buf = $vb->gtk_buffer;
+            my $iter = $buf->get_iter_at_line($target_line);
+            # yalign: 0.0 = top, 1.0 = bottom, with a small margin
+            my $yalign = ($position eq 'bottom') ? 1.0 : 0.0;
+            $view->scroll_to_iter($iter, 0.0, 1, 0.0, $yalign);
+        };
+    };
+
     # --- helper: save line snapshot for U (line-undo) ---
     my $_save_line_snapshot;
     $_save_line_snapshot = sub {
@@ -267,6 +287,9 @@ sub register {
                 $col = $limit if $col > $limit;
                 $vb->set_cursor($target, $col);
             }
+            # Scroll the viewport so the target line is at the bottom
+            # with a 2-line context margin (vim's scrolljump behavior).
+            $_scroll_to_line->($ctx, $target, 'bottom');
         } else {
             # Fallback if viewport info unavailable: move by page_size.
             my $ps = $ctx->{page_size} // 20;
@@ -298,6 +321,9 @@ sub register {
                 $col = $limit if $col > $limit;
                 $vb->set_cursor($target, $col);
             }
+            # Scroll the viewport so the target line is at the top
+            # with a 2-line context margin (vim's scrolljump behavior).
+            $_scroll_to_line->($ctx, $target, 'top');
         } else {
             # Fallback if viewport info unavailable: move by page_size.
             my $ps = $ctx->{page_size} // 20;
