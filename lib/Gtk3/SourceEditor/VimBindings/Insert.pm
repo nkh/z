@@ -106,9 +106,21 @@ sub register {
     };
 
     # Replace character under cursor (in replace mode)
+    # $char is the GDK key name (e.g. 'a', 'asterisk', 'numbersign').
+    # Convert to the actual character for multi-char GDK names.
     $ACTIONS->{do_replace_char} = sub {
         my ($ctx, $count, $char) = @_;
         return unless defined $char && length($char);
+        if (length($char) > 1) {
+            eval {
+                my $kv = Gtk3::Gdk::keyval_from_name($char);
+                if ($kv) {
+                    my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
+                    $char = chr($uc) if $uc && $uc > 0 && $uc < 0x10000;
+                }
+            };
+            return unless length($char) == 1;
+        }
         $ctx->{vb}->replace_char($char);
         # buf->insert() inside replace_char already advances the cursor
         # past the inserted character, so no explicit move is needed.
@@ -138,17 +150,87 @@ sub register {
         
         $vb->delete_range($line, $start, $line, $col);
     };
+
+    # Delete character before cursor (BackSpace in insert mode)
+    $ACTIONS->{insert_backspace} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        return if $col == 0 && $line == 0;
+        if ($col > 0) {
+            $vb->delete_range($line, $col - 1, $line, $col);
+        } else {
+            # At start of line: join with previous line
+            my $prev_len = $vb->line_length($line - 1);
+            $vb->delete_range($line - 1, $prev_len, $line, 0);
+        }
+    };
+
+    # Delete character at cursor (Delete in insert mode)
+    $ACTIONS->{insert_delete} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $last = $vb->line_count - 1;
+        return if $line >= $last && $col >= $vb->line_length($line);
+        if ($col < $vb->line_length($line)) {
+            $vb->delete_range($line, $col, $line, $col + 1);
+        } else {
+            # At end of line: join with next line
+            $vb->delete_range($line, $col, $line + 1, 0);
+        }
+    };
+
+    # Insert newline (Return in insert mode)
+    $ACTIONS->{insert_newline} = sub {
+        my ($ctx) = @_;
+        $ctx->{vb}->insert_text("\n");
+    };
+
+    # Move cursor to start of line (Home in insert mode)
+    $ACTIONS->{insert_home} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        # Move to first non-blank character, like Vim's ^ behavior
+        my $col = $vb->first_nonblank_col($vb->cursor_line);
+        $vb->set_cursor($vb->cursor_line, $col);
+    };
+
+    # Move cursor to end of line (End in insert mode)
+    $ACTIONS->{insert_end} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col = $vb->line_length($line);
+        $vb->set_cursor($line, $col);
+    };
     
     return {
-        _immediate => ['Escape', 'Tab', 'Up', 'Down', 'Left', 'Right',
+        _immediate => ['Escape', 'Tab', 'BackSpace', 'Delete', 'Return',
+                       'Home', 'End',
+                       'Up', 'Down', 'Left', 'Right',
                        'Page_Up', 'Page_Down'],
         _prefixes  => [],
         _char_actions => {},
         _ctrl => {
             w => 'insert_delete_word_backward',
+            u => 'scroll_half_up',
+            d => 'scroll_half_down',
+            f => 'page_down',
+            b => 'page_up',
+            y => 'scroll_line_up',
+            e => 'scroll_line_down',
+            r => 'redo',
         },
         Escape    => 'exit_to_normal',
         Tab       => 'insert_tab',
+        BackSpace => 'insert_backspace',
+        Delete    => 'insert_delete',
+        Return    => 'insert_newline',
+        Home      => 'insert_home',
+        End       => 'insert_end',
         Up        => 'move_up',
         Down      => 'move_down',
         Left      => 'move_left',
@@ -160,13 +242,24 @@ sub register {
 
 sub get_replace_keymap {
     return {
-        _immediate => ['Escape', 'BackSpace'],
+        _immediate => ['Escape', 'BackSpace', 'Delete',
+                       'Up', 'Down', 'Left', 'Right',
+                       'Page_Up', 'Page_Down', 'Home', 'End'],
         _prefixes  => [],
         _char_actions => {
             _any => 'do_replace_char',
         },
-        Escape => 'exit_replace_to_normal',
+        Escape    => 'exit_replace_to_normal',
         BackSpace => 'replace_backspace',
+        Delete    => 'replace_forward_delete',
+        Up        => 'move_up',
+        Down      => 'move_down',
+        Left      => 'move_left',
+        Right     => 'move_right',
+        Page_Up   => 'page_up',
+        Page_Down => 'page_down',
+        Home      => 'replace_home',
+        End       => 'replace_end',
     };
 }
 
@@ -182,6 +275,35 @@ sub register_replace_actions {
             $vb->set_cursor($vb->cursor_line, $vb->cursor_col - 1);
         }
     };
+
+    $ACTIONS->{replace_forward_delete} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $last = $vb->line_count - 1;
+        return if $line >= $last && $col >= $vb->line_length($line);
+        if ($col < $vb->line_length($line)) {
+            $vb->delete_range($line, $col, $line, $col + 1);
+        } else {
+            $vb->delete_range($line, $col, $line + 1, 0);
+        }
+    };
+
+    $ACTIONS->{replace_home} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $col = $vb->first_nonblank_col($vb->cursor_line);
+        $vb->set_cursor($vb->cursor_line, $col);
+    };
+
+    $ACTIONS->{replace_end} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col = $vb->line_length($line);
+        $vb->set_cursor($line, $col);
+    };
 }
 
 1;
@@ -196,12 +318,19 @@ Gtk3::SourceEditor::VimBindings::Insert - Insert and replace mode actions
 
 Handles key bindings and actions for Vim-style insert mode and replace mode.
 
-Insert mode returns FALSE from the key handler so that GTK processes printable
-keystrokes directly. The only action intercepted is Escape, which exits to
-normal mode and moves the cursor back one position.
+All keyboard events in insert mode are handled directly -- nothing is
+passed through to GTK.  Printable characters are inserted via
+C<insert_text>, and editing keys (BackSpace, Delete, Return, Home, End)
+have dedicated actions.  Navigation keys (arrows, Page Up/Down) use
+the same actions as normal mode.  Ctrl-key combinations (Ctrl-u, Ctrl-d,
+Ctrl-f, Ctrl-b, Ctrl-r, etc.) are also handled.
 
-Replace mode uses a separate keymap (see C<get_replace_keymap>) that intercepts
-all printable characters via C<< _char_actions => { _any => 'do_replace_char' } >>,
+IME compose sequences (CJK input, dead-key accents) are detected via
+the GtkIMContext preedit signals and passed through to GTK during
+composition.
+
+Replace mode uses a separate keymap (see C<get_replace_keymap>) that
+intercepts all printable characters via C<< _char_actions => { _any => 'do_replace_char' } >>,
 replacing the character under the cursor instead of inserting.
 
 =head1 FUNCTIONS

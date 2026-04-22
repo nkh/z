@@ -358,17 +358,15 @@ sub add_vim_bindings {
     };
 
     # Signal handlers
-    # Intercept arrow keys (and other navigation keys) in the 'event'
+    # Intercept navigation keys (arrows, Page Up/Down) in the 'event'
     # signal, which fires BEFORE 'key-press-event'.  GtkTextView installs
     # its own key-press-event handler during gtk_text_view_init() that
     # processes arrow keys via key bindings.  Because that handler was
     # connected before ours, it runs first and moves the cursor before
     # signal_stop_emission_by_name can stop the emission.  By handling
     # navigation keys here and returning TRUE, key-press-event is never
-    # emitted, so GtkSourceView never sees them.  In replace mode we
-    # return FALSE to let GTK handle arrow keys natively.  In insert mode
-    # we handle arrow keys through handle_insert_mode so they use the
-    # same move actions as normal mode.
+    # emitted, so GtkSourceView never sees them.  All vim modes handle
+    # navigation keys through their mode handlers; GTK never handles them.
     $textview->signal_connect('event' => sub {
         my ($w, $event) = @_;
         # Only intercept key-press events (not key-release, button, etc.)
@@ -397,7 +395,9 @@ sub add_vim_bindings {
             printf STDERR "[debug-event] mode=%-10s raw=%-20s keyval=%-6s state=%s%s\n",
                 $vim_mode, $dk, $event->keyval, $state_str, $du_repr;
         }
-        return FALSE if $vim_mode eq 'replace';
+        # Let GTK handle keys during IME compose sequences (CJK input,
+        # dead-key composition).  The im-context signals below set this flag.
+        return FALSE if $ctx->{_ime_composing};
         my $state = eval { $event->state } // 0;
         # Let AltGr keys through (see key-press-event handler comment)
         my $altgr = ($state & 'control-mask')
@@ -405,10 +405,11 @@ sub add_vim_bindings {
         return FALSE if ($state & 'control-mask') && !$altgr;
         my $k = eval { Gtk3::Gdk::keyval_name($event->keyval) } // '';
         return FALSE unless $k eq 'Up' || $k eq 'Down'
-                        || $k eq 'Left' || $k eq 'Right';
-        # Handle through vim in normal/visual modes.
-        # Returning TRUE prevents key-press-event from being emitted,
-        # so GtkSourceView never processes the arrow key.
+                        || $k eq 'Left' || $k eq 'Right'
+                        || $k eq 'Page_Up' || $k eq 'Page_Down';
+        # Dispatch to the appropriate mode handler.  Returning TRUE
+        # prevents key-press-event from being emitted, so GtkSourceView
+        # never processes the navigation key.
         if ($vim_mode eq 'normal') {
             handle_normal_mode($ctx, $k);
         } elsif ($vim_mode eq 'visual' || $vim_mode eq 'visual_line'
@@ -416,12 +417,44 @@ sub add_vim_bindings {
             handle_visual_mode($ctx, $k);
         } elsif ($vim_mode eq 'insert') {
             handle_insert_mode($ctx, $k);
+        } elsif ($vim_mode eq 'replace') {
+            handle_replace_mode($ctx, $k);
         }
         return TRUE;
     }) if $textview;
 
+    # IME (Input Method Editor) safety net: when the input method is
+    # actively composing (CJK input, dead-key composition for accented
+    # characters, etc.), pass all key events through to GTK so the
+    # compose sequence completes correctly.  Without this, we would
+    # intercept the raw individual keyvals (e.g. 'dead_acute') and
+    # prevent the composed character (e.g. 'e') from being produced.
+    $ctx->{_ime_composing} = 0;
+    if ($textview) {
+        eval {
+            my $im_context = $textview->get_im_context;
+            if ($im_context) {
+                $im_context->signal_connect('preedit-start' => sub {
+                    $ctx->{_ime_composing} = 1;
+                });
+                $im_context->signal_connect('preedit-end' => sub {
+                    $ctx->{_ime_composing} = 0;
+                });
+                # Also handle 'commit' as a fallback -- some IMEs may
+                # not emit preedit-start/end but do emit commit.
+                $im_context->signal_connect('commit' => sub {
+                    # GTK will insert the committed text; nothing to do.
+                    # Just ensure composing flag is cleared.
+                    $ctx->{_ime_composing} = 0;
+                });
+            }
+        };
+    }
+
     $textview->signal_connect('key-press-event' => sub {
         my ($w, $e) = @_;
+        # During IME compose sequences, let GTK handle everything.
+        return FALSE if $ctx->{_ime_composing};
         my $raw_k = eval { Gtk3::Gdk::keyval_name($e->keyval) } // '';
         my $k = $raw_k;
         # Fallback for keyboard layouts where GDK reports unexpected key
@@ -470,10 +503,12 @@ sub add_vim_bindings {
                 $w->signal_stop_emission_by_name('key-press-event') if $handled;
                 return TRUE;
             }
-            # In insert/replace/command modes, suppress all Ctrl keys so
-            # GTK does not handle them (no copy/paste/undo/select-all).
-            # Users who want native GTK Ctrl-key behavior should set
-            # vim_mode => 0.
+            # In command mode, suppress all Ctrl keys so GTK does not
+            # handle them (no copy/paste/undo/select-all).
+            # For insert/replace modes, Ctrl keys that are registered
+            # in _ctrl are dispatched above; unrecognized ones are
+            # suppressed here.  Users who want native GTK Ctrl-key
+            # behavior should set vim_mode => 0.
             $_debug_key->($raw_k, $ctrl_k, $state, $unicode, '(suppressed)', $e->keyval) if $ctx->{_debug_key};
             $w->signal_stop_emission_by_name('key-press-event');
             return TRUE;
@@ -799,19 +834,40 @@ sub _dispatch {
     my $original_key = $key;
     $$buf .= $key;
 
-    # Char actions: _any mechanism (e.g., replace mode -- any single-char key
-    # triggers the action immediately, no accumulation needed)
+    # Char actions: _any mechanism (e.g., replace mode -- any printable key
+    # triggers the action immediately, no accumulation needed).
     # Checked BEFORE the numeric accumulation so that digits are also
     # caught by _any in replace mode.
-    if ($char_actions && exists $char_actions->{_any} && length($original_key) == 1) {
-        my $action_name = $char_actions->{_any};
-        $$buf = '';
-        if (exists $ACTIONS{$action_name}) {
-            my $result;
-            $ctx->{vb}->begin_user_action;
-            eval { $result = $ACTIONS{$action_name}->($ctx, undef, $original_key) };
-            $ctx->{vb}->end_user_action;
-            return defined $result ? $result : TRUE;
+    # Uses keyval_to_unicode to detect printable characters instead of
+    # length($original_key) == 1, because GDK reports multi-character key
+    # names for symbols (e.g. 'asterisk', 'numbersign', 'comma', 'period')
+    # which are printable characters that should be caught.
+    if ($char_actions && exists $char_actions->{_any}) {
+        my $is_printable = 0;
+        # Single-char GDK names (a-z, 0-9) are always printable.
+        if (length($original_key) == 1) {
+            $is_printable = 1;
+        }
+        # Multi-char GDK names: check via keyval_to_unicode.
+        else {
+            eval {
+                my $kv = Gtk3::Gdk::keyval_from_name($original_key);
+                if ($kv) {
+                    my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
+                    $is_printable = 1 if $uc && $uc > 0 && $uc < 0x10000;
+                }
+            };
+        }
+        if ($is_printable) {
+            my $action_name = $char_actions->{_any};
+            $$buf = '';
+            if (exists $ACTIONS{$action_name}) {
+                my $result;
+                $ctx->{vb}->begin_user_action;
+                eval { $result = $ACTIONS{$action_name}->($ctx, undef, $original_key) };
+                $ctx->{vb}->end_user_action;
+                return defined $result ? $result : TRUE;
+            }
         }
     }
 
@@ -932,19 +988,19 @@ sub handle_normal_mode {
 
 sub handle_insert_mode {
     my ($ctx, $k) = @_;
-    # Insert mode only intercepts specific keys (Escape, Tab, and any
-    # user-defined dispatch entries).  Everything else -- digits, letters,
-    # symbols -- must pass through to GTK so the text widget handles
-    # text input natively.  We do NOT use _dispatch here because its
-    # numeric accumulation would swallow digits before GTK can process them.
+    # Insert mode handles ALL keys itself -- nothing is passed through to GTK.
+    # This gives full control over cursor movement, text insertion, and
+    # editing operations without relying on GtkTextView's key bindings.
+    ${$ctx->{cmd_buf}} = '';
+
+    # Immediate keys: Escape, Tab, BackSpace, Delete, Return, Home, End,
+    # arrows, and page navigation.
     if (exists $ctx->{insert_immediate}{$k}) {
-        ${$ctx->{cmd_buf}} = '';
         $ctx->{insert_immediate}{$k}->($ctx, 1);
         return TRUE;
     }
-    # Check user-defined dispatch entries (exact match, no count prefix).
+    # User-defined dispatch entries (exact match, no count prefix).
     if (exists $ctx->{insert_dispatch}{$k}) {
-        ${$ctx->{cmd_buf}} = '';
         my $handler = $ctx->{insert_dispatch}{$k};
         my $result;
         $ctx->{vb}->begin_user_action;
@@ -952,7 +1008,31 @@ sub handle_insert_mode {
         $ctx->{vb}->end_user_action;
         return defined $result ? $result : TRUE;
     }
-    return FALSE;
+
+    # Printable character insertion: insert the character at the cursor.
+    # GTK key names for printable characters are either single-char (a-z,
+    # 0-9) or multi-char names for symbols (asterisk, numbersign, comma,
+    # period, etc.).  Use keyval_to_unicode to convert both forms.
+    my $char = undef;
+    if (length($k) == 1) {
+        $char = $k;
+    } else {
+        eval {
+            my $kv = Gtk3::Gdk::keyval_from_name($k);
+            if ($kv) {
+                my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
+                $char = chr($uc) if $uc && $uc > 0 && $uc < 0x10000;
+            }
+        };
+    }
+    if (defined $char && length($char)) {
+        $ctx->{vb}->insert_text($char);
+        return TRUE;
+    }
+
+    # Non-printable, non-navigation key (modifier-only, dead key, etc.)
+    # -- consume it silently so GTK never sees it.
+    return TRUE;
 }
 
 sub handle_visual_mode {
