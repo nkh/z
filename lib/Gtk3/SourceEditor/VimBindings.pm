@@ -365,8 +365,10 @@ sub add_vim_bindings {
     # connected before ours, it runs first and moves the cursor before
     # signal_stop_emission_by_name can stop the emission.  By handling
     # navigation keys here and returning TRUE, key-press-event is never
-    # emitted, so GtkSourceView never sees them.  In insert/replace modes
-    # we return FALSE to let GTK handle arrow keys natively.
+    # emitted, so GtkSourceView never sees them.  In replace mode we
+    # return FALSE to let GTK handle arrow keys natively.  In insert mode
+    # we handle arrow keys through handle_insert_mode so they use the
+    # same move actions as normal mode.
     $textview->signal_connect('event' => sub {
         my ($w, $event) = @_;
         # Only intercept key-press events (not key-release, button, etc.)
@@ -395,7 +397,7 @@ sub add_vim_bindings {
             printf STDERR "[debug-event] mode=%-10s raw=%-20s keyval=%-6s state=%s%s\n",
                 $vim_mode, $dk, $event->keyval, $state_str, $du_repr;
         }
-        return FALSE if $vim_mode eq 'insert' || $vim_mode eq 'replace';
+        return FALSE if $vim_mode eq 'replace';
         my $state = eval { $event->state } // 0;
         # Let AltGr keys through (see key-press-event handler comment)
         my $altgr = ($state & 'control-mask')
@@ -412,6 +414,8 @@ sub add_vim_bindings {
         } elsif ($vim_mode eq 'visual' || $vim_mode eq 'visual_line'
                  || $vim_mode eq 'visual_block') {
             handle_visual_mode($ctx, $k);
+        } elsif ($vim_mode eq 'insert') {
+            handle_insert_mode($ctx, $k);
         }
         return TRUE;
     }) if $textview;

@@ -140,14 +140,21 @@ sub register {
     };
     
     return {
-        _immediate => ['Escape', 'Tab'],
+        _immediate => ['Escape', 'Tab', 'Up', 'Down', 'Left', 'Right',
+                       'Page_Up', 'Page_Down'],
         _prefixes  => [],
         _char_actions => {},
         _ctrl => {
             w => 'insert_delete_word_backward',
         },
-        Escape => 'exit_to_normal',
-        Tab    => 'insert_tab',
+        Escape    => 'exit_to_normal',
+        Tab       => 'insert_tab',
+        Up        => 'move_up',
+        Down      => 'move_down',
+        Left      => 'move_left',
+        Right     => 'move_right',
+        Page_Up   => 'page_up',
+        Page_Down => 'page_down',
     };
 }
 
