@@ -1,6 +1,7 @@
 package Gtk3::SourceEditor::EditorContext;
 use strict;
 use warnings;
+use Gtk3::SourceEditor::EventBus;
 
 our $VERSION = '0.01';
 
@@ -162,6 +163,9 @@ sub new {
     # --- Dispatch tables (populated later by VimBindings) ---
     $self->{resolved_keymap} = undef;
     $self->{ex_cmds}         = undef;
+
+    # --- Event bus (always available, for plugins and extensions) ---
+    $self->{event_bus} = Gtk3::SourceEditor::EventBus->new;
 
     # --- Char action pending state ---
     $self->{_char_action_prefix} = undef;

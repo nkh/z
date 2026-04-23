@@ -801,6 +801,73 @@ sub _extract_count {
 }
 
 # ==========================================================================
+# Action execution wrapper with event bus hooks
+# ==========================================================================
+
+# _execute_action($ctx, $action_name, $count, @extra)
+#
+# Wraps action execution in undo grouping and fires before_action/after_action
+# event bus hooks.  All action dispatch sites should use this helper to
+# ensure consistent hook firing and error handling.
+#
+# Returns the action result, or TRUE if result is undef.
+sub _execute_action {
+    my ($ctx, $action_name, $count, @extra) = @_;
+    my $bus = $ctx->{event_bus};
+    my $vb  = $ctx->{vb};
+
+    $bus->emit('before_action', {
+        action_name => $action_name,
+        count       => $count,
+        ctx         => $ctx,
+    }) if $bus;
+
+    my $result;
+    $vb->begin_user_action;
+    eval { $result = $ACTIONS{$action_name}->($ctx, $count, @extra) };
+    $vb->end_user_action;
+
+    $bus->emit('after_action', {
+        action_name => $action_name,
+        count       => $count,
+        result      => $result,
+        ctx         => $ctx,
+    }) if $bus;
+
+    return defined $result ? $result : TRUE;
+}
+
+# _execute_handler($ctx, $handler, $action_name, $count)
+#
+# Same as _execute_action but takes a coderef directly (for immediate-mode
+# handlers that bypass the ACTIONS registry).
+sub _execute_handler {
+    my ($ctx, $handler, $action_name, $count) = @_;
+    my $bus = $ctx->{event_bus};
+    my $vb  = $ctx->{vb};
+
+    $bus->emit('before_action', {
+        action_name => $action_name // '_immediate',
+        count       => $count,
+        ctx         => $ctx,
+    }) if $bus;
+
+    my $result;
+    $vb->begin_user_action;
+    eval { $result = $handler->($ctx, $count) };
+    $vb->end_user_action;
+
+    $bus->emit('after_action', {
+        action_name => $action_name // '_immediate',
+        count       => $count,
+        result      => $result,
+        ctx         => $ctx,
+    }) if $bus;
+
+    return defined $result ? $result : TRUE;
+}
+
+# ==========================================================================
 # Generic key accumulator / dispatcher
 # ==========================================================================
 sub _dispatch {
@@ -840,11 +907,7 @@ sub _dispatch {
             my $action_name = $char_actions->{_any};
             $$buf = '';
             if (exists $ACTIONS{$action_name}) {
-                my $result;
-                $ctx->{vb}->begin_user_action;
-                eval { $result = $ACTIONS{$action_name}->($ctx, undef, $original_key) };
-                $ctx->{vb}->end_user_action;
-                return defined $result ? $result : TRUE;
+                return _execute_action($ctx, $action_name, undef, $original_key);
             }
         }
     }
@@ -924,11 +987,7 @@ sub _dispatch {
             Super_L Super_R Caps_Lock Num_Lock Scroll_Lock
         );
         if (!$cancel_keys{$char} && exists $ACTIONS{$action_name}) {
-            my $result;
-            $ctx->{vb}->begin_user_action;
-            eval { $result = $ACTIONS{$action_name}->($ctx, $count, $char) };
-            $ctx->{vb}->end_user_action;
-            return defined $result ? $result : TRUE;
+            return _execute_action($ctx, $action_name, $count, $char);
         }
         return TRUE;
     }
@@ -1476,6 +1535,15 @@ sub _init_mode_setter {
         }
         my $old_mode = $$vm;
         $$vm = $mode;
+
+        # Fire mode_change event bus hook
+        if ($ctx->{event_bus} && $old_mode ne $mode) {
+            $ctx->{event_bus}->emit('mode_change', {
+                old_mode => $old_mode,
+                new_mode => $mode,
+                ctx      => $ctx,
+            });
+        }
 
         # Clear GTK selection when leaving visual mode.
         # Do this BEFORE set_editable to avoid GTK re-highlighting artefacts.
