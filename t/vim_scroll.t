@@ -57,14 +57,14 @@ sub make_ctx {
 
 subtest 'Default scroll mode is edge' => sub {
     my $ctx = make_ctx();
-    is($ctx->{_scroll_mode}, undef, '_scroll_mode not set by default in test context');
-    is($ctx->{_scroll_lock_active}, undef, 'scroll lock not active by default');
+    is($ctx->{_scroll_mode}, 'edge', '_scroll_mode defaults to edge');
+    is($ctx->{_scroll_lock_active}, 0, 'scroll lock not active by default');
 };
 
 subtest 'scroll_mode can be set to center' => sub {
     my $ctx = make_ctx(scroll_mode => 'center');
     is($ctx->{_scroll_mode}, 'center', 'scroll_mode set to center');
-    is($ctx->{_scroll_lock_active}, undef, 'scroll lock not active');
+    is($ctx->{_scroll_lock_active}, 0, 'scroll lock not active');
 };
 
 subtest 'scroll_mode can be set to edge' => sub {

@@ -16,6 +16,7 @@ use Gtk3::SourceEditor::VimBindings::Insert;
 use Gtk3::SourceEditor::VimBindings::Visual;
 use Gtk3::SourceEditor::VimBindings::Command;
 use Gtk3::SourceEditor::VimBindings::Search;
+use Gtk3::SourceEditor::EditorContext;
 
 # ==========================================================================
 # Action registry -- maps action names to coderefs
@@ -175,52 +176,33 @@ sub add_vim_bindings {
     $is_readonly //= 0;
     $$filename_ref //= '';
 
-    my $vb = $opts{vim_buffer} or die "vim_buffer is required";
-
-    my $vim_mode       = 'normal';
-    my $command_buffer = '';
-    my $yank_buffer    = '';
-
-    my $ctx = {
-        vb           => $vb,
-        gtk_view     => $textview,
-        mode_label   => $mode_label,
-        cmd_entry    => $cmd_entry,
-        is_readonly  => $is_readonly,
-        filename_ref => $filename_ref,
-        vim_mode     => \$vim_mode,
-        cmd_buf      => \$command_buffer,
-        yank_buf     => \$yank_buffer,
-        page_size    => $opts{page_size},
-        shiftwidth   => $opts{shiftwidth} // 4,
-        marks        => {},
-        line_snapshots => {},
-        search_pattern   => undef,
-        search_direction => undef,
-        desired_col   => 0,
-        last_find     => undef,
+    my $ctx = Gtk3::SourceEditor::EditorContext->new(
+        vim_buffer    => $opts{vim_buffer},
+        gtk_view      => $textview,
+        mode_label    => $mode_label,
+        cmd_entry     => $cmd_entry,
+        is_readonly   => $is_readonly,
+        filename_ref  => $filename_ref,
+        filename      => $$filename_ref,
+        page_size     => $opts{page_size},
+        shiftwidth    => $opts{shiftwidth},
         scrolloff     => $opts{scrolloff},
-        tab_string    => $opts{tab_string} // "\t",
-        use_clipboard => $opts{use_clipboard} // 1,
+        tab_string    => $opts{tab_string},
+        use_clipboard => $opts{use_clipboard},
         pos_label     => $opts{pos_label},
         theme         => $opts{theme},
-        # Runtime configuration callbacks (from SourceEditor)
         set_language      => $opts{set_language},
         set_tab_width     => $opts{set_tab_width},
         set_theme         => $opts{set_theme},
         toggle_fullscreen => $opts{toggle_fullscreen},
         toggle_line_numbers          => $opts{toggle_line_numbers},
         toggle_highlight_current_line => $opts{toggle_highlight_current_line},
-        # Current values for :set queries (bare :set filetype, :set theme, etc.)
-        _current_theme     => $opts{current_theme},
-        _current_tab_width => $opts{current_tab_width},
-        _current_filetype  => $opts{force_language} // 'auto',
-        # Scroll mode: 'edge' (default), 'center', or 'scroll_lock' (runtime toggle)
-        _scroll_mode        => $opts{scroll_mode} // 'edge',
-        _scroll_lock_active => 0,
-        _scroll_lock_prev   => undef,
-        _debug_key          => $opts{debug_key} // 0,
-    };
+        current_theme     => $opts{current_theme},
+        current_tab_width => $opts{current_tab_width},
+        force_language    => $opts{force_language},
+        scroll_mode       => $opts{scroll_mode},
+        debug_key         => $opts{debug_key},
+    );
 
     _init_utilities($ctx);
     _init_mode_setter($ctx);
@@ -243,6 +225,7 @@ sub add_vim_bindings {
     # SearchContext never falls back to an invisible default.
     $ctx->{search_settings} = undef;
     $ctx->{search_context}  = undef;
+    my $vb = $ctx->{vb};
     if ($vb->can('gtk_buffer')) {
         eval {
             my $buf = $vb->gtk_buffer;
@@ -354,7 +337,7 @@ sub add_vim_bindings {
         my $u_repr = $unicode ? (sprintf " U+%04X", $unicode) : '';
         my $a_repr = defined $action ? $action : '(none)';
         printf STDERR "[debug-key] mode=%-10s raw=%-20s resolved=%-15s keyval=%-6s state=%s%s -> %s\n",
-            $vim_mode, $raw_k, $resolved_k, $keyval, $state_str, $u_repr, $a_repr;
+            ${$ctx->{vim_mode}}, $raw_k, $resolved_k, $keyval, $state_str, $u_repr, $a_repr;
     };
 
     # Signal handlers
@@ -393,7 +376,7 @@ sub add_vim_bindings {
                 $state_str = join('+', @mods) . '+' if @mods;
             }
             printf STDERR "[debug-event] mode=%-10s raw=%-20s keyval=%-6s state=%s%s\n",
-                $vim_mode, $dk, $event->keyval, $state_str, $du_repr;
+                ${$ctx->{vim_mode}}, $dk, $event->keyval, $state_str, $du_repr;
         }
         # Let GTK handle keys during IME compose sequences (CJK input,
         # dead-key composition).  The im-context signals below set this flag.
@@ -410,14 +393,14 @@ sub add_vim_bindings {
         # Dispatch to the appropriate mode handler.  Returning TRUE
         # prevents key-press-event from being emitted, so GtkSourceView
         # never processes the navigation key.
-        if ($vim_mode eq 'normal') {
+        if (${$ctx->{vim_mode}} eq 'normal') {
             handle_normal_mode($ctx, $k);
-        } elsif ($vim_mode eq 'visual' || $vim_mode eq 'visual_line'
-                 || $vim_mode eq 'visual_block') {
+        } elsif ($$ctx{vim_mode} eq 'visual' || $$ctx{vim_mode} eq 'visual_line'
+                 || $$ctx{vim_mode} eq 'visual_block') {
             handle_visual_mode($ctx, $k);
-        } elsif ($vim_mode eq 'insert') {
+        } elsif ($$ctx{vim_mode} eq 'insert') {
             handle_insert_mode($ctx, $k);
-        } elsif ($vim_mode eq 'replace') {
+        } elsif ($$ctx{vim_mode} eq 'replace') {
             handle_replace_mode($ctx, $k);
         }
         return TRUE;
@@ -480,17 +463,18 @@ sub add_vim_bindings {
                  && ($state & 'mod1-mask' || $state & 'mod5-mask');
         if (($state & 'control-mask') && !$altgr) {
             my $ctrl_k = 'Control-' . lc($k);
-            if ($vim_mode eq 'normal'
-                || $vim_mode eq 'visual'
-                || $vim_mode eq 'visual_line'
-                || $vim_mode eq 'visual_block'
-                || $vim_mode eq 'insert'
-                || $vim_mode eq 'replace') {
+            my $cur_mode = ${$ctx->{vim_mode}};
+            if ($cur_mode eq 'normal'
+                || $cur_mode eq 'visual'
+                || $cur_mode eq 'visual_line'
+                || $cur_mode eq 'visual_block'
+                || $cur_mode eq 'insert'
+                || $cur_mode eq 'replace') {
                 # Look up action name for debug output
                 my $action = undef;
                 if ($ctx->{_debug_key}) {
-                    my $d = $ctx->{"${vim_mode}_ctrl_dispatch"};
-                    my $km = $ctx->{resolved_keymap}{$vim_mode};
+                    my $d = $ctx->{"${cur_mode}_ctrl_dispatch"};
+                    my $km = $ctx->{resolved_keymap}{$cur_mode};
                     if ($d && exists $d->{$ctrl_k}) {
                         # Walk the ctrl keymap to find the action name
                         my $ctrl_km = $km->{_ctrl} // {};
@@ -515,32 +499,34 @@ sub add_vim_bindings {
         }
         # Look up action name for debug output
         if ($ctx->{_debug_key}) {
+            my $cur_mode = ${$ctx->{vim_mode}};
             my $action = undef;
-            my $km = $ctx->{resolved_keymap}{$vim_mode} // {};
+            my $km = $ctx->{resolved_keymap}{$cur_mode} // {};
             if (exists $km->{$k}) { $action = $km->{$k}; }
             elsif (exists $km->{_immediate} && grep { $_ eq $k } @{$km->{_immediate}}) {
                 $action = $km->{$k};
             }
             $_debug_key->($raw_k, $k, $state, $unicode, $action, $e->keyval);
         }
-        if ($vim_mode eq 'normal') {
+        my $m = ${$ctx->{vim_mode}};
+        if ($m eq 'normal') {
             my $handled = handle_normal_mode($ctx, $k);
             $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
         }
-        if ($vim_mode eq 'insert') {
+        if ($m eq 'insert') {
             my $handled = handle_insert_mode($ctx, $k);
             $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
         }
-        if ($vim_mode eq 'visual'
-            || $vim_mode eq 'visual_line'
-            || $vim_mode eq 'visual_block') {
+        if ($m eq 'visual'
+            || $m eq 'visual_line'
+            || $m eq 'visual_block') {
             my $handled = handle_visual_mode($ctx, $k);
             $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
         }
-        if ($vim_mode eq 'replace') {
+        if ($m eq 'replace') {
             my $handled = handle_replace_mode($ctx, $k);
             $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
@@ -658,33 +644,25 @@ sub add_vim_bindings {
 # ==========================================================================
 sub create_test_context {
     my (%opts) = @_;
-    my $vb = $opts{vim_buffer} // Gtk3::SourceEditor::VimBuffer::Test->new(%opts);
+    # Extract vim_buffer before passing to EditorContext (it may be
+    # constructed from %opts that VimBuffer::Test::new also uses).
+    my $vb = delete $opts{vim_buffer};
+    $vb //= Gtk3::SourceEditor::VimBuffer::Test->new(%opts);
 
-    my $ml = $opts{mode_label} // Gtk3::SourceEditor::VimBindings::MockLabel->new();
-    my $ce = $opts{cmd_entry}  // Gtk3::SourceEditor::VimBindings::MockEntry->new();
-
-    my $ctx = {
-        vb           => $vb,
-        gtk_view     => undef,
-        mode_label   => $ml,
-        cmd_entry    => $ce,
-        is_readonly  => $opts{is_readonly} // 0,
-        filename_ref => $opts{filename_ref} // \"test.txt",
-        vim_mode     => \my $vim_mode,
-        cmd_buf      => \my $cmd_buf,
-        yank_buf     => \my $yank_buf,
-        page_size    => $opts{page_size} // 20,
-        shiftwidth   => $opts{shiftwidth} // 4,
-        marks        => {},
-        line_snapshots => {},
-        search_pattern   => undef,
-        search_direction => undef,
-        desired_col   => 0,
-        last_find     => undef,
+    my $ctx = Gtk3::SourceEditor::EditorContext->new(
+        vim_buffer    => $vb,
+        gtk_view      => undef,
+        mode_label    => $opts{mode_label},
+        cmd_entry     => $opts{cmd_entry},
+        is_readonly   => $opts{is_readonly},
+        filename_ref  => $opts{filename_ref},
+        filename      => ($opts{filename_ref} ? ${$opts{filename_ref}} : undef),
+        page_size     => $opts{page_size} // 20,
+        shiftwidth    => $opts{shiftwidth},
         scrolloff     => $opts{scrolloff},
-        tab_string    => $opts{tab_string} // "\t",
-        use_clipboard => $opts{use_clipboard} // 1,
-    };
+        tab_string    => $opts{tab_string},
+        use_clipboard => $opts{use_clipboard},
+    );
 
     _init_utilities($ctx);
     _init_mode_setter($ctx);
@@ -766,7 +744,7 @@ sub create_test_context {
         $ctx->{"${mode}_ctrl_dispatch"} = _build_ctrl_dispatch($mm);
     }
 
-    $vim_mode = 'normal';
+    # Mode is already 'normal' from EditorContext->new
     return $ctx;
 }
 
