@@ -202,170 +202,193 @@ sub register {
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
-    # --- Set option ---
+    # --- Set option (dispatch table) ---
+    # Each entry: [ regex, handler_sub($ctx, $arg, $value) ]
+    # Handlers are tried in order; first match wins.
+    my @_set_handlers;
+
+    # Helper: parse a boolean string (true/1/on → 1, else → 0)
+    my $_parse_bool = sub {
+        my ($s) = @_;
+        $s =~ s/^\s+|\s+$//g;
+        return ($s =~ /^(?:true|1|on)$/i) ? 1 : 0;
+    };
+
+    # Helper: set a toggle option (number, cursorline) with boolean value
+    my $_set_toggle = sub {
+        my ($ctx, $toggle_fn, $context_key, $display_name, $value) = @_;
+        unless ($ctx->{$toggle_fn}) {
+            $ctx->{show_status}->("Error: $toggle_fn not available") if $ctx->{show_status};
+            return;
+        }
+        my $result = $ctx->{$toggle_fn}->($value);
+        $ctx->{show_status}->("$display_name=" . ($result ? "on" : "off")) if $ctx->{show_status};
+    };
+
+    # cursor=block / cursor=ibeam
+    push @_set_handlers, [qr/^cursor=(block|ibeam)$/, sub {
+        my ($ctx, $arg, $val) = @_;
+        my $mode = $val;
+        if ($ctx->{set_cursor_mode}) {
+            $ctx->{set_cursor_mode}->($mode);
+        } else {
+            my $view = $ctx->{gtk_view};
+            if ($view) {
+                eval { $view->set_property('cursor-shape',
+                          $mode eq 'block' ? 0 : 1) };
+                if ($@) {
+                    $ctx->{show_status}->("Error: cursor-shape not supported") if $ctx->{show_status};
+                }
+            }
+        }
+    }];
+
+    # scrolloff=value / scrolloff (show)
+    push @_set_handlers, [qr/^scrolloff\s*=\s*(.+)$/i, sub {
+        my ($ctx, $arg, $val) = @_;
+        $val =~ s/^\s+|\s+$//g;
+        if ($val =~ /^(?:center)$/i) {
+            $ctx->{scrolloff} = lc($val);
+            $ctx->{show_status}->("scrolloff=center") if $ctx->{show_status};
+        } elsif ($val =~ /^(\d+)$/) {
+            $ctx->{scrolloff} = 0 + $1;
+            $ctx->{show_status}->("scrolloff=$ctx->{scrolloff}") if $ctx->{show_status};
+        } else {
+            $ctx->{show_status}->("Error: invalid scrolloff value '$val'") if $ctx->{show_status};
+        }
+    }];
+    push @_set_handlers, [qr/^scrolloff$/i, sub {
+        my ($ctx) = @_;
+        my $val = defined $ctx->{scrolloff} ? $ctx->{scrolloff} : 'natural (default)';
+        $ctx->{show_status}->("scrolloff=$val") if $ctx->{show_status};
+    }];
+
+    # scroll_mode=value / scroll_mode (show)
+    push @_set_handlers, [qr/^scroll_mode\s*=\s*(.+)$/i, sub {
+        my ($ctx, $arg, $val) = @_;
+        $val =~ s/^\s+|\s+$//g;
+        if ($val =~ /^(edge|center)$/i) {
+            $ctx->{_scroll_mode} = lc($val);
+            $ctx->{_scroll_lock_active} = 0;
+            $ctx->{_scroll_lock_prev} = undef;
+            $ctx->{show_status}->("scroll_mode=$ctx->{_scroll_mode}") if $ctx->{show_status};
+        } else {
+            $ctx->{show_status}->("Error: invalid scroll_mode '$val' (edge|center)") if $ctx->{show_status};
+        }
+    }];
+    push @_set_handlers, [qr/^scroll_mode$/i, sub {
+        my ($ctx) = @_;
+        my $val = $ctx->{_scroll_lock_active} ? 'scroll_lock'
+                : ($ctx->{_scroll_mode} // 'edge');
+        $ctx->{show_status}->("scroll_mode=$val") if $ctx->{show_status};
+    }];
+
+    # filetype=value / filetype (show)
+    push @_set_handlers, [qr/^filetype\s*=\s*(.+)$/i, sub {
+        my ($ctx, $arg, $lang) = @_;
+        $lang =~ s/^\s+|\s+$//g;
+        if ($ctx->{set_language}) {
+            my $ok = $ctx->{set_language}->($lang);
+            if ($ok) {
+                $ctx->{_current_filetype} = $lang;
+                $ctx->{show_status}->("filetype=$lang") if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: unknown language '$lang'") if $ctx->{show_status};
+            }
+        } else {
+            $ctx->{show_status}->("Error: set_language not available") if $ctx->{show_status};
+        }
+    }];
+    push @_set_handlers, [qr/^filetype$/i, sub {
+        my ($ctx) = @_;
+        my $ft = $ctx->{_current_filetype} // 'auto';
+        $ctx->{show_status}->("filetype=$ft") if $ctx->{show_status};
+    }];
+
+    # tabstop=value / tabstop (show)
+    push @_set_handlers, [qr/^(?:tabstop|tab_width)\s*=\s*(\d+)$/i, sub {
+        my ($ctx, $arg, $tw) = @_;
+        $tw = 0 + $tw;
+        if ($tw < 1 || $tw > 32) {
+            $ctx->{show_status}->("Error: tabstop out of range (1-32)") if $ctx->{show_status};
+        } elsif ($ctx->{set_tab_width}) {
+            $ctx->{set_tab_width}->($tw);
+            $ctx->{_current_tab_width} = $tw;
+            $ctx->{show_status}->("tabstop=$tw") if $ctx->{show_status};
+        } else {
+            $ctx->{show_status}->("Error: set_tab_width not available") if $ctx->{show_status};
+        }
+    }];
+    push @_set_handlers, [qr/^(?:tabstop|tab_width)$/i, sub {
+        my ($ctx) = @_;
+        my $tw = $ctx->{_current_tab_width} // 'unknown';
+        $ctx->{show_status}->("tabstop=$tw") if $ctx->{show_status};
+    }];
+
+    # theme=value / theme (show)
+    push @_set_handlers, [qr/^theme\s*=\s*(.+)$/i, sub {
+        my ($ctx, $arg, $theme) = @_;
+        $theme =~ s/^\s+|\s+$//g;
+        if ($ctx->{set_theme}) {
+            my $ok = $ctx->{set_theme}->($theme);
+            if ($ok) {
+                $ctx->{_current_theme} = $theme;
+                $ctx->{show_status}->("theme=$theme") if $ctx->{show_status};
+            } else {
+                $ctx->{show_status}->("Error: theme '$theme' not found") if $ctx->{show_status};
+            }
+        } else {
+            $ctx->{show_status}->("Error: set_theme not available") if $ctx->{show_status};
+        }
+    }];
+    push @_set_handlers, [qr/^theme$/i, sub {
+        my ($ctx) = @_;
+        my $th = $ctx->{_current_theme} // 'unknown';
+        $ctx->{show_status}->("theme=$th") if $ctx->{show_status};
+    }];
+
+    # number=true/false / :set number / :set nonumber
+    push @_set_handlers, [qr/^number\s*=\s*(.+)$/i, sub {
+        my ($ctx, $arg, $val_str) = @_;
+        $_set_toggle->($ctx, 'toggle_line_numbers', undef, 'number', $_parse_bool->($val_str));
+    }];
+    push @_set_handlers, [qr/^nonu(?:mber)?$/i, sub {
+        my ($ctx) = @_;
+        $_set_toggle->($ctx, 'toggle_line_numbers', undef, 'number', 0);
+    }];
+    push @_set_handlers, [qr/^(?:nu(?:mber)?|number)$/i, sub {
+        my ($ctx) = @_;
+        $_set_toggle->($ctx, 'toggle_line_numbers', undef, 'number', 1);
+    }];
+
+    # cursorline=true/false / :set cursorline / :set cul / :set nocul
+    push @_set_handlers, [qr/^cursorline\s*=\s*(.+)$/i, sub {
+        my ($ctx, $arg, $val_str) = @_;
+        $_set_toggle->($ctx, 'toggle_highlight_current_line', undef, 'cursorline', $_parse_bool->($val_str));
+    }];
+    push @_set_handlers, [qr/^no(?:cursorline|cul)$/i, sub {
+        my ($ctx) = @_;
+        $_set_toggle->($ctx, 'toggle_highlight_current_line', undef, 'cursorline', 0);
+    }];
+    push @_set_handlers, [qr/^(?:cul|cu(?:rline)?|cursorline)$/i, sub {
+        my ($ctx) = @_;
+        $_set_toggle->($ctx, 'toggle_highlight_current_line', undef, 'cursorline', 1);
+    }];
+
     $ACTIONS->{cmd_set} = sub {
         my ($ctx, $count, $parsed) = @_;
         my $arg = $parsed->{args}[0] // '';
         $arg =~ s/^\s+|\s+$//g;
         return unless length $arg;
 
-        if ($arg eq 'cursor=block' || $arg eq 'cursor=ibeam') {
-            my $mode = ($arg eq 'cursor=block') ? 'block' : 'ibeam';
-            if ($ctx->{set_cursor_mode}) {
-                $ctx->{set_cursor_mode}->($mode);
-            } else {
-                my $view = $ctx->{gtk_view};
-                if ($view) {
-                    eval { $view->set_property('cursor-shape',
-                              $mode eq 'block' ? 0 : 1) };
-                    if ($@) {
-                        $ctx->{show_status}->("Error: cursor-shape not supported") if $ctx->{show_status};
-                    }
-                }
+        for my $entry (@_set_handlers) {
+            my ($re, $handler) = @$entry;
+            if ($arg =~ $re) {
+                $handler->($ctx, $arg, $1);
+                return;
             }
-        } elsif ($arg =~ /^scrolloff\s*=\s*(.+)$/i) {
-            my $val = $1;
-            $val =~ s/^\s+|\s+$//g;
-            if ($val =~ /^(?:center)$/i) {
-                $ctx->{scrolloff} = lc($val);
-                $ctx->{show_status}->("scrolloff=center") if $ctx->{show_status};
-            } elsif ($val =~ /^(\d+)$/) {
-                $ctx->{scrolloff} = 0 + $1;
-                $ctx->{show_status}->("scrolloff=$ctx->{scrolloff}") if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: invalid scrolloff value '$val'") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^scrolloff$/i) {
-            # Show current value
-            my $val = defined $ctx->{scrolloff} ? $ctx->{scrolloff} : 'natural (default)';
-            $ctx->{show_status}->("scrolloff=$val") if $ctx->{show_status};
-        } elsif ($arg =~ /^scroll_mode\s*=\s*(.+)$/i) {
-            my $val = $1;
-            $val =~ s/^\s+|\s+$//g;
-            if ($val =~ /^(edge|center)$/i) {
-                $ctx->{_scroll_mode} = lc($val);
-                $ctx->{_scroll_lock_active} = 0;
-                $ctx->{_scroll_lock_prev} = undef;
-                $ctx->{show_status}->("scroll_mode=$ctx->{_scroll_mode}") if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: invalid scroll_mode '$val' (edge|center)") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^scroll_mode$/i) {
-            # Show current value
-            my $val = $ctx->{_scroll_lock_active} ? 'scroll_lock'
-                    : ($ctx->{_scroll_mode} // 'edge');
-            $ctx->{show_status}->("scroll_mode=$val") if $ctx->{show_status};
-        } elsif ($arg =~ /^filetype\s*=\s*(.+)$/i) {
-            # Set syntax highlighting language
-            my $lang = $1;
-            $lang =~ s/^\s+|\s+$//g;
-            if ($ctx->{set_language}) {
-                my $ok = $ctx->{set_language}->($lang);
-                if ($ok) {
-                    $ctx->{_current_filetype} = $lang;
-                    $ctx->{show_status}->("filetype=$lang") if $ctx->{show_status};
-                } else {
-                    $ctx->{show_status}->("Error: unknown language '$lang'") if $ctx->{show_status};
-                }
-            } else {
-                $ctx->{show_status}->("Error: set_language not available") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^filetype$/i) {
-            # Show current filetype
-            my $ft = $ctx->{_current_filetype} // 'auto';
-            $ctx->{show_status}->("filetype=$ft") if $ctx->{show_status};
-        } elsif ($arg =~ /^tabstop\s*=\s*(\d+)$/i || $arg =~ /^tab_width\s*=\s*(\d+)$/i) {
-            # Set tab width
-            my $tw = 0 + $1;
-            if ($tw < 1 || $tw > 32) {
-                $ctx->{show_status}->("Error: tabstop out of range (1-32)") if $ctx->{show_status};
-            } elsif ($ctx->{set_tab_width}) {
-                $ctx->{set_tab_width}->($tw);
-                $ctx->{_current_tab_width} = $tw;
-                $ctx->{show_status}->("tabstop=$tw") if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: set_tab_width not available") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^tabstop$/i || $arg =~ /^tab_width$/i) {
-            # Show current tab width
-            my $tw = $ctx->{_current_tab_width} // 'unknown';
-            $ctx->{show_status}->("tabstop=$tw") if $ctx->{show_status};
-        } elsif ($arg =~ /^theme\s*=\s*(.+)$/i) {
-            # Set theme
-            my $theme = $1;
-            $theme =~ s/^\s+|\s+$//g;
-            if ($ctx->{set_theme}) {
-                my $ok = $ctx->{set_theme}->($theme);
-                if ($ok) {
-                    $ctx->{_current_theme} = $theme;
-                    $ctx->{show_status}->("theme=$theme") if $ctx->{show_status};
-                } else {
-                    $ctx->{show_status}->("Error: theme '$theme' not found") if $ctx->{show_status};
-                }
-            } else {
-                $ctx->{show_status}->("Error: set_theme not available") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^theme$/i) {
-            # Show current theme
-            my $th = $ctx->{_current_theme} // 'unknown';
-            $ctx->{show_status}->("theme=$th") if $ctx->{show_status};
-        } elsif ($arg =~ /^nonu(?:mber)?$/i || $arg =~ /^no(?:nu)?mber$/i) {
-            # :set nonumber — hide line numbers
-            if ($ctx->{toggle_line_numbers}) {
-                my $val = $ctx->{toggle_line_numbers}->(0);
-                $ctx->{show_status}->("number=" . ($val ? "on" : "off")) if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: toggle_line_numbers not available") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^(?:nu(?:mber)?)$/i || $arg eq 'number') {
-            # :set number — show line numbers (bare :set number)
-            if ($ctx->{toggle_line_numbers}) {
-                my $val = $ctx->{toggle_line_numbers}->(1);
-                $ctx->{show_status}->("number=" . ($val ? "on" : "off")) if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: toggle_line_numbers not available") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^number\s*=\s*(.+)$/i) {
-            # :set number=true/false/1/0/on/off
-            my $val_str = $1;
-            $val_str =~ s/^\s+|\s+$//g;
-            my $val = ($val_str =~ /^(?:true|1|on)$/i) ? 1 : 0;
-            if ($ctx->{toggle_line_numbers}) {
-                my $result = $ctx->{toggle_line_numbers}->($val);
-                $ctx->{show_status}->("number=" . ($result ? "on" : "off")) if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: toggle_line_numbers not available") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^no(?:cursorline|cul)$/i) {
-            # :set nocursorline / :set nocul — hide current line highlight
-            if ($ctx->{toggle_highlight_current_line}) {
-                my $val = $ctx->{toggle_highlight_current_line}->(0);
-                $ctx->{show_status}->("cursorline=" . ($val ? "on" : "off")) if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: toggle_highlight_current_line not available") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^(?:cul|cu(?:rline)?|cursorline)$/i) {
-            # :set cursorline / :set cul — show current line highlight
-            if ($ctx->{toggle_highlight_current_line}) {
-                my $val = $ctx->{toggle_highlight_current_line}->(1);
-                $ctx->{show_status}->("cursorline=" . ($val ? "on" : "off")) if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: toggle_highlight_current_line not available") if $ctx->{show_status};
-            }
-        } elsif ($arg =~ /^cursorline\s*=\s*(.+)$/i) {
-            # :set cursorline=true/false/1/0/on/off
-            my $val_str = $1;
-            $val_str =~ s/^\s+|\s+$//g;
-            my $val = ($val_str =~ /^(?:true|1|on)$/i) ? 1 : 0;
-            if ($ctx->{toggle_highlight_current_line}) {
-                my $result = $ctx->{toggle_highlight_current_line}->($val);
-                $ctx->{show_status}->("cursorline=" . ($result ? "on" : "off")) if $ctx->{show_status};
-            } else {
-                $ctx->{show_status}->("Error: toggle_highlight_current_line not available") if $ctx->{show_status};
-            }
-        } else {
-            $ctx->{show_status}->("Error: Unknown option '$arg'") if $ctx->{show_status};
         }
+        $ctx->{show_status}->("Error: Unknown option '$arg'") if $ctx->{show_status};
     };
 
     # --- Nohlsearch ---
@@ -434,10 +457,35 @@ sub parse_ex_command {
 # --- Internal helpers ---
 sub _parse_substitute {
     my ($arg) = @_;
-    return undef unless defined $arg;
-    # Support /pattern/replacement/flags or other delimiters
-    if ($arg =~ m{^/(.+)/([^/]*)/(g?)$}) {
-        return { pattern => $1, replacement => $2, global => ($3 eq 'g') };
+    return undef unless defined $arg && length $arg;
+    # Support any non-alphanumeric delimiter: /pattern/replacement/flags
+    # or s/pat/rep/g, or #pat#rep#, etc.
+    if ($arg =~ m{^([^\w\s])(.+)\1([^g]*)\1?(g?)$}s) {
+        my ($delim, $body, $trailing) = ($1, $2, $3);
+        # Extract pattern and replacement from body.
+        # Walk the body to find the second unescaped delimiter.
+        my $pat = '';
+        my $pos = 0;
+        my $len = length($body);
+        my $escaped = 0;
+        while ($pos < $len) {
+            my $ch = substr($body, $pos, 1);
+            if ($escaped) {
+                $pat .= $ch;
+                $escaped = 0;
+            } elsif ($ch eq '\\') {
+                $escaped = 1;
+                $pat .= $ch;
+            } elsif ($ch eq $delim) {
+                last;
+            } else {
+                $pat .= $ch;
+            }
+            $pos++;
+        }
+        my $repl = substr($body, $pos + 1);
+        my $global = ($trailing =~ /g/) ? 1 : 0;
+        return { pattern => $pat, replacement => $repl, global => $global };
     }
     return undef;
 }
