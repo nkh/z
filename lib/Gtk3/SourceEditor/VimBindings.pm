@@ -152,7 +152,9 @@ sub _build_dispatch {
     my %d;
     for my $k (grep { !/^_/ } keys %$km) {
         my $a = $km->{$k};
-        $d{$k} = $ACTIONS{$a} if defined $a && exists $ACTIONS{$a};
+        # Store action NAME (not coderef) so _dispatch can use _execute_action
+        # for consistent event bus integration and undo grouping.
+        $d{$k} = $a if defined $a && exists $ACTIONS{$a};
     }
     return \%d;
 }
@@ -164,7 +166,8 @@ sub _build_ctrl_dispatch {
     for my $k (keys %$ctrl) {
         my $a = $ctrl->{$k};
         my $key = 'Control-' . lc($k);
-        $d{$key} = $ACTIONS{$a} if defined $a && exists $ACTIONS{$a};
+        # Store action NAME (not coderef) for consistent event bus integration.
+        $d{$key} = $a if defined $a && exists $ACTIONS{$a};
     }
     return \%d;
 }
@@ -921,27 +924,18 @@ sub _dispatch {
     # Exact match on full buffer
     if (exists $dispatch->{$$buf}) {
         my ($count, $cmd) = _extract_count($$buf);
-        my $handler = $dispatch->{$$buf};
+        my $action_name = $dispatch->{$$buf};
         $$buf = '';
-        # Wrap action in undo group so all side-effects become one undo step
-        my $result;
-        $ctx->{vb}->begin_user_action;
-        eval { $result = $handler->($ctx, $count) };
-        $ctx->{vb}->end_user_action;
-        return defined $result ? $result : TRUE;
+        return _execute_action($ctx, $action_name, $count);
     }
 
     # Try matching remainder after stripping numeric prefix
     if ($$buf =~ /^(\d+)(.+)$/) {
         my ($count, $rest) = (0 + $1, $2);
         if (exists $dispatch->{$rest}) {
-            my $handler = $dispatch->{$rest};
+            my $action_name = $dispatch->{$rest};
             $$buf = '';
-            my $result;
-            $ctx->{vb}->begin_user_action;
-            eval { $result = $handler->($ctx, $count) };
-            $ctx->{vb}->end_user_action;
-            return defined $result ? $result : TRUE;
+            return _execute_action($ctx, $action_name, $count);
         }
         if (exists $prefixes->{$rest}) {
             return TRUE;
@@ -1114,9 +1108,8 @@ sub handle_ctrl_key {
     my $mode = ${$ctx->{vim_mode}};
     my $dispatch = $ctx->{"${mode}_ctrl_dispatch"};
     return TRUE unless $dispatch && exists $dispatch->{$key};
-    my $handler = $dispatch->{$key};
-    my $result = $handler->($ctx, undef);
-    return defined $result ? $result : TRUE;
+    my $action_name = $dispatch->{$key};
+    return _execute_action($ctx, $action_name, undef);
 }
 
 # ==========================================================================
