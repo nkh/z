@@ -1,6 +1,7 @@
 package Gtk3::SourceEditor::VimBindings::Visual;
 use strict;
 use warnings;
+use Gtk3::SourceEditor::Util qw(clipboard_set);
 
 our $VERSION = '0.04';
 
@@ -107,21 +108,7 @@ sub register {
     $_set_yank = sub {
         my ($ctx, $text) = @_;
         ${$ctx->{yank_buf}} = $text;
-        # Copy to system clipboard if enabled
-        if ($ctx->{use_clipboard} && defined $text && length $text) {
-            eval {
-                my $clipboard;
-                my $view = $ctx->{gtk_view};
-                if ($view && $view->can('get_display')) {
-                    $clipboard = Gtk3::Clipboard::get_default(
-                        $view->get_display
-                    );
-                } else {
-                    $clipboard = Gtk3::Clipboard::get_default(undef);
-                }
-                $clipboard->set_text($text, length($text)) if $clipboard;
-            };
-        }
+        clipboard_set($ctx, $text);
     };
 
     # ----------------------------------------------------------------
@@ -152,27 +139,6 @@ sub register {
         my ($ctx) = @_;
         $ctx->{selection}->clear;
         $ctx->sync_selection;
-    };
-
-    # ----------------------------------------------------------------
-    # Helper: optionally copy text to system clipboard
-    # ----------------------------------------------------------------
-    my $_clipboard_copy;
-    $_clipboard_copy = sub {
-        my ($ctx, $text) = @_;
-        return unless $ctx->{use_clipboard} && defined $text && length $text;
-        eval {
-            my $clipboard;
-            my $view = $ctx->{gtk_view};
-            if ($view && $view->can('get_display')) {
-                $clipboard = Gtk3::Clipboard::get_default(
-                    $view->get_display
-                );
-            } else {
-                $clipboard = Gtk3::Clipboard::get_default(undef);
-            }
-            $clipboard->set_text($text, length($text)) if $clipboard;
-        };
     };
 
     # ----------------------------------------------------------------

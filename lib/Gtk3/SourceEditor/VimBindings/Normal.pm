@@ -2,6 +2,7 @@ package Gtk3::SourceEditor::VimBindings::Normal;
 
 use strict;
 use warnings;
+use Gtk3::SourceEditor::Util qw(clipboard_set clipboard_get);
 
 our $VERSION = '0.04';
 
@@ -119,26 +120,12 @@ sub register {
 
     $_undo_hl_applier = $_apply_undo_highlight;
 
-    # --- helper: optionally copy yanked text to GTK clipboard ---
+    # --- helper: set yank buffer and optionally sync to GTK clipboard ---
     my $_set_yank;
     $_set_yank = sub {
         my ($ctx, $text) = @_;
         ${$ctx->{yank_buf}} = $text;
-        # Copy to system clipboard if enabled
-        if ($ctx->{use_clipboard} && defined $text && length $text) {
-            eval {
-                my $clipboard;
-                my $view = $ctx->{gtk_view};
-                if ($view && $view->can('get_display')) {
-                    $clipboard = Gtk3::Clipboard::get_default(
-                        $view->get_display
-                    );
-                } else {
-                    $clipboard = Gtk3::Clipboard::get_default(undef);
-                }
-                $clipboard->set_text($text, length($text)) if $clipboard;
-            };
-        }
+        clipboard_set($ctx, $text);
     };
 
     # --- helper: get the first and last fully-visible line numbers ---
@@ -1651,26 +1638,9 @@ sub register {
         $vb->set_cursor($start_line, $start_col);
     };
 
-    # --- helper: optionally read text from GTK clipboard ---
+    # --- helper: read text from GTK clipboard (delegates to Util) ---
     my $_clipboard_text;
-    $_clipboard_text = sub {
-        my ($ctx) = @_;
-        return undef unless $ctx->{use_clipboard};
-        my $text = undef;
-        eval {
-            my $clipboard;
-            my $view = $ctx->{gtk_view};
-            if ($view && $view->can('get_display')) {
-                $clipboard = Gtk3::Clipboard::get_default(
-                    $view->get_display
-                );
-            } else {
-                $clipboard = Gtk3::Clipboard::get_default(undef);
-            }
-            $text = $clipboard->wait_for_text if $clipboard;
-        };
-        return $text;
-    };
+    $_clipboard_text = sub { clipboard_get($_[0]) };
 
     $ACTIONS->{paste} = sub {
         my ($ctx, $count) = @_;
