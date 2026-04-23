@@ -1955,13 +1955,13 @@ sub register {
                  : 'visual';
         $ctx->{set_mode}->($mode);
         # Set visual_start AFTER set_mode (which overwrites it)
-        $ctx->{visual_type} = $lv->{type};
-        $ctx->{visual_start} = { line => $lv->{start_line}, col => $lv->{start_col} };
+        $ctx->{selection}->start($lv->{start_line}, $lv->{start_col}, $lv->{type});
         # For visual_line mode, pre-set _visual_line_cursor so that
         # move_vert uses the correct line (see after_move tracking).
         if ($mode eq 'visual_line') {
-            $ctx->{_visual_line_cursor} = $lv->{end_line};
+            $ctx->{selection}->update_line_cursor($lv->{end_line});
         }
+        $ctx->sync_selection;
         # Use move_cursor to preserve the GTK selection, then let
         # after_move re-establish the full selection range.
         $ctx->{vb}->move_cursor($lv->{end_line}, $lv->{end_col});

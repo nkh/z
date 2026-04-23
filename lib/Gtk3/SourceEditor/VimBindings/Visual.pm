@@ -13,20 +13,11 @@ sub register {
     my $_save_last_visual = sub {
         my ($ctx) = @_;
         my $vb = $ctx->{vb};
-        return unless $ctx->{visual_start};
-        # In visual_line mode, select_range moves the insert mark to
-        # the start of line hi+1 (to include the trailing newline),
-        # so cursor_line reports the wrong line.  Use the tracked
-        # visual cursor line when available.
-        my $end_line = $ctx->{_visual_line_cursor} // $vb->cursor_line;
-        my $end_col  = $ctx->{_visual_line_cursor} ? ($ctx->{desired_col} // $vb->cursor_col) : $vb->cursor_col;
-        $ctx->{last_visual} = {
-            type       => $ctx->{visual_type},
-            start_line => $ctx->{visual_start}{line},
-            start_col  => $ctx->{visual_start}{col},
-            end_line   => $end_line,
-            end_col    => $end_col,
-        };
+        return unless $ctx->{selection}->is_active;
+        my $end_line = $ctx->{selection}->effective_cursor_line($vb->cursor_line);
+        my $end_col  = $vb->cursor_col;
+        $ctx->{selection}->save_last_visual($end_line, $end_col);
+        $ctx->sync_selection;
     };
 
     # ----------------------------------------------------------------
@@ -58,7 +49,7 @@ sub register {
     # ----------------------------------------------------------------
     my $_effective_cursor_line = sub {
         my ($ctx) = @_;
-        return $ctx->{_visual_line_cursor} // $ctx->{vb}->cursor_line;
+        return $ctx->{selection}->effective_cursor_line($ctx->{vb}->cursor_line);
     };
 
     # ----------------------------------------------------------------
@@ -159,9 +150,8 @@ sub register {
     # ----------------------------------------------------------------
     my $_visual_cleanup = sub {
         my ($ctx) = @_;
-        delete $ctx->{visual_type};
-        delete $ctx->{visual_start};
-        delete $ctx->{_visual_line_cursor};
+        $ctx->{selection}->clear;
+        $ctx->sync_selection;
     };
 
     # ----------------------------------------------------------------
@@ -332,7 +322,8 @@ sub register {
         # insert mark.  after_move will re-establish the selection with
         # the new visual_start.
         $vb->move_cursor($s->{line}, $s->{col});
-        $ctx->{visual_start} = { line => $cur_line, col => $cur_col };
+        $ctx->{selection}->start($cur_line, $cur_col, $ctx->{selection}->type);
+        $ctx->sync_selection;
         $ctx->{after_move}->($ctx) if $ctx->{after_move};
     };
 
@@ -561,13 +552,11 @@ sub register {
         $_save_last_visual->($ctx);
 
         my $b = $_block_bounds->($ctx);
-        $ctx->{block_insert_info} = {
-            col       => $b->{left},
-            top       => $b->{top},
-            bottom    => $b->{bottom},
-            direction => 'start',
-            inserted  => '',
-        };
+        $ctx->{selection}->set_block_insert_info(
+            col => $b->{left}, top => $b->{top},
+            bottom => $b->{bottom}, direction => 'start', inserted => ''
+        );
+        $ctx->sync_selection;
         $ctx->{vb}->set_cursor($b->{top}, $b->{left});
         $_visual_cleanup->($ctx);
         $ctx->{set_mode}->('insert');
@@ -584,13 +573,11 @@ sub register {
         $_save_last_visual->($ctx);
 
         my $b = $_block_bounds->($ctx);
-        $ctx->{block_insert_info} = {
-            col       => $b->{right},
-            top       => $b->{top},
-            bottom    => $b->{bottom},
-            direction => 'end',
-            inserted  => '',
-        };
+        $ctx->{selection}->set_block_insert_info(
+            col => $b->{right}, top => $b->{top},
+            bottom => $b->{bottom}, direction => 'end', inserted => ''
+        );
+        $ctx->sync_selection;
         $ctx->{vb}->set_cursor($b->{top}, $b->{right});
         $_visual_cleanup->($ctx);
         $ctx->{set_mode}->('insert');
@@ -610,7 +597,8 @@ sub register {
         $vb->set_cursor($lo, 0);
         $vb->indent_lines($count, $sw, 1);
         # Update visual start and cursor positions
-        $ctx->{visual_start} = { line => $lo, col => 0 };
+        $ctx->{selection}->start($lo, 0, $ctx->{selection}->type);
+        $ctx->sync_selection;
         $vb->set_cursor($hi, $vb->line_length($hi));
         # Re-establish GTK selection highlighting after indent_lines
         # which calls place_cursor internally (clearing selection)
@@ -630,7 +618,8 @@ sub register {
         my $sw = $ctx->{shiftwidth} // 4;
         $vb->set_cursor($lo, 0);
         $vb->indent_lines($count, $sw, -1);
-        $ctx->{visual_start} = { line => $lo, col => 0 };
+        $ctx->{selection}->start($lo, 0, $ctx->{selection}->type);
+        $ctx->sync_selection;
         $vb->set_cursor($hi, $vb->line_length($hi));
         # Re-establish GTK selection highlighting after indent_lines
         # which calls place_cursor internally (clearing selection)

@@ -14,7 +14,7 @@ The improvements are implemented in the order specified by the project owner:
 | 03 | [03-event-bus.md](03-event-bus.md) | Event bus | Done | Lightweight pub/sub hook system for plugins and extensions |
 | 04 | [04-builder-decomposition.md](04-builder-decomposition.md) | Builder decomposition | Done | Decomposed monolithic _build_ui into 9 focused sub-methods |
 | 05 | [05-shared-safe-call.md](05-shared-safe-call.md) | Shared safe_call | Done | Shared Util module with safe_call and parse_hex_color_rgb |
-| 06 | — | Selection state object | Pending | — |
+| 06 | [06-selection-state-object.md](06-selection-state-object.md) | Selection state object | Done | SelectionState class encapsulating visual mode state |
 | 07 | — | Deduplicate clipboard code | Pending | — |
 | 08 | — | Color utility | Pending | — |
 | 09 | — | Ex-command parser rewrite | Pending | — |

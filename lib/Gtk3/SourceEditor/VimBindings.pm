@@ -1303,8 +1303,8 @@ sub _init_utilities {
         my $line;
         my $mode = ${$ctx->{vim_mode}};
         if ( $mode eq 'visual_line'
-            && defined $ctx->{_visual_line_cursor} ) {
-            $line = $ctx->{_visual_line_cursor};
+            && defined $ctx->{selection}->line_cursor ) {
+            $line = $ctx->{selection}->line_cursor;
         } else {
             $line = $vb->cursor_line;
         }
@@ -1339,7 +1339,7 @@ sub _init_utilities {
             # Update visual mode selection highlighting
             my $mode = ${$ctx->{vim_mode}};
             if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
-                my $vs = $ctx->{visual_start};
+                my $vs = $ctx->{selection}->anchor;
                 if ($vs) {
                     my $cursor_iter = $buf->get_iter_at_mark($buf->get_insert);
                     if ($mode eq 'visual_line') {
@@ -1374,7 +1374,8 @@ sub _init_utilities {
                         # position) rather than $hi, because when the cursor
                         # is above visual_start, $hi is the visual_start line
                         # (the far end of the selection), not the cursor.
-                        $ctx->{_visual_line_cursor} = $cursor_line_for_sel;
+                        $ctx->{selection}->update_line_cursor($cursor_line_for_sel);
+                        $ctx->sync_selection;
                         # Preserve desired_col when navigating through
                         # short or empty lines.  Only update it when the
                         # cursor was NOT clamped to the end of a shorter
@@ -1554,7 +1555,8 @@ sub _init_mode_setter {
                 my $iter = $gbuf->get_iter_at_mark($gbuf->get_insert);
                 $gbuf->select_range($iter, $iter);
             }
-            delete $ctx->{_visual_line_cursor};
+            $ctx->{selection}->clear;
+            $ctx->sync_selection;
         }
 
         # Set textview editable for insert and replace modes
@@ -1562,12 +1564,12 @@ sub _init_mode_setter {
             eval { $ctx->{gtk_view}->set_editable($mode eq 'insert' || $mode eq 'replace'); };
         }
 
-        # Visual mode: set visual start and type, and initialise GTK selection
+        # Visual mode: set visual start and type via SelectionState, and initialise GTK selection
         if ($mode eq 'visual' || $mode eq 'visual_line' || $mode eq 'visual_block') {
-            $ctx->{visual_type} = ($mode eq 'visual_line') ? 'line'
-                                : ($mode eq 'visual_block') ? 'block'
-                                : 'char';
-            $ctx->{visual_start} = { line => $vb->cursor_line, col => $vb->cursor_col };
+            my $vtype = ($mode eq 'visual_line') ? 'line'
+                       : ($mode eq 'visual_block') ? 'block'
+                       : 'char';
+            $ctx->{selection}->start($vb->cursor_line, $vb->cursor_col, $vtype);
             # Set the GTK selection to make it visible immediately.
             # For visual_line mode, select the entire current line.
             # place_cursor (called by set_cursor) removes any existing
@@ -1592,11 +1594,12 @@ sub _init_mode_setter {
                     # Track the visual cursor line: the user is on
                     # $cur_ln, not on $cur_ln + 1 where the insert
                     # mark was just moved by select_range.
-                    $ctx->{_visual_line_cursor} = $cur_ln;
+                    $ctx->{selection}->update_line_cursor($cur_ln);
                 } else {
                     $gbuf->select_range($iter, $iter);
                 }
             }
+            $ctx->sync_selection;
         }
 
         # Mode label and widget management

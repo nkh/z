@@ -2,6 +2,7 @@ package Gtk3::SourceEditor::EditorContext;
 use strict;
 use warnings;
 use Gtk3::SourceEditor::EventBus;
+use Gtk3::SourceEditor::SelectionState;
 
 our $VERSION = '0.01';
 
@@ -124,15 +125,20 @@ sub new {
     $self->{marks}           = {};
     $self->{line_snapshots}  = {};
 
-    # --- Visual mode state ---
+    # --- Visual mode state (encapsulated in SelectionState) ---
+    $self->{selection} = Gtk3::SourceEditor::SelectionState->new;
+
+    # Legacy visual fields (kept for backward compatibility -- many files
+    # access $ctx->{visual_start} directly).  These are synced via the
+    # sync_selection() method whenever SelectionState changes.
     $self->{visual_start}  = undef;
     $self->{visual_type}   = undef;
     $self->{_visual_line_cursor} = undef;
     $self->{last_visual}   = undef;
+    $self->{block_insert_info} = undef;
 
     # --- Insert mode state ---
-    $self->{last_insert_pos}  = undef;
-    $self->{block_insert_info} = undef;
+    $self->{last_insert_pos} = undef;
 
     # --- Theme ---
     $self->{theme} = $opts{theme};
@@ -205,8 +211,43 @@ sub desired_col  { $_[0]->{desired_col} }
 sub search_pattern   { $_[0]->{search_pattern} }
 sub search_direction { $_[0]->{search_direction} }
 
-sub visual_start  { $_[0]->{visual_start} }
-sub visual_type   { $_[0]->{visual_type} }
+sub visual_start  { $_[0]->{selection}->visual_start }
+sub visual_type   { $_[0]->{selection}->visual_type }
+
+sub selection     { $_[0]->{selection} }
+
+# ==========================================================================
+# sync_selection() -- mirror SelectionState to legacy context fields
+#
+# Copies the SelectionState's internal fields to the legacy
+# $ctx->{visual_start}, $ctx->{visual_type}, etc. hash keys so that
+# existing code accessing these directly continues to work.
+#
+# Call this after any mutation of the SelectionState object.
+# ==========================================================================
+sub sync_selection {
+    my ($self) = @_;
+    my $sel = $self->{selection};
+    # Mirror to legacy fields: delete key when undef, set when defined.
+    # Map legacy hash key → SelectionState accessor method.
+    my %key_map = (
+        visual_start        => 'visual_start',
+        visual_type         => 'visual_type',
+        _visual_line_cursor => 'line_cursor',
+        last_visual         => 'last_visual',
+        block_insert_info   => 'block_insert_info',
+    );
+    for my $hkey (keys %key_map) {
+        my $method = $key_map{$hkey};
+        my $val = $sel->$method;
+        if (defined $val) {
+            $self->{$hkey} = $val;
+        } else {
+            delete $self->{$hkey};
+        }
+    }
+    return $self;
+}
 
 sub marks           { $_[0]->{marks} }
 sub line_snapshots  { $_[0]->{line_snapshots} }

@@ -15,6 +15,8 @@ sub register {
         # Handle block insert replay
         if ($ctx->{block_insert_info}) {
             my $info = delete $ctx->{block_insert_info};
+            $ctx->{selection}->clear_block_insert_info;
+            $ctx->sync_selection;
             # The text the user typed while in insert mode is tracked via
             # the cursor position delta. For simplicity, we detect the inserted
             # text by comparing what changed on the first line.
