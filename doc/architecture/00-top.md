@@ -17,7 +17,7 @@ The improvements are implemented in the order specified by the project owner:
 | 06 | [06-selection-state-object.md](06-selection-state-object.md) | Selection state object | Done | SelectionState class encapsulating visual mode state |
 | 07 | [07-deduplicate-clipboard.md](07-deduplicate-clipboard.md) | Deduplicate clipboard code | Done | clipboard_set/clipboard_get in Util.pm, removed dead $_clipboard_copy |
 | 08 | [08-color-utility.md](08-color-utility.md) | Color utility | Done | tint_color in Util.pm, replaced inline hex parsing |
-| 09 | — | Ex-command parser rewrite | Pending | — |
+| 09 | [09-ex-command-parser-rewrite.md](09-ex-command-parser-rewrite.md) | Ex-command parser rewrite | Done | Dispatch table for :set, multi-delim substitute |
 | 10 | — | Dispatch strategy pattern | Pending | — |
 | 11 | — | Error handling | Pending | — |
 | 12 | — | Multi-buffer support | Pending | — |
