@@ -21,7 +21,7 @@ The improvements are implemented in the order specified by the project owner:
 | 10 | [10-dispatch-strategy-pattern.md](10-dispatch-strategy-pattern.md) | Dispatch strategy pattern | Done | Dispatch tables store action names, route through event bus |
 | 11 | [11-error-handling.md](11-error-handling.md) | Error handling | Done | Error event on event bus, status messages on action failure |
 | 12 | [12-multi-buffer-support.md](12-multi-buffer-support.md) | Multi-buffer support | Done | BufferRegistry class, :ls/:bn/:bp/:b commands |
-| 13 | — | Viewport manager | Pending | — |
+| 13 | [13-viewport-manager.md](13-viewport-manager.md) | Viewport manager | Done | Shared viewport helpers in Util, deduplicated H/M/L/Ctrl-y/e |
 | 15 | — | Undo semantics layer | Pending | — |
 | 16 | — | Pluggable completion | Pending | — |
 | 18 | — | Keyboard layout abstraction | Pending | — |
