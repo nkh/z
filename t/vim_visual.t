@@ -648,7 +648,9 @@ subtest 'Visual movement with Home/End' => sub {
     is($vb->cursor_col, 0, 'Home moves to col 0 in visual mode');
 
     Gtk3::SourceEditor::VimBindings::handle_visual_mode($ctx, 'End');
-    is($vb->cursor_col, 10, 'End moves to last char in visual mode');
+    # In visual mode, cursor goes one past last char so GTK select_range
+    # includes the final character (line_length, not line_length-1).
+    is($vb->cursor_col, 11, 'End moves to end of line in visual mode');
 };
 
 subtest 'Visual numeric prefix with movement (3j, 2l)' => sub {
@@ -1262,7 +1264,8 @@ subtest 'Char-wise visual: 0 and $ motions' => sub {
     # Move to middle, enter visual, go to end
     $vb->set_cursor(0, 5);
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'v', 'dollar');
-    is($vb->cursor_col, 10, '$ moves to last char');
+    # In visual mode, cursor goes one past last char for GTK select_range.
+    is($vb->cursor_col, 11, '$ moves to end of line in visual mode');
 
     Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y');
     is(${$ctx->{yank_buf}}, ' world', 'selection from col 5 to 10 yanked');
