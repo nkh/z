@@ -811,7 +811,8 @@ sub _extract_count {
 # _execute_action($ctx, $action_name, $count, @extra)
 #
 # Wraps action execution in undo grouping and fires before_action/after_action
-# event bus hooks.  All action dispatch sites should use this helper to
+# event bus hooks.  On action error, emits an 'error' event and shows a
+# status message.  All action dispatch sites should use this helper to
 # ensure consistent hook firing and error handling.
 #
 # Returns the action result, or TRUE if result is undef.
@@ -831,6 +832,19 @@ sub _execute_action {
     eval { $result = $ACTIONS{$action_name}->($ctx, $count, @extra) };
     $vb->end_user_action;
 
+    if ($@) {
+        my $err = $@;
+        chomp $err;
+        $bus->emit('error', {
+            source => 'action',
+            action => $action_name,
+            error  => $err,
+            ctx    => $ctx,
+        }) if $bus;
+        $ctx->{show_status}->("Error in $action_name: $err") if $ctx->{show_status};
+        return TRUE;
+    }
+
     $bus->emit('after_action', {
         action_name => $action_name,
         count       => $count,
@@ -844,7 +858,8 @@ sub _execute_action {
 # _execute_handler($ctx, $handler, $action_name, $count)
 #
 # Same as _execute_action but takes a coderef directly (for immediate-mode
-# handlers that bypass the ACTIONS registry).
+# handlers that bypass the ACTIONS registry).  Includes error handling
+# consistent with _execute_action.
 sub _execute_handler {
     my ($ctx, $handler, $action_name, $count) = @_;
     my $bus = $ctx->{event_bus};
@@ -860,6 +875,19 @@ sub _execute_handler {
     $vb->begin_user_action;
     eval { $result = $handler->($ctx, $count) };
     $vb->end_user_action;
+
+    if ($@) {
+        my $err = $@;
+        chomp $err;
+        $bus->emit('error', {
+            source => 'handler',
+            action => $action_name // '_immediate',
+            error  => $err,
+            ctx    => $ctx,
+        }) if $bus;
+        $ctx->{show_status}->("Error: $err") if $ctx->{show_status};
+        return TRUE;
+    }
 
     $bus->emit('after_action', {
         action_name => $action_name // '_immediate',
