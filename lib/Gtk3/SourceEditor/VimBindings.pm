@@ -2,6 +2,7 @@ package Gtk3::SourceEditor::VimBindings;
 use strict;
 use warnings;
 use Gtk3;
+use Gtk3::SourceEditor::Util qw(parse_hex_color_rgb);
 
 sub TRUE  { 1 }
 sub FALSE { 0 }
@@ -1674,18 +1675,11 @@ sub _setup_block_cursor {
     # GtkSourceView really draws.
     my (@rect_color, @text_color);
 
-    # Helper: convert "#RRGGBB" to (r, g, b) floats in 0..1
-    my $hex_to_rgb = sub {
-        my ($hex) = @_;
-        return () unless defined $hex && $hex =~ /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/;
-        return (hex($1)/255.0, hex($2)/255.0, hex($3)/255.0);
-    };
-
     if (my $theme = $ctx->{theme}) {
         # Rectangle: theme foreground (the text colour) — e.g. white on dark
-        @rect_color = $hex_to_rgb->($theme->{fg});
+        eval { @rect_color = parse_hex_color_rgb($theme->{fg}) };
         # Character on cursor: theme background — e.g. dark on dark theme
-        @text_color = $hex_to_rgb->($theme->{bg});
+        eval { @text_color = parse_hex_color_rgb($theme->{bg}) };
     }
 
     # Fallback: read from widget style context

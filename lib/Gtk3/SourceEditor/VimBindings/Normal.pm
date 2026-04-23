@@ -2,7 +2,7 @@ package Gtk3::SourceEditor::VimBindings::Normal;
 
 use strict;
 use warnings;
-use Gtk3::SourceEditor::Util qw(clipboard_set clipboard_get);
+use Gtk3::SourceEditor::Util qw(clipboard_set clipboard_get tint_color);
 
 our $VERSION = '0.04';
 
@@ -72,27 +72,9 @@ sub register {
         # Derive a subtle tint from the theme.  In a dark theme the
         # highlight is lighter; in a light theme it is darker.
         my $theme = $ctx->{theme};
-        my ($bg_hex) = $theme ? ($theme->{bg}) : ('#ffffff');
-
-        # Parse hex colour
-        my ($br, $bg, $bb) = $bg_hex =~ /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/;
-        return unless defined $br;
-
-        # Determine if theme is dark (average channel < 128)
-        my $avg = (hex($br) + hex($bg) + hex($bb)) / 3;
-        my ($hr, $hg, $hb);
-        if ($avg < 128) {
-            # Dark theme: lighten by ~5%
-            $hr = sprintf("%02x", hex($br) + 12 > 255 ? 255 : hex($br) + 12);
-            $hg = sprintf("%02x", hex($bg) + 12 > 255 ? 255 : hex($bg) + 12);
-            $hb = sprintf("%02x", hex($bb) + 12 > 255 ? 255 : hex($bb) + 12);
-        } else {
-            # Light theme: darken by ~5%
-            $hr = sprintf("%02x", hex($br) < 12 ? 0 : hex($br) - 12);
-            $hg = sprintf("%02x", hex($bg) < 12 ? 0 : hex($bg) - 12);
-            $hb = sprintf("%02x", hex($bb) < 12 ? 0 : hex($bb) - 12);
-        }
-        my $tint = "#$hr$hg$hb";
+        my $bg_hex = $theme ? $theme->{bg} : '#ffffff';
+        my $tint = tint_color($bg_hex);
+        return unless defined $tint;
 
         # paragraph-background fills the full widget width per line,
         # unlike 'background' which only covers the text characters.

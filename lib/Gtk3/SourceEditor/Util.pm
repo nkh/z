@@ -3,8 +3,9 @@ use strict;
 use warnings;
 use Exporter 'import';
 
-our $VERSION = '0.05';
-our @EXPORT_OK = qw(safe_call parse_hex_color_rgb clipboard_set clipboard_get);
+our $VERSION = '0.06';
+our @EXPORT_OK = qw(safe_call parse_hex_color_rgb tint_color
+                    clipboard_set clipboard_get);
 
 # Shared state for warn-once behavior across all safe_call invocations.
 my %_missing_warned;
@@ -51,6 +52,36 @@ sub parse_hex_color_rgb {
     my $g = hex(substr($hex, 2, 2)) / 255.0;
     my $b = hex(substr($hex, 4, 2)) / 255.0;
     return ($r, $g, $b);
+}
+
+# ==========================================================================
+# tint_color( $hex, $amount )
+#
+# Lighten or darken a "#RRGGBB" color by a fixed amount.  For dark themes
+# (average channel < 128) the color is lightened; for light themes it is
+# darkened.  Returns a new "#RRGGBB" string, or undef on invalid input.
+#
+# $amount is the per-channel shift in 0-255 range (default 12).
+# ==========================================================================
+sub tint_color {
+    my ($hex, $amount) = @_;
+    $amount //= 12;
+    return undef unless defined $hex
+        && $hex =~ /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/;
+    my ($r, $g, $b) = (hex($1), hex($2), hex($3));
+    my $avg = ($r + $g + $b) / 3;
+    if ($avg < 128) {
+        # Dark theme: lighten
+        $r = $r + $amount > 255 ? 255 : $r + $amount;
+        $g = $g + $amount > 255 ? 255 : $g + $amount;
+        $b = $b + $amount > 255 ? 255 : $b + $amount;
+    } else {
+        # Light theme: darken
+        $r = $r - $amount < 0 ? 0 : $r - $amount;
+        $g = $g - $amount < 0 ? 0 : $g - $amount;
+        $b = $b - $amount < 0 ? 0 : $b - $amount;
+    }
+    return sprintf("#%02x%02x%02x", $r, $g, $b);
 }
 
 # ==========================================================================
@@ -113,7 +144,7 @@ Gtk3::SourceEditor::Util - Shared utility functions for the editor module
 
 =head1 SYNOPSIS
 
-    use Gtk3::SourceEditor::Util qw(safe_call parse_hex_color_rgb
+    use Gtk3::SourceEditor::Util qw(safe_call parse_hex_color_rgb tint_color
                                    clipboard_set clipboard_get);
 
     # Safe method dispatch (warns once per missing method)
@@ -121,6 +152,9 @@ Gtk3::SourceEditor::Util - Shared utility functions for the editor module
 
     # Parse "#RRGGBB" to 0.0-1.0 RGB values
     my ($r, $g, $b) = parse_hex_color_rgb('#1e1e2e');
+
+    # Lighten/darken a hex color for highlight tinting
+    my $highlight = tint_color('#1e1e2e');  # lightens dark themes
 
     # Copy text to system clipboard (no-op if disabled)
     clipboard_set($ctx, $some_text);
@@ -152,6 +186,13 @@ debugging on older GtkSourceView installations.
 
 Converts a C<"#RRGGBB"> color string to three floating-point values
 (R, G, B) in the 0.0-1.0 range.  Dies on invalid input.
+
+=head2 tint_color( $hex, $amount )
+
+Lightens or darkens a C<"#RRGGBB"> color by C<$amount> (default 12) per
+channel.  Dark themes (average channel < 128) are lightened; light themes
+are darkened.  Returns a new C<"#RRGGBB"> string, or C<undef> on invalid
+input.
 
 =head2 clipboard_set( $ctx, $text )
 
