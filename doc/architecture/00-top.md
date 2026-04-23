@@ -20,7 +20,7 @@ The improvements are implemented in the order specified by the project owner:
 | 09 | [09-ex-command-parser-rewrite.md](09-ex-command-parser-rewrite.md) | Ex-command parser rewrite | Done | Dispatch table for :set, multi-delim substitute |
 | 10 | [10-dispatch-strategy-pattern.md](10-dispatch-strategy-pattern.md) | Dispatch strategy pattern | Done | Dispatch tables store action names, route through event bus |
 | 11 | [11-error-handling.md](11-error-handling.md) | Error handling | Done | Error event on event bus, status messages on action failure |
-| 12 | — | Multi-buffer support | Pending | — |
+| 12 | [12-multi-buffer-support.md](12-multi-buffer-support.md) | Multi-buffer support | Done | BufferRegistry class, :ls/:bn/:bp/:b commands |
 | 13 | — | Viewport manager | Pending | — |
 | 15 | — | Undo semantics layer | Pending | — |
 | 16 | — | Pluggable completion | Pending | — |
