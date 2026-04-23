@@ -7,6 +7,7 @@ use Gtk3::SourceView;
 use Pango;
 use File::Slurper 'read_text';
 
+use Gtk3::SourceEditor::Util qw(safe_call parse_hex_color_rgb);
 use Gtk3::SourceEditor::VimBindings;
 use Gtk3::SourceEditor::ThemeManager;
 use Gtk3::SourceEditor::Config qw(parse_editor_config);
@@ -100,11 +101,11 @@ sub new {
 #
 # The monolithic _build_ui has been decomposed into focused sub-methods,
 # each responsible for a single aspect of the UI construction.  All GTK
-# method calls go through $self->{_safe_call} which checks
-# $obj->can($method) before dispatching.  This prevents crashes when
-# running against older GtkSourceView 3.x releases that lack certain
-# methods (e.g. set_indent_width was added in 3.16,
-# set_show_line_marks in 2.2, etc.).
+# method calls go through the shared safe_call() function (from
+# Gtk3::SourceEditor::Util) which checks $obj->can($method) before
+# dispatching.  This prevents crashes when running against older
+# GtkSourceView 3.x releases that lack certain methods (e.g.
+# set_indent_width was added in 3.16, set_show_line_marks in 2.2, etc.).
 # ==========================================================================
 
 sub _make_debug_logger {
@@ -121,38 +122,15 @@ sub _make_debug_logger {
     };
 }
 
-sub _make_safe_call {
-    my ($self) = @_;
-    my %_missing_warned;
-    return sub {
-        my ($obj, $method, @args) = @_;
-        return unless $obj && $method;
-        if ($obj->can($method)) {
-            return $obj->$method(@args);
-        }
-        unless ($_missing_warned{$method}) {
-            warn "Gtk3::SourceEditor: method '$method' not available on "
-               . ref($obj) . " (feature skipped)\n";
-            $_missing_warned{$method} = 1;
-        }
-        return;
-    };
-}
-
-# Convert "#RRGGBB" to a GdkRGBA object safely across all GTK3 versions.
-sub _parse_hex_color {
-    my ($self, $h) = @_;
-    $h =~ s/^#//;
-    my $r = hex(substr($h, 0, 2)) / 255.0;
-    my $g = hex(substr($h, 2, 2)) / 255.0;
-    my $b = hex(substr($h, 4, 2)) / 255.0;
-
+# Convert "#RRGGBB" hex string to a GdkRGBA object.
+sub _make_rgba {
+    my ($self, $hex) = @_;
+    my ($r, $g, $b) = parse_hex_color_rgb($hex);
     my $rgba = Gtk3::Gdk::RGBA->new();
     $rgba->red($r);
     $rgba->green($g);
     $rgba->blue($b);
     $rgba->alpha(1.0);
-
     return $rgba;
 }
 
@@ -164,12 +142,11 @@ sub _load_theme {
     my $fg = $theme_data->{fg};
     my $bg = $theme_data->{bg};
     return ($theme_data, $fg, $bg,
-            $self->_parse_hex_color($fg), $self->_parse_hex_color($bg));
+            $self->_make_rgba($fg), $self->_make_rgba($bg));
 }
 
 sub _build_buffer {
     my ($self, $opts, $theme_data, $dbg) = @_;
-    my $_call = $self->{_safe_call};
 
     $dbg->("LanguageManager->get_default()");
     my $lm = Gtk3::SourceView::LanguageManager->get_default();
@@ -189,144 +166,139 @@ sub _build_buffer {
     }
     $dbg->("Buffer->new_with_language");
     $self->{buffer} = Gtk3::SourceView::Buffer->new_with_language($lang);
-    $_call->($self->{buffer}, 'set_highlight_syntax', TRUE);
+    safe_call($self->{buffer}, 'set_highlight_syntax', TRUE);
 
     if ($self->{filename} && -e $self->{filename}) {
         eval { $self->{buffer}->set_text(read_text($self->{filename})); };
         warn "Failed to read $self->{filename}: $@" if $@;
     }
-    $_call->($self->{buffer}, 'place_cursor', $self->{buffer}->get_start_iter());
-    $_call->($self->{buffer}, 'set_modified', FALSE);
-    $_call->($self->{buffer}, 'set_style_scheme', $theme_data->{scheme});
+    safe_call($self->{buffer}, 'place_cursor', $self->{buffer}->get_start_iter());
+    safe_call($self->{buffer}, 'set_modified', FALSE);
+    safe_call($self->{buffer}, 'set_style_scheme', $theme_data->{scheme});
 
     # Highlight matching brackets (Buffer method, NOT View)
     if (defined $opts->{highlight_matching_brackets}) {
-        $_call->($self->{buffer}, 'set_highlight_matching_brackets',
+        safe_call($self->{buffer}, 'set_highlight_matching_brackets',
                  $opts->{highlight_matching_brackets} ? TRUE : FALSE);
     } else {
-        $_call->($self->{buffer}, 'set_highlight_matching_brackets', TRUE);
+        safe_call($self->{buffer}, 'set_highlight_matching_brackets', TRUE);
     }
 }
 
 sub _build_textview {
     my ($self, $opts) = @_;
-    my $_call = $self->{_safe_call};
-
     $self->{textview} = Gtk3::SourceView::View->new();
-    $_call->($self->{textview}, 'set_buffer', $self->{buffer});
-    $_call->($self->{textview}, 'set_show_line_numbers',
+    safe_call($self->{textview}, 'set_buffer', $self->{buffer});
+    safe_call($self->{textview}, 'set_show_line_numbers',
              $self->{show_line_numbers} ? TRUE : FALSE);
-    $_call->($self->{textview}, 'set_highlight_current_line',
+    safe_call($self->{textview}, 'set_highlight_current_line',
              $self->{highlight_current_line} ? TRUE : FALSE);
     if (defined $self->{auto_indent}) {
-        $_call->($self->{textview}, 'set_auto_indent',
+        safe_call($self->{textview}, 'set_auto_indent',
                  $self->{auto_indent} ? TRUE : FALSE);
     }
-    $_call->($self->{textview}, 'set_wrap_mode', $self->{wrap} ? 'word' : 'none');
+    safe_call($self->{textview}, 'set_wrap_mode', $self->{wrap} ? 'word' : 'none');
 
     # Tab behaviour
     my $isp = defined $self->{insert_spaces_instead_of_tabs}
             ? $self->{insert_spaces_instead_of_tabs} : 0;
-    $_call->($self->{textview}, 'set_insert_spaces_instead_of_tabs',
+    safe_call($self->{textview}, 'set_insert_spaces_instead_of_tabs',
              $isp ? TRUE : FALSE);
 
     # Tab width
     if (defined $opts->{tab_width} && $opts->{tab_width} > 0) {
-        $_call->($self->{textview}, 'set_tab_width', $opts->{tab_width});
+        safe_call($self->{textview}, 'set_tab_width', $opts->{tab_width});
     }
 
     # Indent width (available since GtkSourceView 3.16)
     if (defined $opts->{indent_width} && $opts->{indent_width} > 0) {
-        $_call->($self->{textview}, 'set_indent_width', $opts->{indent_width});
+        safe_call($self->{textview}, 'set_indent_width', $opts->{indent_width});
     }
 
     # Right margin
     if (defined $opts->{show_right_margin}) {
-        $_call->($self->{textview}, 'set_show_right_margin',
+        safe_call($self->{textview}, 'set_show_right_margin',
                  $opts->{show_right_margin} ? TRUE : FALSE);
     }
     if (defined $opts->{right_margin_position} && $opts->{right_margin_position} > 0) {
-        $_call->($self->{textview}, 'set_right_margin_position',
+        safe_call($self->{textview}, 'set_right_margin_position',
                  $opts->{right_margin_position});
     }
 
     # Smart Home/End (available since GtkSourceView 3.0)
     if (defined $opts->{smart_home_end}) {
-        $_call->($self->{textview}, 'set_smart_home_end',
+        safe_call($self->{textview}, 'set_smart_home_end',
                  $opts->{smart_home_end} ? 'after-line-start' : 'disabled');
     }
 
     # Show line marks (available since GtkSourceView 2.2)
     if (defined $opts->{show_line_marks}) {
-        $_call->($self->{textview}, 'set_show_line_marks',
+        safe_call($self->{textview}, 'set_show_line_marks',
                  $opts->{show_line_marks} ? TRUE : FALSE);
     }
 
     # Cursor: always start with a visible native i-beam cursor.
     # Block cursor (Cairo-drawn) can be activated at runtime via
     # :set cursor=block  through the VimBindings layer.
-    $_call->($self->{textview}, 'set_cursor_visible', TRUE);
+    safe_call($self->{textview}, 'set_cursor_visible', TRUE);
 
     # Font
     my $pango_font = $self->{font_family} // 'Monospace';
     $pango_font .= " $self->{font_size}" if $self->{font_size} > 0;
-    $_call->($self->{textview}, 'modify_font',
+    safe_call($self->{textview}, 'modify_font',
              Pango::FontDescription->from_string($pango_font));
 }
 
 sub _build_scrolled_window {
     my ($self) = @_;
-    my $_call = $self->{_safe_call};
     my $scroll = Gtk3::ScrolledWindow->new();
-    $_call->($scroll, 'set_policy', 'automatic', 'automatic');
-    $_call->($scroll, 'add', $self->{textview});
-    $_call->($self->{widget}, 'pack_start', $scroll, TRUE, TRUE, 0);
+    safe_call($scroll, 'set_policy', 'automatic', 'automatic');
+    safe_call($scroll, 'add', $self->{textview});
+    safe_call($self->{widget}, 'pack_start', $scroll, TRUE, TRUE, 0);
 }
 
 sub _build_bottom_bar {
     my ($self, $fg_rgba, $bg_rgba) = @_;
-    my $_call = $self->{_safe_call};
 
     my $bottom_box = Gtk3::Box->new('vertical', 0);
 
     $self->{cmd_entry} = Gtk3::Entry->new();
-    $_call->($self->{cmd_entry}, 'set_no_show_all', TRUE);
-    $_call->($self->{cmd_entry}, 'hide');
-    $_call->($self->{cmd_entry}, 'override_color', 'normal', $fg_rgba);
-    $_call->($self->{cmd_entry}, 'override_background_color', 'normal', $bg_rgba);
+    safe_call($self->{cmd_entry}, 'set_no_show_all', TRUE);
+    safe_call($self->{cmd_entry}, 'hide');
+    safe_call($self->{cmd_entry}, 'override_color', 'normal', $fg_rgba);
+    safe_call($self->{cmd_entry}, 'override_background_color', 'normal', $bg_rgba);
 
     # Status bar: horizontal box with mode label (left) and position (right)
     my $status_box = Gtk3::EventBox->new();
-    $_call->($status_box, 'override_background_color', 'normal', $bg_rgba);
+    safe_call($status_box, 'override_background_color', 'normal', $bg_rgba);
     my $status_inner = Gtk3::Box->new('horizontal', 0);
 
     $self->{mode_label} = Gtk3::Label->new('-- NORMAL --');
-    $_call->($self->{mode_label}, 'override_color', 'normal', $fg_rgba);
-    $_call->($self->{mode_label}, 'set_xalign', 0.0);
+    safe_call($self->{mode_label}, 'override_color', 'normal', $fg_rgba);
+    safe_call($self->{mode_label}, 'set_xalign', 0.0);
 
     $self->{pos_label} = Gtk3::Label->new('1:0');
-    $_call->($self->{pos_label}, 'override_color', 'normal', $fg_rgba);
-    $_call->($self->{pos_label}, 'set_xalign', 1.0);
-    $_call->($self->{pos_label}, 'set_margin_end', 6);
+    safe_call($self->{pos_label}, 'override_color', 'normal', $fg_rgba);
+    safe_call($self->{pos_label}, 'set_xalign', 1.0);
+    safe_call($self->{pos_label}, 'set_margin_end', 6);
 
-    $_call->($status_inner, 'pack_start', $self->{mode_label}, TRUE, TRUE, 4);
-    $_call->($status_inner, 'pack_end', $self->{pos_label}, FALSE, FALSE, 0);
-    $_call->($status_box, 'add', $status_inner);
+    safe_call($status_inner, 'pack_start', $self->{mode_label}, TRUE, TRUE, 4);
+    safe_call($status_inner, 'pack_end', $self->{pos_label}, FALSE, FALSE, 0);
+    safe_call($status_box, 'add', $status_inner);
 
-    $_call->($bottom_box, 'pack_end', $status_box, FALSE, FALSE, 0);
-    $_call->($bottom_box, 'pack_end', $self->{cmd_entry}, FALSE, FALSE, 0);
-    $_call->($self->{widget}, 'pack_end', $bottom_box, FALSE, FALSE, 0);
+    safe_call($bottom_box, 'pack_end', $status_box, FALSE, FALSE, 0);
+    safe_call($bottom_box, 'pack_end', $self->{cmd_entry}, FALSE, FALSE, 0);
+    safe_call($self->{widget}, 'pack_end', $bottom_box, FALSE, FALSE, 0);
 }
 
 sub _connect_signals {
     my ($self, $opts) = @_;
-    my $_call = $self->{_safe_call};
 
     # Connect a pre-vim key handler if provided (runs before vim bindings
     # so it can intercept specific keys like Alt+Arrow).  Must return TRUE
     # to consume the event, FALSE to pass it to vim bindings.
     if ($opts->{key_handler}) {
-        $_call->($self->{textview}, 'signal_connect',
+        safe_call($self->{textview}, 'signal_connect',
                  'key-press-event' => $opts->{key_handler});
     }
 
@@ -334,7 +306,7 @@ sub _connect_signals {
     # This is more efficient and avoids any interaction with the draw cycle
     # that could interfere with mode label updates.
     if ($self->{pos_label}) {
-        $_call->($self->{buffer}, 'signal_connect', 'mark-set' => sub {
+        safe_call($self->{buffer}, 'signal_connect', 'mark-set' => sub {
             my ($buf, $iter, $mark) = @_;
             return unless defined $mark->get_name && $mark->get_name eq 'insert';
             $self->{pos_label}->set_text(
@@ -345,7 +317,7 @@ sub _connect_signals {
 
     # Hook into window close event to trigger callback
     if ($self->{window} && $self->{on_close}) {
-        $_call->($self->{window}, 'signal_connect', 'destroy' => sub {
+        safe_call($self->{window}, 'signal_connect', 'destroy' => sub {
             $self->{on_close}->($self->get_text);
         });
     }
@@ -353,12 +325,11 @@ sub _connect_signals {
 
 sub _attach_vim_bindings {
     my ($self, $opts, $fg, $bg, $dbg) = @_;
-    my $_call = $self->{_safe_call};
 
     if (!$self->{vim_mode}) {
         # Native Gtk3::SourceView mode -- no vim bindings
-        $_call->($self->{cmd_entry}, 'hide');
-        $_call->($self->{mode_label}, 'set_text', '');
+        safe_call($self->{cmd_entry}, 'hide');
+        safe_call($self->{mode_label}, 'set_text', '');
         return;
     }
 
@@ -427,10 +398,8 @@ sub _attach_vim_bindings {
 sub _build_ui {
     my ($self, %opts) = @_;
 
-    # Create shared helpers
-    my $dbg  = $self->_make_debug_logger();
-    my $_call = $self->_make_safe_call();
-    $self->{_safe_call} = $_call;
+    # Create debug logger
+    my $dbg = $self->_make_debug_logger();
     $dbg->("start");
 
     # Load theme and parse colors
@@ -626,8 +595,8 @@ sub set_language {
         warn "Gtk3::SourceEditor::set_language: unknown language '$lang_id'\n";
         return 0;
     }
-    $self->{buffer}->set_language($lang);
-    $self->{buffer}->set_highlight_syntax(TRUE);
+    safe_call($self->{buffer}, 'set_language', $lang);
+    safe_call($self->{buffer}, 'set_highlight_syntax', TRUE);
     $self->{force_language} = $lang_id;
     return 1;
 }
@@ -635,7 +604,7 @@ sub set_language {
 sub set_tab_width {
     my ($self, $width) = @_;
     return unless defined $width && $width > 0;
-    $self->{textview}->set_tab_width($width);
+    safe_call($self->{textview}, 'set_tab_width', $width);
     $self->{tab_width} = $width;
     return 1;
 }
@@ -664,7 +633,7 @@ sub set_theme {
     my $css_provider = $theme_data->{css_provider};
 
     # Apply new style scheme to the buffer
-    $self->{buffer}->set_style_scheme($scheme);
+    safe_call($self->{buffer}, 'set_style_scheme', $scheme);
 
     # Apply new CSS to the widget hierarchy (mode label, command entry)
     if ($self->{widget} && $css_provider) {
@@ -733,7 +702,7 @@ sub toggle_line_numbers {
     } else {
         $self->{show_line_numbers} = $self->{show_line_numbers} ? 0 : 1;
     }
-    $self->{textview}->set_show_line_numbers(
+    safe_call($self->{textview}, 'set_show_line_numbers',
         $self->{show_line_numbers} ? TRUE : FALSE
     );
     return $self->{show_line_numbers};
@@ -746,7 +715,7 @@ sub toggle_highlight_current_line {
     } else {
         $self->{highlight_current_line} = $self->{highlight_current_line} ? 0 : 1;
     }
-    $self->{textview}->set_highlight_current_line(
+    safe_call($self->{textview}, 'set_highlight_current_line',
         $self->{highlight_current_line} ? TRUE : FALSE
     );
     return $self->{highlight_current_line};

@@ -1,6 +1,7 @@
 package Gtk3::SourceEditor::ThemeManager;
 use strict;
 use warnings;
+use Gtk3::SourceEditor::Util qw(safe_call);
 use Gtk3;
 use Gtk3::SourceView;
 use File::Slurper 'read_text';
@@ -41,37 +42,21 @@ sub load {
     print $xml_fh $xml_content;
     close $xml_fh;
 
-    # Safe-call helper: prevents crashes on older GtkSourceView versions.
-    my %_missing_warned;
-    my $_call = sub {
-        my ($obj, $method, @args) = @_;
-        return unless $obj && $method;
-        if ($obj->can($method)) {
-            return $obj->$method(@args);
-        }
-        unless ($_missing_warned{$method}) {
-            warn "Gtk3::SourceEditor::ThemeManager: method '$method' not "
-               . "available on " . ref($obj) . " (feature skipped)\n";
-            $_missing_warned{$method} = 1;
-        }
-        return;
-    };
-
     my $manager = Gtk3::SourceView::StyleSchemeManager->get_default();
     # Prepend our dedicated temp directory FIRST so our modified theme
     # takes priority over any system scheme with the same ID.
-    $_call->($manager, 'prepend_search_path', $tmp_dir);
+    safe_call($manager, 'prepend_search_path', $tmp_dir);
     # Avoid force_rescan() — it scans every search path on disk
     # (system GtkSourceView dirs contain 50+ .lang/.xml files).
     # GtkSourceView automatically detects that a new search path was
     # prepended and rescans just that directory on the next get_scheme()
     # call, making force_rescan unnecessary.
-    my $scheme = $_call->($manager, 'get_scheme', $scheme_id);
+    my $scheme = safe_call($manager, 'get_scheme', $scheme_id);
     # Fallback: if the automatic rescan didn't pick it up (older GTK),
     # try a single force_rescan.
     unless ($scheme) {
-        $_call->($manager, 'force_rescan');
-        $scheme = $_call->($manager, 'get_scheme', $scheme_id);
+        safe_call($manager, 'force_rescan');
+        $scheme = safe_call($manager, 'get_scheme', $scheme_id);
     }
     die "Error: Could not load scheme '$scheme_id'\n" unless $scheme;
 
@@ -94,7 +79,7 @@ sub load {
 
     my $ui_css_bytes = encode('UTF-8', $ui_css);
     my $ui_css_provider = Gtk3::CssProvider->new();
-    $_call->($ui_css_provider, 'load_from_data', $ui_css_bytes);
+    safe_call($ui_css_provider, 'load_from_data', $ui_css_bytes);
 
     return {
         scheme => $scheme,
