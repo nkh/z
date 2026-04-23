@@ -3,8 +3,9 @@ use strict;
 use warnings;
 use Gtk3::SourceEditor::EventBus;
 use Gtk3::SourceEditor::SelectionState;
+use Gtk3::SourceEditor::BufferRegistry;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 # ==========================================================================
 # EditorContext -- Centralised context object for VimBindings
@@ -172,6 +173,9 @@ sub new {
 
     # --- Event bus (always available, for plugins and extensions) ---
     $self->{event_bus} = Gtk3::SourceEditor::EventBus->new;
+
+    # --- Buffer registry (multi-file switching) ---
+    $self->{buffer_registry} = Gtk3::SourceEditor::BufferRegistry->new;
 
     # --- Char action pending state ---
     $self->{_char_action_prefix} = undef;

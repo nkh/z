@@ -81,6 +81,10 @@ sub register {
             return;
         }
         $file =~ s/^\s+|\s+$//g;
+
+        # Register the current buffer before switching
+        $ctx->{buffer_registry}->register($ctx) if $ctx->{buffer_registry};
+
         unless (-e $file) {
             $ctx->{show_status}->("Error: File '$file' not found") if $ctx->{show_status};
             return;
@@ -101,6 +105,8 @@ sub register {
                 $ctx->{gtk_view}->scroll_to_mark($buf->get_insert(), 0.0, 1, 0, 0.0);
             }
             $ctx->{show_status}->("Opened: $file") if $ctx->{show_status};
+            # Register the newly opened file in the buffer registry
+            $ctx->{buffer_registry}->register($ctx, $file) if $ctx->{buffer_registry};
         };
         if ($@) { chomp $@; $ctx->{show_status}->("Error: $@") if $ctx->{show_status}; }
     };
@@ -407,6 +413,73 @@ sub register {
         $ctx->{show_status}->("Search highlight cleared") if $ctx->{show_status};
     };
 
+    # --- Buffer list (ls) ---
+    $ACTIONS->{cmd_buffers} = sub {
+        my ($ctx) = @_;
+        my $reg = $ctx->{buffer_registry};
+        unless ($reg && $reg->count > 0) {
+            $ctx->{show_status}->("No buffers") if $ctx->{show_status};
+            return;
+        }
+        my @bufs = $reg->list;
+        my @parts;
+        for my $b (@bufs) {
+            my $marker = $b->{current} ? '%' : ' ';
+            my $mod    = $b->{modified} ? '+' : ' ';
+            push @parts, sprintf("  %d%s%s \"%s\"",
+                $b->{index}, $marker, $mod, $b->{filename});
+        }
+        my $msg = scalar(@bufs) . " buffer(s):\n" . join("\n", @parts);
+        $ctx->{show_status}->($msg) if $ctx->{show_status};
+    };
+
+    # --- Buffer next (bn) ---
+    $ACTIONS->{cmd_bnext} = sub {
+        my ($ctx) = @_;
+        my $reg = $ctx->{buffer_registry};
+        unless ($reg && $reg->count > 1) {
+            $ctx->{show_status}->("Only one buffer") if $ctx->{show_status};
+            return;
+        }
+        $reg->next_buffer($ctx);
+        my $fname = ${$ctx->{filename_ref}} // '[No Name]';
+        $ctx->{show_status}->("[$fname]") if $ctx->{show_status};
+    };
+
+    # --- Buffer previous (bp) ---
+    $ACTIONS->{cmd_bprev} = sub {
+        my ($ctx) = @_;
+        my $reg = $ctx->{buffer_registry};
+        unless ($reg && $reg->count > 1) {
+            $ctx->{show_status}->("Only one buffer") if $ctx->{show_status};
+            return;
+        }
+        $reg->prev_buffer($ctx);
+        my $fname = ${$ctx->{filename_ref}} // '[No Name]';
+        $ctx->{show_status}->("[$fname]") if $ctx->{show_status};
+    };
+
+    # --- Buffer by number (b<N>) ---
+    $ACTIONS->{cmd_bgoto} = sub {
+        my ($ctx, $count, $parsed) = @_;
+        # :b3 → args=['3'], :b 3 → args=['3']
+        my $num = $parsed->{args}[0];
+        $num =~ s/^\s+|\s+$//g if defined $num;
+        unless (defined $num && $num =~ /^\d+$/ && $num >= 1) {
+            $ctx->{show_status}->("Error: Invalid buffer number") if $ctx->{show_status};
+            return;
+        }
+        $num = 0 + $num;
+        my $reg = $ctx->{buffer_registry};
+        unless ($reg && $num <= $reg->count) {
+            $ctx->{show_status}->("Error: No buffer $num") if $ctx->{show_status};
+            return;
+        }
+        $reg->switch_to($ctx, $num);
+        my $fname = ${$ctx->{filename_ref}} // '[No Name]';
+        $ctx->{show_status}->("[$fname]") if $ctx->{show_status};
+    };
+
     return {
         bindings => 'cmd_show_bindings',
         browse   => 'cmd_browse',
@@ -419,6 +492,13 @@ sub register {
         set      => 'cmd_set',
         nohlsearch => 'cmd_no_hlsearch',
         noh      => 'cmd_no_hlsearch',
+        ls       => 'cmd_buffers',
+        buffers  => 'cmd_buffers',
+        bn       => 'cmd_bnext',
+        bnext    => 'cmd_bnext',
+        bp       => 'cmd_bprev',
+        bprev    => 'cmd_bprev',
+        b        => 'cmd_bgoto',
     };
 }
 
@@ -443,8 +523,9 @@ sub parse_ex_command {
     # Bang
     if ($raw =~ s/!\s*$//) { $p{bang} = 1; }
 
-    # Command name
-    if ($raw =~ s/^(\w+)//) { $p{cmd} = $1; }
+    # Command name (alphabetic only; digits after command go to args)
+    # This allows :b3 to parse as cmd=b, args=[3] instead of cmd=b3
+    if ($raw =~ s/^([a-zA-Z]+)//) { $p{cmd} = $1; }
 
     $raw =~ s/^\s+//; $raw =~ s/\s+$//;
     if (length $raw) {
