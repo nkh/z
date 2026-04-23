@@ -3,9 +3,11 @@ use strict;
 use warnings;
 use Exporter 'import';
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 our @EXPORT_OK = qw(safe_call parse_hex_color_rgb tint_color
-                    clipboard_set clipboard_get);
+                    clipboard_set clipboard_get
+                    viewport_visible_lines viewport_ensure_bounds
+                    viewport_scroll_pixels);
 
 # Shared state for warn-once behavior across all safe_call invocations.
 my %_missing_warned;
@@ -132,6 +134,83 @@ sub clipboard_get {
         $text = $clipboard->wait_for_text if $clipboard;
     };
     return $text;
+}
+
+# ==========================================================================
+# viewport_visible_lines( $ctx )
+#
+# Returns the first and last fully-visible line numbers as
+# ($top_line, $bot_line).  Returns empty list if the view widget is
+# not available.
+# ==========================================================================
+sub viewport_visible_lines {
+    my ($ctx) = @_;
+    my $view = $ctx->{gtk_view};
+    return () unless $view;
+    my $vb = $ctx->{vb};
+    return () unless $vb->can('gtk_buffer');
+    eval {
+        my $vr = $view->get_visible_rect;
+        my $top_iter = $view->get_iter_at_location($vr->{x}, $vr->{y});
+        my ($top_y) = $top_iter->get_line_yrange;
+        if ($top_y < $vr->{y}) {
+            $top_iter->forward_line;
+        }
+        my $top_line = $top_iter->get_line;
+        my $bot_iter = $view->get_iter_at_location(
+            $vr->{x}, $vr->{y} + $vr->{height} - 1);
+        my $bot_line = $bot_iter->get_line;
+        return ($top_line, $bot_line);
+    };
+    return ();
+}
+
+# ==========================================================================
+# viewport_ensure_bounds( $ctx )
+#
+# Returns ($top_line, $bot_line) of the viewport, trying three sources
+# in order: GTK visible rect → viewport_lines override → page_size
+# heuristic.  Always returns a result (never empty list).
+# ==========================================================================
+sub viewport_ensure_bounds {
+    my ($ctx) = @_;
+    my ($top, $bot) = viewport_visible_lines($ctx);
+    return ($top, $bot) if defined $top;
+    if ($ctx->{viewport_lines}) {
+        return @{$ctx->{viewport_lines}};
+    }
+    my $vb = $ctx->{vb};
+    my $ps = $ctx->{page_size} // 20;
+    my $cur = $vb->cursor_line;
+    my $t = int($cur - $ps / 2);
+    $t = 0 if $t < 0;
+    my $last = $vb->line_count - 1;
+    my $b = $t + $ps - 1;
+    $b = $last if $b > $last;
+    return ($t, $b);
+}
+
+# ==========================================================================
+# viewport_scroll_pixels( $ctx, $delta )
+#
+# Scroll the viewport by $delta pixels (positive = down, negative = up)
+# using the GTK vadjustment.  Uses the cached line height if available,
+# otherwise falls back to the GTK step_increment.
+# ==========================================================================
+sub viewport_scroll_pixels {
+    my ($ctx, $delta) = @_;
+    my $view = $ctx->{gtk_view};
+    return unless $view;
+    eval {
+        my $step = $ctx->{_line_height};
+        if (!$step) {
+            my $vadj = $view->get_vadjustment;
+            $step = $vadj->get_step_increment || 20;
+        }
+        my $vadj = $view->get_vadjustment;
+        my $val = $vadj->get_value;
+        $vadj->set_value($val + $delta);
+    };
 }
 
 1;

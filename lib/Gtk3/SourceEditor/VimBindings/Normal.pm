@@ -2,7 +2,9 @@ package Gtk3::SourceEditor::VimBindings::Normal;
 
 use strict;
 use warnings;
-use Gtk3::SourceEditor::Util qw(clipboard_set clipboard_get tint_color);
+use Gtk3::SourceEditor::Util qw(clipboard_set clipboard_get tint_color
+                                viewport_visible_lines viewport_ensure_bounds
+                                viewport_scroll_pixels);
 
 our $VERSION = '0.04';
 
@@ -110,37 +112,8 @@ sub register {
         clipboard_set($ctx, $text);
     };
 
-    # --- helper: get the first and last fully-visible line numbers ---
-    # Returns (top_line, bottom_line) of the current viewport, or empty
-    # list if the widget is not available.
-    my $_visible_lines;
-    $_visible_lines = sub {
-        my ($ctx) = @_;
-        my $view = $ctx->{gtk_view};
-        return () unless $view;
-        my $vb = $ctx->{vb};
-        return () unless $vb->can('gtk_buffer');
-        eval {
-            my $buf = $vb->gtk_buffer;
-            my $vr = $view->get_visible_rect;
-            # First line: iter at the top of the visible area.
-            my $top_iter = $view->get_iter_at_location($vr->{x}, $vr->{y});
-            my ($top_y) = $top_iter->get_line_yrange;
-            # If the top iter starts above the viewport, use the next line
-            # so we get the first fully-visible line.
-            if ($top_y < $vr->{y}) {
-                $top_iter->forward_line;
-            }
-            my $top_line = $top_iter->get_line;
-            # Last line: iter at one pixel above the bottom of the visible
-            # area to get the last fully-visible line.
-            my $bot_iter = $view->get_iter_at_location(
-                $vr->{x}, $vr->{y} + $vr->{height} - 1);
-            my $bot_line = $bot_iter->get_line;
-            return ($top_line, $bot_line);
-        };
-        return ();
-    };
+    # --- helper: viewport visible lines (delegates to Util) ---
+    my $_visible_lines = \&viewport_visible_lines;
 
     # --- helper: scroll the viewport so a line is at top or bottom ---
     # Used by page_up/page_down to ensure the viewport actually scrolls
@@ -313,21 +286,7 @@ sub register {
         $count = 1 unless $count && $count > 0;
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
-        my ($top_line, $bot_line) = $_visible_lines->($ctx);
-        # Fallback: use viewport_lines override or page_size
-        if (!defined $top_line && $ctx->{viewport_lines}) {
-            ($top_line, $bot_line) = @{$ctx->{viewport_lines}};
-        }
-        if (!defined $top_line) {
-            my $ps = $ctx->{page_size} // 20;
-            my $cur = $vb->cursor_line;
-            my $top = int($cur - $ps / 2);
-            $top = 0 if $top < 0;
-            my $last = $vb->line_count - 1;
-            my $bot = $top + $ps - 1;
-            $bot = $last if $bot > $last;
-            ($top_line, $bot_line) = ($top, $bot);
-        }
+        my ($top_line, $bot_line) = viewport_ensure_bounds($ctx);
         my $target = $top_line + $count - 1;
         my $last = $vb->line_count - 1;
         $target = $last if $target > $last;
@@ -347,20 +306,7 @@ sub register {
         my ($ctx) = @_;
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
-        my ($top_line, $bot_line) = $_visible_lines->($ctx);
-        if (!defined $top_line && $ctx->{viewport_lines}) {
-            ($top_line, $bot_line) = @{$ctx->{viewport_lines}};
-        }
-        if (!defined $top_line) {
-            my $ps = $ctx->{page_size} // 20;
-            my $cur = $vb->cursor_line;
-            my $top = int($cur - $ps / 2);
-            $top = 0 if $top < 0;
-            my $last = $vb->line_count - 1;
-            my $bot = $top + $ps - 1;
-            $bot = $last if $bot > $last;
-            ($top_line, $bot_line) = ($top, $bot);
-        }
+        my ($top_line, $bot_line) = viewport_ensure_bounds($ctx);
         my $target = int(($top_line + $bot_line) / 2);
         my $col = $vb->first_nonblank_col($target);
         my $mode = ${$ctx->{vim_mode}};
@@ -378,20 +324,7 @@ sub register {
         $count = 1 unless $count && $count > 0;
         $_save_line_snapshot->($ctx);
         my $vb = $ctx->{vb};
-        my ($top_line, $bot_line) = $_visible_lines->($ctx);
-        if (!defined $top_line && $ctx->{viewport_lines}) {
-            ($top_line, $bot_line) = @{$ctx->{viewport_lines}};
-        }
-        if (!defined $top_line) {
-            my $ps = $ctx->{page_size} // 20;
-            my $cur = $vb->cursor_line;
-            my $top = int($cur - $ps / 2);
-            $top = 0 if $top < 0;
-            my $last = $vb->line_count - 1;
-            my $bot = $top + $ps - 1;
-            $bot = $last if $bot > $last;
-            ($top_line, $bot_line) = ($top, $bot);
-        }
+        my ($top_line, $bot_line) = viewport_ensure_bounds($ctx);
         my $target = $bot_line - $count + 1;
         my $top = 0;
         $target = $top if $target < $top;
@@ -408,16 +341,14 @@ sub register {
     };
 
     # --- zz: center the viewport on the current line ---
+    # Temporarily set scroll_mode to center, trigger after_move, then restore.
     $ACTIONS->{viewport_center} = sub {
         my ($ctx) = @_;
-        my $view = $ctx->{gtk_view};
-        return unless $view;
-        my $vb = $ctx->{vb};
-        return unless $vb && $vb->can('gtk_buffer');
-        eval {
-            my $buf = $vb->gtk_buffer;
-            $view->scroll_to_mark($buf->get_insert(), 0.0, 1, 0, 0.5);
-        };
+        my $prev = $ctx->{_scroll_mode};
+        $ctx->{_scroll_mode} = 'center';
+        $ctx->{_scroll_lock_active} = 0;
+        $ctx->{after_move}->($ctx) if $ctx->{after_move};
+        $ctx->{_scroll_mode} = $prev // 'edge';
     };
 
     # ================================================================
@@ -443,41 +374,25 @@ sub register {
     # Ctrl-y: scroll viewport up one line without moving cursor
     $ACTIONS->{scroll_line_up} = sub {
         my ($ctx, $count) = @_;
-        my $view = $ctx->{gtk_view};
-        return unless $view;
         $count ||= 1;
-        eval {
-            # Use actual line height from font metrics if available,
-            # otherwise fall back to the GTK step_increment.
-            my $step = $ctx->{_line_height};
-            if (!$step) {
-                my $vadj = $view->get_vadjustment();
-                $step = $vadj->get_step_increment() || 20;
-            }
-            my $vadj = $view->get_vadjustment();
-            my $val = $vadj->get_value();
-            $vadj->set_value($val - ($step * $count));
-        };
+        my $step = $ctx->{_line_height};
+        unless ($step) {
+            my $view = $ctx->{gtk_view};
+            $step = ($view && eval { $view->get_vadjustment->get_step_increment }) || 20;
+        }
+        viewport_scroll_pixels($ctx, -($step * $count));
     };
 
     # Ctrl-e: scroll viewport down one line without moving cursor
     $ACTIONS->{scroll_line_down} = sub {
         my ($ctx, $count) = @_;
-        my $view = $ctx->{gtk_view};
-        return unless $view;
         $count ||= 1;
-        eval {
-            # Use actual line height from font metrics if available,
-            # otherwise fall back to the GTK step_increment.
-            my $step = $ctx->{_line_height};
-            if (!$step) {
-                my $vadj = $view->get_vadjustment();
-                $step = $vadj->get_step_increment() || 20;
-            }
-            my $vadj = $view->get_vadjustment();
-            my $val = $vadj->get_value();
-            $vadj->set_value($val + ($step * $count));
-        };
+        my $step = $ctx->{_line_height};
+        unless ($step) {
+            my $view = $ctx->{gtk_view};
+            $step = ($view && eval { $view->get_vadjustment->get_step_increment }) || 20;
+        }
+        viewport_scroll_pixels($ctx, $step * $count);
     };
 
     # Ctrl-r: redo (delegates to buffer backend)
