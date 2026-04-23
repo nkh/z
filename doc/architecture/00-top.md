@@ -12,7 +12,7 @@ The improvements are implemented in the order specified by the project owner:
 | 17 | [01-test-standardization.md](01-test-standardization.md) | Test standardization | Done | Shared TestHelper module with standardised test utilities |
 | 01 | [02-editor-context.md](02-editor-context.md) | EditorContext class | Done | Centralised context object replacing duplicated hashref construction |
 | 03 | [03-event-bus.md](03-event-bus.md) | Event bus | Done | Lightweight pub/sub hook system for plugins and extensions |
-| 04 | — | Builder decomposition | Pending | — |
+| 04 | [04-builder-decomposition.md](04-builder-decomposition.md) | Builder decomposition | Done | Decomposed monolithic _build_ui into 9 focused sub-methods |
 | 05 | — | Shared safe_call | Pending | — |
 | 06 | — | Selection state object | Pending | — |
 | 07 | — | Deduplicate clipboard code | Pending | — |

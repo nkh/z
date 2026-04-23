@@ -96,34 +96,35 @@ sub new {
 }
 
 # ==========================================================================
-# _build_ui( %opts )
+# Builder sub-methods
 #
-# All GTK method calls go through the $_call helper which checks
+# The monolithic _build_ui has been decomposed into focused sub-methods,
+# each responsible for a single aspect of the UI construction.  All GTK
+# method calls go through $self->{_safe_call} which checks
 # $obj->can($method) before dispatching.  This prevents crashes when
 # running against older GtkSourceView 3.x releases that lack certain
 # methods (e.g. set_indent_width was added in 3.16,
 # set_show_line_marks in 2.2, etc.).
 # ==========================================================================
 
-sub _build_ui {
-    my ($self, %opts) = @_;
-
-    # --- Debug timing helper ---
+sub _make_debug_logger {
+    my ($self) = @_;
     my $_t0;
     if ($self->{debug}) {
         require Time::HiRes;
         $_t0 = Time::HiRes::time();
     }
-    my $_dbg = sub {
+    return sub {
         return unless $self->{debug};
         printf STDERR "[debug %7s ms] _build_ui: %s\n",
             sprintf("%.3f", Time::HiRes::time() - $_t0), shift;
     };
-    $_dbg->("start");
+}
 
-    # --- Safe-call helper: die never, warn once per missing method ---
+sub _make_safe_call {
+    my ($self) = @_;
     my %_missing_warned;
-    my $_call = sub {
+    return sub {
         my ($obj, $method, @args) = @_;
         return unless $obj && $method;
         if ($obj->can($method)) {
@@ -136,47 +137,45 @@ sub _build_ui {
         }
         return;
     };
+}
 
-    # Load Theme
-    $_dbg->("loading theme");
-    my $theme_data = Gtk3::SourceEditor::ThemeManager::load(file => $opts{theme_file});
-    $_dbg->("theme loaded");
+# Convert "#RRGGBB" to a GdkRGBA object safely across all GTK3 versions.
+sub _parse_hex_color {
+    my ($self, $h) = @_;
+    $h =~ s/^#//;
+    my $r = hex(substr($h, 0, 2)) / 255.0;
+    my $g = hex(substr($h, 2, 2)) / 255.0;
+    my $b = hex(substr($h, 4, 2)) / 255.0;
+
+    my $rgba = Gtk3::Gdk::RGBA->new();
+    $rgba->red($r);
+    $rgba->green($g);
+    $rgba->blue($b);
+    $rgba->alpha(1.0);
+
+    return $rgba;
+}
+
+sub _load_theme {
+    my ($self, $opts, $dbg) = @_;
+    $dbg->("loading theme");
+    my $theme_data = Gtk3::SourceEditor::ThemeManager::load(file => $opts->{theme_file});
+    $dbg->("theme loaded");
     my $fg = $theme_data->{fg};
     my $bg = $theme_data->{bg};
+    return ($theme_data, $fg, $bg,
+            $self->_parse_hex_color($fg), $self->_parse_hex_color($bg));
+}
 
-    # Helper to convert "#RRGGBB" to a GdkRGBA object safely across all GTK3 versions
-    my $parse_hex = sub {
-        my $h = shift;
-        $h =~ s/^#//;
-        my $r = hex(substr($h, 0, 2)) / 255.0;
-        my $g = hex(substr($h, 2, 2)) / 255.0;
-        my $b = hex(substr($h, 4, 2)) / 255.0;
+sub _build_buffer {
+    my ($self, $opts, $theme_data, $dbg) = @_;
+    my $_call = $self->{_safe_call};
 
-        my $rgba = Gtk3::Gdk::RGBA->new();
-        $rgba->red($r);
-        $rgba->green($g);
-        $rgba->blue($b);
-        $rgba->alpha(1.0);
-
-        return $rgba;
-    };
-
-    my $fg_rgba = $parse_hex->($fg);
-    my $bg_rgba = $parse_hex->($bg);
-
-    # Main Container
-    $self->{widget} = Gtk3::Box->new('vertical', 0);
-
-    # Text Buffer & View
-    $_dbg->("LanguageManager->get_default()");
+    $dbg->("LanguageManager->get_default()");
     my $lm = Gtk3::SourceView::LanguageManager->get_default();
-    $_dbg->("get_language / guess_language");
+    $dbg->("get_language / guess_language");
     my $lang;
     if ($self->{force_language}) {
-        # Explicitly set language -- useful for files without extensions
-        # or files with misleading extensions.  Accepts language IDs known
-        # to GtkSourceView (e.g. 'perl', 'python', 'c', 'javascript',
-        # 'xml', 'json', 'sql', 'sh', 'markdown', etc.).
         $lang = $lm->get_language($self->{force_language});
         unless ($lang) {
             warn "Gtk3::SourceEditor: unknown language '$self->{force_language}', "
@@ -185,11 +184,10 @@ sub _build_ui {
                  || $lm->get_language('perl');
         }
     } else {
-        # Auto-detect from filename extension and MIME type
         $lang = $lm->guess_language($self->{filename}, undef)
              || $lm->get_language('perl');
     }
-    $_dbg->("Buffer->new_with_language");
+    $dbg->("Buffer->new_with_language");
     $self->{buffer} = Gtk3::SourceView::Buffer->new_with_language($lang);
     $_call->($self->{buffer}, 'set_highlight_syntax', TRUE);
 
@@ -200,6 +198,19 @@ sub _build_ui {
     $_call->($self->{buffer}, 'place_cursor', $self->{buffer}->get_start_iter());
     $_call->($self->{buffer}, 'set_modified', FALSE);
     $_call->($self->{buffer}, 'set_style_scheme', $theme_data->{scheme});
+
+    # Highlight matching brackets (Buffer method, NOT View)
+    if (defined $opts->{highlight_matching_brackets}) {
+        $_call->($self->{buffer}, 'set_highlight_matching_brackets',
+                 $opts->{highlight_matching_brackets} ? TRUE : FALSE);
+    } else {
+        $_call->($self->{buffer}, 'set_highlight_matching_brackets', TRUE);
+    }
+}
+
+sub _build_textview {
+    my ($self, $opts) = @_;
+    my $_call = $self->{_safe_call};
 
     $self->{textview} = Gtk3::SourceView::View->new();
     $_call->($self->{textview}, 'set_buffer', $self->{buffer});
@@ -220,43 +231,35 @@ sub _build_ui {
              $isp ? TRUE : FALSE);
 
     # Tab width
-    if (defined $opts{tab_width} && $opts{tab_width} > 0) {
-        $_call->($self->{textview}, 'set_tab_width', $opts{tab_width});
+    if (defined $opts->{tab_width} && $opts->{tab_width} > 0) {
+        $_call->($self->{textview}, 'set_tab_width', $opts->{tab_width});
     }
 
     # Indent width (available since GtkSourceView 3.16)
-    if (defined $opts{indent_width} && $opts{indent_width} > 0) {
-        $_call->($self->{textview}, 'set_indent_width', $opts{indent_width});
+    if (defined $opts->{indent_width} && $opts->{indent_width} > 0) {
+        $_call->($self->{textview}, 'set_indent_width', $opts->{indent_width});
     }
 
     # Right margin
-    if (defined $opts{show_right_margin}) {
+    if (defined $opts->{show_right_margin}) {
         $_call->($self->{textview}, 'set_show_right_margin',
-                 $opts{show_right_margin} ? TRUE : FALSE);
+                 $opts->{show_right_margin} ? TRUE : FALSE);
     }
-    if (defined $opts{right_margin_position} && $opts{right_margin_position} > 0) {
+    if (defined $opts->{right_margin_position} && $opts->{right_margin_position} > 0) {
         $_call->($self->{textview}, 'set_right_margin_position',
-                 $opts{right_margin_position});
+                 $opts->{right_margin_position});
     }
 
     # Smart Home/End (available since GtkSourceView 3.0)
-    if (defined $opts{smart_home_end}) {
+    if (defined $opts->{smart_home_end}) {
         $_call->($self->{textview}, 'set_smart_home_end',
-                 $opts{smart_home_end} ? 'after-line-start' : 'disabled');
-    }
-
-    # Highlight matching brackets (Buffer method, NOT View)
-    if (defined $opts{highlight_matching_brackets}) {
-        $_call->($self->{buffer}, 'set_highlight_matching_brackets',
-                 $opts{highlight_matching_brackets} ? TRUE : FALSE);
-    } else {
-        $_call->($self->{buffer}, 'set_highlight_matching_brackets', TRUE);
+                 $opts->{smart_home_end} ? 'after-line-start' : 'disabled');
     }
 
     # Show line marks (available since GtkSourceView 2.2)
-    if (defined $opts{show_line_marks}) {
+    if (defined $opts->{show_line_marks}) {
         $_call->($self->{textview}, 'set_show_line_marks',
-                 $opts{show_line_marks} ? TRUE : FALSE);
+                 $opts->{show_line_marks} ? TRUE : FALSE);
     }
 
     # Cursor: always start with a visible native i-beam cursor.
@@ -269,21 +272,26 @@ sub _build_ui {
     $pango_font .= " $self->{font_size}" if $self->{font_size} > 0;
     $_call->($self->{textview}, 'modify_font',
              Pango::FontDescription->from_string($pango_font));
+}
 
-    # Scrolled Window
-    $_dbg->("creating scrolled window + bottom bar");
+sub _build_scrolled_window {
+    my ($self) = @_;
+    my $_call = $self->{_safe_call};
     my $scroll = Gtk3::ScrolledWindow->new();
     $_call->($scroll, 'set_policy', 'automatic', 'automatic');
     $_call->($scroll, 'add', $self->{textview});
     $_call->($self->{widget}, 'pack_start', $scroll, TRUE, TRUE, 0);
+}
 
-    # Bottom Bar (Command Entry + Status Label + Position Label)
+sub _build_bottom_bar {
+    my ($self, $fg_rgba, $bg_rgba) = @_;
+    my $_call = $self->{_safe_call};
+
     my $bottom_box = Gtk3::Box->new('vertical', 0);
 
     $self->{cmd_entry} = Gtk3::Entry->new();
     $_call->($self->{cmd_entry}, 'set_no_show_all', TRUE);
     $_call->($self->{cmd_entry}, 'hide');
-
     $_call->($self->{cmd_entry}, 'override_color', 'normal', $fg_rgba);
     $_call->($self->{cmd_entry}, 'override_background_color', 'normal', $bg_rgba);
 
@@ -308,13 +316,18 @@ sub _build_ui {
     $_call->($bottom_box, 'pack_end', $status_box, FALSE, FALSE, 0);
     $_call->($bottom_box, 'pack_end', $self->{cmd_entry}, FALSE, FALSE, 0);
     $_call->($self->{widget}, 'pack_end', $bottom_box, FALSE, FALSE, 0);
+}
+
+sub _connect_signals {
+    my ($self, $opts) = @_;
+    my $_call = $self->{_safe_call};
 
     # Connect a pre-vim key handler if provided (runs before vim bindings
     # so it can intercept specific keys like Alt+Arrow).  Must return TRUE
     # to consume the event, FALSE to pass it to vim bindings.
-    if ($opts{key_handler}) {
+    if ($opts->{key_handler}) {
         $_call->($self->{textview}, 'signal_connect',
-                 'key-press-event' => $opts{key_handler});
+                 'key-press-event' => $opts->{key_handler});
     }
 
     # Track cursor position via mark-set signal (not the draw handler).
@@ -330,74 +343,121 @@ sub _build_ui {
         });
     }
 
-    $_dbg->("creating vim bindings");
-    # Create VimBuffer adapter and attach bindings (if vim mode enabled)
-    if ($self->{vim_mode}) {
-        my $vb = Gtk3::SourceEditor::VimBuffer::Gtk3->new(
-            buffer => $self->{buffer},
-            view   => $self->{textview},
-        );
-
-        # Wrap any user-provided on_ready callback so we can activate
-        # block cursor after bindings are fully initialised.
-        my $user_on_ready = $opts{on_ready};
-        my $wrapped_on_ready;
-        if ($self->{block_cursor}) {
-            $wrapped_on_ready = sub {
-                my ($ctx) = @_;
-                # Store vim context for macro system (simulate_keys access)
-                $self->{vim_ctx} = $ctx;
-                if ($ctx->{set_cursor_mode}) {
-                    $ctx->{set_cursor_mode}->('block');
-                }
-                $user_on_ready->($ctx) if $user_on_ready;
-            };
-        } else {
-            $wrapped_on_ready = sub {
-                my ($ctx) = @_;
-                $self->{vim_ctx} = $ctx;
-                $user_on_ready->($ctx) if $user_on_ready;
-            };
-        }
-
-        Gtk3::SourceEditor::VimBindings::add_vim_bindings(
-            $self->{textview},
-            $self->{mode_label},
-            $self->{cmd_entry},
-            \$self->{filename},
-            $self->{read_only},
-            ( defined $self->{keymap} ? ( keymap => $self->{keymap} ) : () ),
-            vim_buffer    => $vb,
-            tab_string    => $self->{tab_string},
-            use_clipboard => $self->{use_clipboard},
-            pos_label     => $self->{pos_label},
-            scrolloff     => $self->{scrolloff},
-            scroll_mode   => $opts{scroll_mode},
-            on_ready      => $wrapped_on_ready,
-            debug_key     => $opts{debug_key},
-            theme         => { fg => $fg, bg => $bg },
-            set_language  => sub { $self->set_language(shift) },
-            set_tab_width => sub { $self->set_tab_width(shift) },
-            set_theme     => sub { $self->set_theme(shift) },
-            toggle_fullscreen => sub { $self->toggle_fullscreen() },
-            toggle_line_numbers => sub { $self->toggle_line_numbers(shift) },
-            toggle_highlight_current_line => sub { $self->toggle_highlight_current_line(shift) },
-            current_theme => ($self->{_theme_name} //= ($opts{theme_file} // 'default')),
-            current_tab_width => $self->{tab_width},
-        );
-    } else {
-        # Native Gtk3::SourceView mode -- no vim bindings, use standard GTK keybindings
-        # (Ctrl+C/V/X/Z/A, arrow keys, Tab indent, etc.)
-        $_call->($self->{cmd_entry}, 'hide');
-        $_call->($self->{mode_label}, 'set_text', '');
-    }
-
     # Hook into window close event to trigger callback
     if ($self->{window} && $self->{on_close}) {
         $_call->($self->{window}, 'signal_connect', 'destroy' => sub {
             $self->{on_close}->($self->get_text);
         });
     }
+}
+
+sub _attach_vim_bindings {
+    my ($self, $opts, $fg, $bg, $dbg) = @_;
+    my $_call = $self->{_safe_call};
+
+    if (!$self->{vim_mode}) {
+        # Native Gtk3::SourceView mode -- no vim bindings
+        $_call->($self->{cmd_entry}, 'hide');
+        $_call->($self->{mode_label}, 'set_text', '');
+        return;
+    }
+
+    $dbg->("creating vim bindings");
+
+    my $vb = Gtk3::SourceEditor::VimBuffer::Gtk3->new(
+        buffer => $self->{buffer},
+        view   => $self->{textview},
+    );
+
+    # Wrap any user-provided on_ready callback so we can activate
+    # block cursor after bindings are fully initialised.
+    my $user_on_ready = $opts->{on_ready};
+    my $wrapped_on_ready;
+    if ($self->{block_cursor}) {
+        $wrapped_on_ready = sub {
+            my ($ctx) = @_;
+            $self->{vim_ctx} = $ctx;
+            if ($ctx->{set_cursor_mode}) {
+                $ctx->{set_cursor_mode}->('block');
+            }
+            $user_on_ready->($ctx) if $user_on_ready;
+        };
+    } else {
+        $wrapped_on_ready = sub {
+            my ($ctx) = @_;
+            $self->{vim_ctx} = $ctx;
+            $user_on_ready->($ctx) if $user_on_ready;
+        };
+    }
+
+    Gtk3::SourceEditor::VimBindings::add_vim_bindings(
+        $self->{textview},
+        $self->{mode_label},
+        $self->{cmd_entry},
+        \$self->{filename},
+        $self->{read_only},
+        ( defined $self->{keymap} ? ( keymap => $self->{keymap} ) : () ),
+        vim_buffer    => $vb,
+        tab_string    => $self->{tab_string},
+        use_clipboard => $self->{use_clipboard},
+        pos_label     => $self->{pos_label},
+        scrolloff     => $self->{scrolloff},
+        scroll_mode   => $opts->{scroll_mode},
+        on_ready      => $wrapped_on_ready,
+        debug_key     => $opts->{debug_key},
+        theme         => { fg => $fg, bg => $bg },
+        set_language  => sub { $self->set_language(shift) },
+        set_tab_width => sub { $self->set_tab_width(shift) },
+        set_theme     => sub { $self->set_theme(shift) },
+        toggle_fullscreen => sub { $self->toggle_fullscreen() },
+        toggle_line_numbers => sub { $self->toggle_line_numbers(shift) },
+        toggle_highlight_current_line => sub { $self->toggle_highlight_current_line(shift) },
+        current_theme => ($self->{_theme_name} //= ($opts->{theme_file} // 'default')),
+        current_tab_width => $self->{tab_width},
+    );
+}
+
+# ==========================================================================
+# _build_ui( %opts )
+#
+# Orchestrates the construction of the editor widget by delegating to
+# focused sub-methods.  See individual methods above for details.
+# ==========================================================================
+
+sub _build_ui {
+    my ($self, %opts) = @_;
+
+    # Create shared helpers
+    my $dbg  = $self->_make_debug_logger();
+    my $_call = $self->_make_safe_call();
+    $self->{_safe_call} = $_call;
+    $dbg->("start");
+
+    # Load theme and parse colors
+    my ($theme_data, $fg, $bg, $fg_rgba, $bg_rgba) =
+        $self->_load_theme(\%opts, $dbg);
+
+    # Main container
+    $self->{widget} = Gtk3::Box->new('vertical', 0);
+
+    # Build buffer (language detection, file loading, syntax highlighting)
+    $self->_build_buffer(\%opts, $theme_data, $dbg);
+
+    # Build and configure text view (display settings, font, margins)
+    $self->_build_textview(\%opts);
+
+    # Pack textview into scrolled window
+    $dbg->("creating scrolled window + bottom bar");
+    $self->_build_scrolled_window();
+
+    # Build bottom bar (command entry, status labels)
+    $self->_build_bottom_bar($fg_rgba, $bg_rgba);
+
+    # Connect signals (key handler, cursor tracking, window close)
+    $self->_connect_signals(\%opts);
+
+    # Attach vim bindings (or native GTK mode)
+    $self->_attach_vim_bindings(\%opts, $fg, $bg, $dbg);
 }
 
 sub get_widget {
