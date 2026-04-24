@@ -23,7 +23,7 @@ The improvements are implemented in the order specified by the project owner:
 | 12 | [12-multi-buffer-support.md](12-multi-buffer-support.md) | Multi-buffer support | Done | BufferRegistry class, :ls/:bn/:bp/:b commands |
 | 13 | [13-viewport-manager.md](13-viewport-manager.md) | Viewport manager | Done | Shared viewport helpers in Util, deduplicated H/M/L/Ctrl-y/e |
 | 15 | [14-undo-semantics-layer.md](14-undo-semantics-layer.md) | Undo semantics layer | Done | Abstract begin/end_user_action, Test redo, undo grouping |
-| 16 | — | Pluggable completion | Pending | — |
+| 16 | [15-pluggable-completion.md](15-pluggable-completion.md) | Pluggable completion | Done | Tab-completion in :e/:r via pluggable completer interface |
 | 18 | — | Keyboard layout abstraction | Pending | — |
 | 19 | — | Text object system | Pending | — |
 
