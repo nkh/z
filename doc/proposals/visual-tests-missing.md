@@ -519,6 +519,21 @@ the unit test audit:
 | `text_object_ci_doublequote` | ci" changes inside double quotes |
 | `text_object_di_singlequote` | di' deletes inside single quotes |
 | `text_object_ci_singlequote` | ci' changes inside single quotes |
+| `text_object_da_doublequote` | da" deletes including double quotes |
+| `text_object_da_singlequote` | da' deletes including single quotes |
+| `text_object_da_paren` | da( deletes including parentheses |
+| `text_object_da_brace` | da{ deletes including curly braces |
+| `text_object_da_bracket` | da[ deletes including square brackets |
+| `text_object_ca_paren` | ca( changes including parentheses |
+| `text_object_ca_brace` | ca{ changes including braces |
+
+### Multi-Buffer
+| Macro | Description |
+|-------|-------------|
+| `multi_buffer_ls` | :ls lists open buffers in mode label |
+| `multi_buffer_bn` | :bn switches to next buffer |
+| `multi_buffer_bp` | :bp switches to previous buffer |
+| `multi_buffer_goto` | :b<N> switches to buffer by number |
 
 ### Ex-commands
 | Macro | Description |
@@ -566,7 +581,7 @@ the unit test audit:
 | editor_config.t | 0 | 0 | 0 |
 | **TOTAL** | **224** | **182** | **41** |
 
-**Total visual test macros: 218**
+**Total visual test macros: 230** (218 original + 7 around text objects + 4 multi-buffer + 1 utility example)
 **Unit test coverage: ~81% (182 of 224)**
 **Remaining gaps: ~41 items (mostly edge cases, bindings dialog, plugins)**
 

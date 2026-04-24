@@ -1,0 +1,47 @@
+{
+    desc => q{:bp switches to previous buffer},
+    description => <<'END_DESC',
+Action: :bp cycles to the previous buffer in the registry
+
+_1.png (initial state):
+- Editor on buffer 1 after opening two temp files
+
+Sub-commands: keys(':bp'), key('Enter')
+
+_2.png (after action):
+- Buffer content switches to the second file
+- Mode label briefly shows the filename of the switched-to buffer
+- Tests :bp (buffer previous) command
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+
+        # Create two temporary files
+        require File::Temp;
+        my ($fh1, $f1) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
+        print $fh1 "Buffer One - First File\nLine 2 of file 1\nLine 3\n";
+        close $fh1;
+
+        my ($fh2, $f2) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
+        print $fh2 "Buffer Two - Second File\nLine 2 of file 2\n";
+        close $fh2;
+
+        # Open both files
+        $ctx->ex("e $f1");
+        $ctx->delay(200);
+        $ctx->ex("e $f2");
+        $ctx->delay(200);
+
+        # Go back to buffer 1 first
+        $ctx->ex('bp');
+        $ctx->delay(200);
+
+        # We're now on buffer 1 - snapshot shows buffer 1 content
+        $ctx->snapshot('1');
+
+        # Switch to previous buffer (wraps to buffer 2)
+        $ctx->ex('bp');
+        $ctx->delay(200);
+        $ctx->snapshot('2');
+    },
+}
