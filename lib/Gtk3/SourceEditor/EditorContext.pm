@@ -181,6 +181,14 @@ sub new {
     $self->{_char_action_prefix} = undef;
     $self->{_char_action_count}  = undef;
 
+    # --- Completion (pluggable) ---
+    # The completion_ui field holds a CompletionUI object that handles
+    # Tab-completion in the command entry.  Set it to any object that
+    # supports active() and handle_key($key) methods.  The default is
+    # undef (no completion).  Use add_completion_ui() to initialise with
+    # the standard file-path completer.
+    $self->{completion_ui} = undef;
+
     return $self;
 }
 
@@ -258,6 +266,24 @@ sub line_snapshots  { $_[0]->{line_snapshots} }
 sub theme           { $_[0]->{theme} }
 
 sub is_test_context { !defined $_[0]->{gtk_view} }
+
+sub completion_ui { $_[0]->{completion_ui} }
+
+# ==========================================================================
+# add_completion_ui( $completer ) -- attach completion to command entry
+#
+# $completer is any object with a complete($partial_path) method that
+# returns { prefix => $str, candidates => \@list }.  This creates a
+# CompletionUI and stores it on the context.  Plugins can replace
+# the completer at any time by calling this with a different backend.
+# ==========================================================================
+sub add_completion_ui {
+    my ($self, $completer) = @_;
+    require Gtk3::SourceEditor::VimBindings::CompletionUI;
+    $self->{completion_ui} =
+        Gtk3::SourceEditor::VimBindings::CompletionUI->new($self, $completer);
+    return $self;
+}
 
 # ==========================================================================
 # mode_is( $mode ) -- check current mode

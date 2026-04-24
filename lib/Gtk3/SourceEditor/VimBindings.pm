@@ -1146,6 +1146,31 @@ sub handle_ctrl_key {
 sub handle_command_entry {
     my ($ctx, $k) = @_;
     my $ce = $ctx->{cmd_entry};
+
+    # Completion UI: delegate Tab and completion-active keys to completion_ui.
+    # This is wired through the context so the completer is pluggable.
+    if ($k eq 'Tab' || ($ctx->{completion_ui} && $ctx->{completion_ui}->active)) {
+        my $cui = $ctx->{completion_ui};
+        if ($cui) {
+            my $result = $cui->handle_key($k);
+            if (defined $result) {
+                if ($result eq 'accept') {
+                    # User accepted a completion: execute the command as if
+                    # Return was pressed.
+                    $k = 'Return';
+                    # Fall through to the Return handler below.
+                } elsif ($result eq 'cancel') {
+                    $ctx->{set_mode}->('normal');
+                    return TRUE;
+                } else {
+                    # Consumed (1) -- key handled by completion UI
+                    return TRUE;
+                }
+            }
+            # undef = not handled, fall through to normal processing
+        }
+    }
+
     if (exists $ctx->{command_immediate}{$k}) {
         ${$ctx->{cmd_buf}} = '';
         # When escaping from a search entry (/ or ? prefix), clear any

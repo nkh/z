@@ -208,4 +208,96 @@ subtest 'whitespace handling' => sub {
     is(scalar @{$r->{candidates}}, 2, 'whitespace stripped, two candidates');
 };
 
+# ==========================================================================
+# Integration: pluggable completion wired through EditorContext
+# ==========================================================================
+use_ok('Gtk3::SourceEditor::EditorContext');
+use_ok('Gtk3::SourceEditor::VimBuffer::Test');
+use_ok('Gtk3::SourceEditor::VimBindings');
+use_ok('Gtk3::SourceEditor::VimBindings::CompletionUI');
+
+subtest 'EditorContext: add_completion_ui attaches completer' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::EditorContext->new(vim_buffer => $vb);
+
+    # No completion by default
+    is($ctx->{completion_ui}, undef, 'no completion_ui by default');
+
+    # Add a completer
+    my $completer = Gtk3::SourceEditor::VimBindings::Completion->new(cwd => $tmpdir);
+    $ctx->add_completion_ui($completer);
+
+    ok(defined $ctx->{completion_ui}, 'completion_ui set after add_completion_ui');
+    ok($ctx->completion_ui->isa('Gtk3::SourceEditor::VimBindings::CompletionUI'),
+       'completion_ui is a CompletionUI instance');
+    is($ctx->completion_ui->active, 0, 'completion not active initially');
+};
+
+subtest 'CompletionUI: Tab starts completion on :e command' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::EditorContext->new(vim_buffer => $vb);
+    my $completer = Gtk3::SourceEditor::VimBindings::Completion->new(cwd => $tmpdir);
+    $ctx->add_completion_ui($completer);
+
+    # Set the command entry to ':e doc'
+    $ctx->{cmd_entry}->set_text(':e doc');
+
+    # Press Tab
+    my $result = $ctx->{completion_ui}->handle_key('Tab');
+
+    ok(defined $result, 'Tab was handled');
+    is($result, 1, 'Tab consumed (not accept/cancel)');
+    ok($ctx->{completion_ui}->active, 'completion is now active');
+
+    # Entry text should be updated with the completed prefix
+    my $entry_text = $ctx->{cmd_entry}->get_text;
+    like($entry_text, qr/^:e docs\//, 'entry updated with completed path');
+};
+
+subtest 'CompletionUI: Escape cancels completion' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::EditorContext->new(vim_buffer => $vb);
+    my $completer = Gtk3::SourceEditor::VimBindings::Completion->new(cwd => $tmpdir);
+    $ctx->add_completion_ui($completer);
+
+    $ctx->{cmd_entry}->set_text(':e doc');
+    $ctx->{completion_ui}->handle_key('Tab');
+    ok($ctx->{completion_ui}->active, 'completion started');
+
+    my $result = $ctx->{completion_ui}->handle_key('Escape');
+    is($result, 'cancel', 'Escape returns cancel');
+    ok(!$ctx->{completion_ui}->active, 'completion deactivated');
+};
+
+subtest 'CompletionUI: pluggable backend with custom completer' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::EditorContext->new(vim_buffer => $vb);
+
+    # Custom completer: always returns fixed results regardless of input
+    my $custom = TestCustomCompleter->new;
+    $ctx->add_completion_ui($custom);
+
+    $ctx->{cmd_entry}->set_text(':e ');
+    my $result = $ctx->{completion_ui}->handle_key('Tab');
+
+    ok(defined $result, 'Tab handled by custom completer');
+    ok($ctx->{completion_ui}->active, 'completion active');
+
+    my $entry_text = $ctx->{cmd_entry}->get_text;
+    like($entry_text, qr/custom_alpha/, 'entry shows custom completion result');
+};
+
+# Minimal custom completer for testing pluggability
+package TestCustomCompleter;
+sub new { bless {}, shift }
+sub complete {
+    my ($self, $partial) = @_;
+    return {
+        prefix     => 'custom_alpha',
+        candidates => ['custom_alpha', 'custom_beta', 'custom_gamma'],
+    };
+}
+
+package main;
+
 done_testing;
