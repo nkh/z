@@ -1159,35 +1159,6 @@ sub register {
     };
 
     # ================================================================
-    #  Yank inner word (yiw)
-    # ================================================================
-
-    $ACTIONS->{yank_inner_word} = sub {
-        my ($ctx, $count) = @_;
-        $count ||= 1;
-        my $vb = $ctx->{vb};
-        my $line = $vb->cursor_line;
-        my $col  = $vb->cursor_col;
-        my $text = $vb->line_text($line);
-
-        # Find word boundaries
-        my $start = $col;
-        # Walk back to start of current word
-        while ($start > 0 && substr($text, $start - 1, 1) =~ /\S/) { $start--; }
-        my $end = $start;
-        # Walk forward to end of current word (and repeat for count)
-        for (1 .. $count) {
-            while ($end < length($text) && substr($text, $end, 1) =~ /\S/) { $end++; }
-            # Skip whitespace to next word (unless last iteration)
-            if ($_ < $count) {
-                while ($end < length($text) && substr($text, $end, 1) =~ /\s/) { $end++; }
-            }
-            $start = $end if $_ < $count;
-        }
-        $_set_yank->($ctx, substr($text, $start, $end - $start)) if $end > $start;
-    };
-
-    # ================================================================
     #  Text object helpers
     # ================================================================
 
@@ -1248,6 +1219,36 @@ sub register {
         return () if $close_idx < 0;
 
         return ($line, $open_idx + 1, $line, $close_idx);
+    };
+
+    # Find around quote range: includes the quotes themselves
+    # Returns ($line, $start_col, $line, $end_col) or empty list
+    my $_a_quote_range = sub {
+        my ($ctx, $quote_char) = @_;
+        my $vb = $ctx->{vb};
+        my $line = $vb->cursor_line;
+        my $col  = $vb->cursor_col;
+        my $text = $vb->line_text($line);
+
+        my $open_idx = -1;
+        for my $c (reverse 0 .. $col) {
+            if (substr($text, $c, 1) eq $quote_char) {
+                $open_idx = $c;
+                last;
+            }
+        }
+        return () if $open_idx < 0;
+
+        my $close_idx = -1;
+        for my $c ($open_idx + 1 .. length($text) - 1) {
+            if (substr($text, $c, 1) eq $quote_char) {
+                $close_idx = $c;
+                last;
+            }
+        }
+        return () if $close_idx < 0;
+
+        return ($line, $open_idx, $line, $close_idx + 1);
     };
 
     # Find inner bracket range: between matching bracket pair
@@ -1311,6 +1312,28 @@ sub register {
         return ();
     };
 
+    # Find around bracket range: includes the brackets themselves
+    # Returns ($start_line, $start_col, $end_line, $end_col) or empty list
+    my $_a_bracket_range = sub {
+        my ($ctx, $open_char, $close_char) = @_;
+        my @inner = $_inner_bracket_range->($ctx, $open_char, $close_char);
+        return () unless @inner;
+        my ($sl, $sc, $el, $ec) = @inner;
+        # Expand to include the opening and closing brackets
+        return () if $sc < 1;
+        return ($sl, $sc - 1, $el, $ec + 1);
+    };
+
+    # --- yiw (yank inner word) ---
+    $ACTIONS->{yank_inner_word} = sub {
+        my ($ctx, $count) = @_;
+        $count ||= 1;
+        my $vb = $ctx->{vb};
+        my ($sl, $sc, $el, $ec) = $_inner_word_range->($ctx);
+        return if $sc >= $ec;
+        $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+    };
+
     # --- daw (delete a word) ---
     $ACTIONS->{delete_a_word} = sub {
         my ($ctx) = @_;
@@ -1351,6 +1374,26 @@ sub register {
         $vb->delete_range($sl, $sc, $el, $ec);
         $vb->set_cursor($sl, $sc);
         $ctx->{set_mode}->('insert');
+    };
+
+    # --- caw (change a word) ---
+    $ACTIONS->{change_a_word} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my ($sl, $sc, $el, $ec) = $_a_word_range->($ctx);
+        return if $sc >= $ec;
+        $vb->delete_range($sl, $sc, $el, $ec);
+        $vb->set_cursor($sl, $sc);
+        $ctx->{set_mode}->('insert');
+    };
+
+    # --- yaw (yank a word) ---
+    $ACTIONS->{yank_a_word} = sub {
+        my ($ctx) = @_;
+        my $vb = $ctx->{vb};
+        my ($sl, $sc, $el, $ec) = $_a_word_range->($ctx);
+        return if $sc >= $ec;
+        $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
     };
 
     # --- di" (delete inner double quote) ---
@@ -1435,6 +1478,48 @@ sub register {
         $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
     };
 
+    # Around-quote actions: da", ca", ya", da', ca', ya'
+    my $_make_quote_actions = sub {
+        my ($quote_char, $name) = @_;
+        $ACTIONS->{"delete_around_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_a_quote_range->($ctx, $quote_char);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            return if $sc >= $ec;
+            $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+            $vb->delete_range($sl, $sc, $el, $ec);
+            my $len = $vb->line_length($sl);
+            if ($sc >= $len && $len > 0) {
+                $vb->set_cursor($sl, $len - 1);
+            } elsif ($len == 0) {
+                $vb->set_cursor($sl, 0);
+            }
+        };
+        $ACTIONS->{"change_around_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_a_quote_range->($ctx, $quote_char);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            $vb->delete_range($sl, $sc, $el, $ec);
+            $vb->set_cursor($sl, $sc);
+            $ctx->{set_mode}->('insert');
+        };
+        $ACTIONS->{"yank_around_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_a_quote_range->($ctx, $quote_char);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            return if $sc >= $ec;
+            $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+        };
+    };
+    $_make_quote_actions->('"', 'doublequote');
+    $_make_quote_actions->("'", 'singlequote');
+
     # Helper to create delete/change/yank inner bracket actions
     my $_make_bracket_actions = sub {
         my ($open, $close, $name) = @_;
@@ -1468,6 +1553,42 @@ sub register {
             my ($ctx) = @_;
             my $vb = $ctx->{vb};
             my @range = $_inner_bracket_range->($ctx, $open, $close);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            return if $sl == $el && $sc >= $ec;
+            $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+        };
+        # Around-variants: include the brackets themselves
+        $ACTIONS->{"delete_around_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_a_bracket_range->($ctx, $open, $close);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            return if $sl == $el && $sc >= $ec;
+            $_set_yank->($ctx, $vb->get_range($sl, $sc, $el, $ec));
+            $vb->delete_range($sl, $sc, $el, $ec);
+            my $len = $vb->line_length($sl);
+            if ($sc >= $len && $len > 0) {
+                $vb->set_cursor($sl, $len - 1);
+            } elsif ($len == 0) {
+                $vb->set_cursor($sl, 0);
+            }
+        };
+        $ACTIONS->{"change_around_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_a_bracket_range->($ctx, $open, $close);
+            return unless @range;
+            my ($sl, $sc, $el, $ec) = @range;
+            $vb->delete_range($sl, $sc, $el, $ec);
+            $vb->set_cursor($sl, $sc);
+            $ctx->{set_mode}->('insert');
+        };
+        $ACTIONS->{"yank_around_$name"} = sub {
+            my ($ctx) = @_;
+            my $vb = $ctx->{vb};
+            my @range = $_a_bracket_range->($ctx, $open, $close);
             return unless @range;
             my ($sl, $sc, $el, $ec) = @range;
             return if $sl == $el && $sc >= $ec;
@@ -1975,30 +2096,56 @@ sub register {
         daw           => 'delete_a_word',
         diw           => 'delete_inner_word',
         ciw           => 'change_inner_word',
+        caw           => 'change_a_word',
+        yaw           => 'yank_a_word',
         diquotedbl    => 'delete_inner_doublequote',
         ciquotedbl    => 'change_inner_doublequote',
         yiquotedbl    => 'yank_inner_doublequote',
+        daquotedbl    => 'delete_around_doublequote',
+        caquotedbl    => 'change_around_doublequote',
+        yaquotedbl    => 'yank_around_doublequote',
         diapostrophe  => 'delete_inner_singlequote',
         ciapostrophe  => 'change_inner_singlequote',
         yiapostrophe  => 'yank_inner_singlequote',
+        daapostrophe  => 'delete_around_singlequote',
+        caapostrophe  => 'change_around_singlequote',
+        yaapostrophe  => 'yank_around_singlequote',
         diparenleft   => 'delete_inner_paren',
         diparenright  => 'delete_inner_paren',
         ciparenleft   => 'change_inner_paren',
         ciparenright  => 'change_inner_paren',
         yiparenleft   => 'yank_inner_paren',
         yiparenright  => 'yank_inner_paren',
+        daparenleft   => 'delete_around_paren',
+        daparenright  => 'delete_around_paren',
+        caparenleft   => 'change_around_paren',
+        caparenright  => 'change_around_paren',
+        yaparenleft   => 'yank_around_paren',
+        yaparenright  => 'yank_around_paren',
         dibraceleft   => 'delete_inner_brace',
         dibraceright  => 'delete_inner_brace',
         cibraceleft   => 'change_inner_brace',
         cibraceright  => 'change_inner_brace',
         yibraceleft   => 'yank_inner_brace',
         yibraceright  => 'yank_inner_brace',
+        dabraceleft   => 'delete_around_brace',
+        dabraceright  => 'delete_around_brace',
+        cabraceleft   => 'change_around_brace',
+        cabraceright  => 'change_around_brace',
+        yabraceleft   => 'yank_around_brace',
+        yabraceright  => 'yank_around_brace',
         dibracketleft  => 'delete_inner_bracket',
         dibracketright => 'delete_inner_bracket',
         cibacketleft  => 'change_inner_bracket',
         cibrackright => 'change_inner_bracket',
         yibracketleft  => 'yank_inner_bracket',
         yibracketright => 'yank_inner_bracket',
+        dabracketleft  => 'delete_around_bracket',
+        dabracketright => 'delete_around_bracket',
+        cabracketleft  => 'change_around_bracket',
+        cabrackright => 'change_around_bracket',
+        yabracketleft  => 'yank_around_bracket',
+        yabracketright => 'yank_around_bracket',
         D             => 'delete_to_eol',
         d_dollar      => 'delete_to_eol',
         cc            => 'change_line',

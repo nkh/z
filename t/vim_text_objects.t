@@ -176,4 +176,67 @@ subtest 'Text obj: di[ deletes between brackets' => sub {
     is($vb->line_text(0), "foo[]baz", 'di[ deletes content between brackets');
 };
 
+# --- Around-quote variants ---
+subtest 'Text obj: da" deletes including quotes' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => qq{say "hello" world\n});
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 6);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'd', 'a', 'quotedbl');
+    is($vb->line_text(0), qq{say  world}, 'da" deletes quotes and content');
+};
+
+subtest 'Text obj: da\' deletes including quotes' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => q{say 'hello' world});
+    my $vb2 = Gtk3::SourceEditor::VimBuffer::Test->new(text => "say 'hello' world\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb2);
+    $vb2->set_cursor(0, 6);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'd', 'a', 'apostrophe');
+    is($vb2->line_text(0), q{say  world}, "da' deletes quotes and content");
+};
+
+subtest 'Text obj: ya" yanks including quotes' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => qq{say "hello" world\n});
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 6);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y', 'a', 'quotedbl');
+    is(${$ctx->{yank_buf}}, q{"hello"}, 'ya" yanks quotes and content');
+    is($vb->text, qq{say "hello" world\n}, 'ya" does not modify buffer');
+};
+
+# --- Around-bracket variants ---
+subtest 'Text obj: da( deletes including parens' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "foo(bar)baz\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 5);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'd', 'a', 'parenleft');
+    is($vb->line_text(0), "foobaz", 'da( deletes parens and content');
+};
+
+subtest 'Text obj: ya{ yanks including braces' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "foo{bar}baz\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 5);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y', 'a', 'braceleft');
+    is(${$ctx->{yank_buf}}, '{bar}', 'ya{ yanks braces and content');
+};
+
+# --- caw / yaw ---
+subtest 'Text obj: caw changes word and trailing space' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world end\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'c', 'a', 'w');
+    is(${$ctx->{vim_mode}}, 'insert', 'caw enters insert mode');
+    ok($vb->text =~ /^world end\n$/, 'caw deleted first word and space');
+};
+
+subtest 'Text obj: yaw yanks word and trailing space' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world end\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+    $vb->set_cursor(0, 2);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'y', 'a', 'w');
+    is(${$ctx->{yank_buf}}, 'hello ', 'yaw yanks word and trailing space');
+    is($vb->text, "hello world end\n", 'yaw does not modify buffer');
+};
+
 done_testing;
