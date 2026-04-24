@@ -1028,13 +1028,12 @@ sub handle_insert_mode {
         return TRUE;
     }
     # User-defined dispatch entries (exact match, no count prefix).
+    # After the dispatch strategy refactor, the dispatch table stores
+    # action names (strings) instead of coderefs, so we must route
+    # through _execute_action for proper execution.
     if (exists $ctx->{insert_dispatch}{$k}) {
-        my $handler = $ctx->{insert_dispatch}{$k};
-        my $result;
-        $ctx->{vb}->begin_user_action;
-        eval { $result = $handler->($ctx, undef) };
-        $ctx->{vb}->end_user_action;
-        return defined $result ? $result : TRUE;
+        my $action_name = $ctx->{insert_dispatch}{$k};
+        return _execute_action($ctx, $action_name, undef);
     }
 
     # Printable character insertion: insert the character at the cursor.

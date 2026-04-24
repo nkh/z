@@ -643,4 +643,104 @@ subtest 'Page scrolling: Ctrl-u moves half page up' => sub {
     is($vb->cursor_line, 20, 'Ctrl-u moves half page up (10 lines)');
 };
 
+# ==========================================================================
+# Insert mode arrow keys and page navigation
+# ==========================================================================
+subtest 'Insert mode: Down arrow moves cursor down' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "line one\nline two\nline three\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    is(${$ctx->{vim_mode}}, 'insert', 'in insert mode');
+    is($vb->cursor_line, 0, 'cursor at line 0');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Down');
+    is(${$ctx->{vim_mode}}, 'insert', 'still in insert mode');
+    is($vb->cursor_line, 1, 'cursor moved to line 1');
+};
+
+subtest 'Insert mode: Up arrow moves cursor up' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "aaa\nbbb\nccc\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'j', 'j', 'i');
+    is($vb->cursor_line, 2, 'cursor at line 2');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Up');
+    is(${$ctx->{vim_mode}}, 'insert', 'still in insert mode');
+    is($vb->cursor_line, 1, 'cursor moved to line 1');
+};
+
+subtest 'Insert mode: Right arrow moves cursor right' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    is($vb->cursor_col, 0, 'cursor at col 0');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Right');
+    is($vb->cursor_col, 1, 'cursor moved to col 1');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Right');
+    is($vb->cursor_col, 2, 'cursor moved to col 2');
+};
+
+subtest 'Insert mode: Left arrow moves cursor left' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'l', 'l', 'l', 'i');
+    is($vb->cursor_col, 3, 'cursor at col 3');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Left');
+    is($vb->cursor_col, 2, 'cursor moved to col 2');
+};
+
+subtest 'Insert mode: Page_Down moves cursor' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 20
+    );
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    is($vb->cursor_line, 0, 'cursor at line 0');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Page_Down');
+    is(${$ctx->{vim_mode}}, 'insert', 'still in insert mode');
+    ok($vb->cursor_line > 0, 'Page_Down moved cursor down');
+};
+
+subtest 'Insert mode: Page_Up moves cursor' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(
+        text => join("\n", map { "line$_" } 1..50) . "\n"
+    );
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(
+        vim_buffer => $vb, page_size => 20
+    );
+
+    $vb->set_cursor(30, 0);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    is($vb->cursor_line, 30, 'cursor at line 30');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Page_Up');
+    is(${$ctx->{vim_mode}}, 'insert', 'still in insert mode');
+    ok($vb->cursor_line < 30, 'Page_Up moved cursor up');
+};
+
+subtest 'Insert mode: arrow keys preserve mode after typing' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\nworld\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'i');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Right');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'Down');
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'x');
+    is(${$ctx->{vim_mode}}, 'insert', 'still in insert mode after arrow then type');
+    # After i at col 0, Right moves to col 1, Down to line 1 col 1
+    # Typing x at col 1 of "world" produces "wxorld"
+    is($vb->line_text(1), 'wxorld', 'typed x after Down arrow on correct line');
+};
+
 done_testing;
