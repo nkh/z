@@ -122,6 +122,21 @@ Undo the last editing operation (insert or delete).
 
 Redo the last undone editing operation.
 
+=head2 begin_user_action()
+
+    $buf->begin_user_action;
+
+Begin an undo group.  Subsequent edits until C<end_user_action> are
+merged into a single undo step.  This is how Vim groups a multi-keystroke
+command (e.g. C<cw>, C<dd>, C<ciw>) into one undoable unit.
+
+=head2 end_user_action()
+
+    $buf->end_user_action;
+
+Close the current undo group, making all edits since C<begin_user_action>
+undoable as a single step.
+
 =head2 modified()
 
     my $bool = $buf->modified;
@@ -257,8 +272,10 @@ sub set_text     { die "Unimplemented in " . __PACKAGE__ }
 sub get_range    { die "Unimplemented in " . __PACKAGE__ }
 sub delete_range { die "Unimplemented in " . __PACKAGE__ }
 sub insert_text  { die "Unimplemented in " . __PACKAGE__ }
-sub undo         { die "Unimplemented in " . __PACKAGE__ }
-sub redo         { die "Unimplemented in " . __PACKAGE__ }
+sub undo              { die "Unimplemented in " . __PACKAGE__ }
+sub redo              { die "Unimplemented in " . __PACKAGE__ }
+sub begin_user_action { die "Unimplemented in " . __PACKAGE__ }
+sub end_user_action   { die "Unimplemented in " . __PACKAGE__ }
 sub modified     { die "Unimplemented in " . __PACKAGE__ }
 sub set_modified { die "Unimplemented in " . __PACKAGE__ }
 sub word_forward { die "Unimplemented in " . __PACKAGE__ }

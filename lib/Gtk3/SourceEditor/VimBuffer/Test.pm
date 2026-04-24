@@ -67,11 +67,14 @@ sub new {
     @lines = ("") if @lines == 0;
 
     my $self = bless {
-        _lines     => \@lines,
-        _cur_line  => 0,
-        _cur_col   => 0,
-        _modified  => 0,
-        _undo_stack => [],
+        _lines        => \@lines,
+        _cur_line     => 0,
+        _cur_col      => 0,
+        _modified     => 0,
+        _undo_stack   => [],
+        _redo_stack   => [],
+        _group_depth  => 0,
+        _group_snap   => undef,  # snapshot at group open (for grouping)
     }, $class;
 
     return $self;
@@ -95,12 +98,30 @@ sub _clamp_cursor {
 
 sub _save_undo {
     my ($self) = @_;
+
+    # Clear the redo stack -- new edits invalidate redo history.
+    $self->{_redo_stack} = [];
+
+    # If inside an undo group, only keep the first snapshot (group entry).
+    # Subsequent snapshots within the same group are discarded so that
+    # undo reverses the entire group in one step.
+    if ($self->{_group_depth} > 0) {
+        return if defined $self->{_group_snap};
+        $self->{_group_snap} = {
+            _lines    => [ @{$self->{_lines}} ],
+            _cur_line => $self->{_cur_line},
+            _cur_col  => $self->{_cur_col},
+            _sel      => $self->get_selection,
+        };
+        return;
+    }
+
     my $sel = $self->get_selection;
     push @{$self->{_undo_stack}}, {
         _lines    => [ @{$self->{_lines}} ],
         _cur_line => $self->{_cur_line},
         _cur_col  => $self->{_cur_col},
-        _sel      => $sel,   # selection state at time of snapshot
+        _sel      => $sel,
     };
 }
 
@@ -272,6 +293,14 @@ sub undo {
     my ($self) = @_;
     return unless @{$self->{_undo_stack}};
 
+    # Save current state to redo stack before restoring.
+    push @{$self->{_redo_stack}}, {
+        _lines    => [ @{$self->{_lines}} ],
+        _cur_line => $self->{_cur_line},
+        _cur_col  => $self->{_cur_col},
+        _sel      => $self->get_selection,
+    };
+
     my $snap = pop @{$self->{_undo_stack}};
     $self->{_lines}    = $snap->{_lines};
     $self->{_cur_line} = $snap->{_cur_line};
@@ -286,8 +315,26 @@ sub undo {
 }
 
 sub redo {
-    # Redo is not yet implemented in the test backend (requires A2: unified undo/redo).
-    # The Gtk3 backend uses $buffer->redo natively.
+    my ($self) = @_;
+    return unless @{$self->{_redo_stack}};
+
+    # Save current state to undo stack before restoring.
+    push @{$self->{_undo_stack}}, {
+        _lines    => [ @{$self->{_lines}} ],
+        _cur_line => $self->{_cur_line},
+        _cur_col  => $self->{_cur_col},
+        _sel      => $self->get_selection,
+    };
+
+    my $snap = pop @{$self->{_redo_stack}};
+    $self->{_lines}    = $snap->{_lines};
+    $self->{_cur_line} = $snap->{_cur_line};
+    $self->{_cur_col}  = $snap->{_cur_col};
+    if ($snap->{_sel}) {
+        $self->set_selection($snap->{_sel}{anchor_line}, $snap->{_sel}{anchor_col});
+    } else {
+        $self->clear_selection;
+    }
 }
 
 # ----------------------------------------------------------------
@@ -716,11 +763,36 @@ sub get_selection {
 }
 
 # ----------------------------------------------------------------
-# Undo grouping (stubs -- test backend uses simple snapshots)
+# Undo grouping
+#
+# When begin_user_action is called, we enter a group.  The first
+# _save_undo inside the group captures the pre-group state.  All
+# subsequent _save_undo calls within the same group are discarded.
+# When end_user_action is called, the group snapshot (if any) is
+# pushed onto the undo stack.  This means undo reverses the entire
+# group as a single step.
 # ----------------------------------------------------------------
 
-sub begin_user_action { }
-sub end_user_action   { }
+sub begin_user_action {
+    my ($self) = @_;
+    $self->{_group_depth}++;
+    # Snapshot at group open -- only kept if at least one edit occurs.
+    $self->{_group_snap} = undef;
+}
+
+sub end_user_action {
+    my ($self) = @_;
+    return unless $self->{_group_depth} > 0;
+    $self->{_group_depth}--;
+
+    # If we're closing the outermost group and edits occurred,
+    # push the group snapshot onto the undo stack.
+    if ($self->{_group_depth} == 0 && defined $self->{_group_snap}) {
+        # _save_undo already cleared redo_stack when the first edit happened.
+        push @{$self->{_undo_stack}}, $self->{_group_snap};
+        $self->{_group_snap} = undef;
+    }
+}
 
 1;
 

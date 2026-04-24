@@ -17,14 +17,13 @@ use Gtk3::SourceEditor::VimBindings;
 # no visible effect.  The fix is to call end_user_action BEFORE undo/redo
 # in the action handler.
 #
-# These tests use VimBuffer::Test which has its own undo stack.  The
-# Test buffer's begin_user_action / end_user_action are no-ops, so we
-# need a SpyBuffer that tracks whether these methods are called, allowing
-# us to verify the undo handler properly closes the action group.
+# The Test backend now has real redo and undo grouping support.
+# SpyBuffer tracks begin/end_user_action calls while delegating to SUPER
+# so grouping behavior is preserved.
 # ==========================================================================
 
 # ----------------------------------------------------------------
-# SpyBuffer: tracks begin/end_user_action calls
+# SpyBuffer: tracks begin/end_user_action calls, delegates to SUPER
 # ----------------------------------------------------------------
 package SpyBuffer;
 use parent 'Gtk3::SourceEditor::VimBuffer::Test';
@@ -37,8 +36,17 @@ sub new {
     return $self;
 }
 
-sub begin_user_action { $_[0]->{_begin_count}++ }
-sub end_user_action   { $_[0]->{_end_count}++ }
+sub begin_user_action {
+    my ($self) = @_;
+    $self->{_begin_count}++;
+    $self->SUPER::begin_user_action();
+}
+
+sub end_user_action {
+    my ($self) = @_;
+    $self->{_end_count}++;
+    $self->SUPER::end_user_action();
+}
 
 sub begin_count { $_[0]->{_begin_count} }
 sub end_count   { $_[0]->{_end_count} }
@@ -191,6 +199,169 @@ subtest 'Regression: redo calls end_user_action before redo' => sub {
 
     cmp_ok($vb->end_count, '>=', $vb->begin_count,
            'redo handler closed the user action group (end >= begin)');
+    is($vb->text, "Xhello\n", 'redo restored the inserted text');
+};
+
+# ==========================================================================
+# 14. Basic redo: Ctrl-R after undo
+# ==========================================================================
+subtest 'Redo: Ctrl-R after undo restores the undone edit' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'x');
+    is($vb->text, "ello\n", 'x deleted char');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'u');
+    is($vb->text, "hello\n", 'undo restored');
+
+    Gtk3::SourceEditor::VimBindings::handle_ctrl_key($ctx, 'Control-r');
+    is($vb->text, "ello\n", 'redo re-applied the deletion');
+};
+
+# ==========================================================================
+# 15. Redo after multiple undos
+# ==========================================================================
+subtest 'Redo: multiple redo after multiple undo' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abcde\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'x', 'x', 'x');
+    is($vb->text, "de\n", '3x done');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'u', 'u', 'u');
+    is($vb->text, "abcde\n", '3u restored all');
+
+    Gtk3::SourceEditor::VimBindings::handle_ctrl_key($ctx, 'Control-r');
+    is($vb->text, "bcde\n", 'first redo');
+    Gtk3::SourceEditor::VimBindings::handle_ctrl_key($ctx, 'Control-r');
+    is($vb->text, "cde\n", 'second redo');
+    Gtk3::SourceEditor::VimBindings::handle_ctrl_key($ctx, 'Control-r');
+    is($vb->text, "de\n", 'third redo');
+};
+
+# ==========================================================================
+# 16. Redo on empty redo stack is a no-op
+# ==========================================================================
+subtest 'Redo: empty redo stack is no-op' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # Nothing has been undone, so redo should be a no-op
+    Gtk3::SourceEditor::VimBindings::handle_ctrl_key($ctx, 'Control-r');
+    is($vb->text, "hello\n", 'redo on empty stack is no-op');
+};
+
+# ==========================================================================
+# 17. New edit clears redo stack
+# ==========================================================================
+subtest 'Redo: new edit after undo clears redo history' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abc\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'x');
+    is($vb->text, "bc\n", 'x done');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'u');
+    is($vb->text, "abc\n", 'undone');
+
+    # Now do a NEW edit (not redo) -- this should clear redo history
+    $vb->set_cursor(0, 1);
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'x');
+    is($vb->text, "ac\n", 'new x done');
+
+    # Redo should be a no-op -- the old redo entry was invalidated
+    Gtk3::SourceEditor::VimBindings::handle_ctrl_key($ctx, 'Control-r');
+    is($vb->text, "ac\n", 'redo is no-op after new edit');
+};
+
+# ==========================================================================
+# 18. Undo grouping: grouped edits undo as one step
+# ==========================================================================
+subtest 'Undo grouping: begin/end_user_action groups edits' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello world\n");
+
+    # Group two inserts together
+    $vb->begin_user_action;
+    $vb->insert_text("X");
+    $vb->insert_text("Y");
+    $vb->end_user_action;
+
+    is($vb->text, "XYhello world\n", 'both inserts applied');
+
+    # One undo should reverse the entire group
+    $vb->undo;
+    is($vb->text, "hello world\n", 'single undo reversed the whole group');
+};
+
+# ==========================================================================
+# 19. Undo grouping: nested groups
+# ==========================================================================
+subtest 'Undo grouping: nested begin/end calls' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abc\n");
+
+    # Nested groups: only the outermost close should push to undo stack
+    $vb->begin_user_action;
+    $vb->begin_user_action;
+    $vb->insert_text("X");
+    $vb->end_user_action;   # inner close -- should not push yet
+    $vb->insert_text("Y");
+    $vb->end_user_action;   # outer close -- should push
+
+    is($vb->text, "XYabc\n", 'both inserts applied');
+
+    $vb->undo;
+    is($vb->text, "abc\n", 'single undo reversed entire nested group');
+};
+
+# ==========================================================================
+# 20. Undo grouping: empty group does not create undo entry
+# ==========================================================================
+subtest 'Undo grouping: empty group creates no undo entry' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+
+    $vb->begin_user_action;
+    $vb->end_user_action;   # close without any edits
+
+    # Undo should be a no-op -- no edits were made in the group
+    $vb->undo;
+    is($vb->text, "hello\n", 'undo on empty group is no-op');
+};
+
+# ==========================================================================
+# 21. Undo grouping: group + redo roundtrip
+# ==========================================================================
+subtest 'Undo grouping: grouped edits redo as one step' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "abc\n");
+
+    $vb->begin_user_action;
+    $vb->insert_text("X");
+    $vb->insert_text("Y");
+    $vb->end_user_action;
+
+    $vb->undo;
+    is($vb->text, "abc\n", 'undo reversed group');
+
+    $vb->redo;
+    is($vb->text, "XYabc\n", 'redo re-applied the whole group');
+};
+
+# ==========================================================================
+# 22. Redo restores cursor position
+# ==========================================================================
+subtest 'Redo: restores cursor position' => sub {
+    my $vb = Gtk3::SourceEditor::VimBuffer::Test->new(text => "hello\n");
+    my $ctx = Gtk3::SourceEditor::VimBindings::create_test_context(vim_buffer => $vb);
+
+    # x moves cursor, then we undo and redo
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'x');
+    is($vb->cursor_col, 0, 'col 0 after x');
+
+    Gtk3::SourceEditor::VimBindings::simulate_keys($ctx, 'u');
+    is($vb->cursor_col, 0, 'col restored by undo');
+
+    Gtk3::SourceEditor::VimBindings::handle_ctrl_key($ctx, 'Control-r');
+    is($vb->cursor_col, 0, 'col restored by redo');
 };
 
 # ==========================================================================
