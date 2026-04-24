@@ -353,8 +353,15 @@ sub add_vim_bindings {
     # connected before ours, it runs first and moves the cursor before
     # signal_stop_emission_by_name can stop the emission.  By handling
     # navigation keys here and returning TRUE, key-press-event is never
-    # emitted, so GtkSourceView never sees them.  All vim modes handle
-    # navigation keys through their mode handlers; GTK never handles them.
+    # emitted, so GtkSourceView never sees them.
+    #
+    # IMPORTANT: Only intercept for normal/visual modes (where the textview
+    # is non-editable).  For insert/replace modes, the textview IS editable,
+    # so we let navigation keys fall through to the 'key-press-event' handler
+    # which processes them via the same action dispatch (insert_immediate),
+    # then stops emission to prevent GTK from double-handling.  This avoids
+    # issues with the 'event' signal not firing reliably on some GDK backends
+    # (notably Wayland) where key events may be delivered differently.
     $textview->signal_connect('event' => sub {
         my ($w, $event) = @_;
         # Only intercept key-press events (not key-release, button, etc.)
@@ -395,18 +402,20 @@ sub add_vim_bindings {
         return FALSE unless $k eq 'Up' || $k eq 'Down'
                         || $k eq 'Left' || $k eq 'Right'
                         || $k eq 'Page_Up' || $k eq 'Page_Down';
-        # Dispatch to the appropriate mode handler.  Returning TRUE
-        # prevents key-press-event from being emitted, so GtkSourceView
-        # never processes the navigation key.
-        if (${$ctx->{vim_mode}} eq 'normal') {
+        # For insert/replace modes, let navigation keys fall through to
+        # 'key-press-event'.  The textview is editable in these modes,
+        # and the key-press-event handler handles them via insert_immediate
+        # + signal_stop_emission, which is more reliable across GDK backends.
+        my $mode = ${$ctx->{vim_mode}};
+        return FALSE if $mode eq 'insert' || $mode eq 'replace';
+        # Dispatch to normal/visual mode handler.  Returning TRUE prevents
+        # key-press-event from being emitted, so GtkSourceView never
+        # processes the navigation key.
+        if ($mode eq 'normal') {
             handle_normal_mode($ctx, $k);
-        } elsif ($$ctx{vim_mode} eq 'visual' || $$ctx{vim_mode} eq 'visual_line'
-                 || $$ctx{vim_mode} eq 'visual_block') {
+        } elsif ($mode eq 'visual' || $mode eq 'visual_line'
+                 || $mode eq 'visual_block') {
             handle_visual_mode($ctx, $k);
-        } elsif ($$ctx{vim_mode} eq 'insert') {
-            handle_insert_mode($ctx, $k);
-        } elsif ($$ctx{vim_mode} eq 'replace') {
-            handle_replace_mode($ctx, $k);
         }
         return TRUE;
     }) if $textview;
@@ -1454,9 +1463,10 @@ sub _init_utilities {
                 $view->scroll_to_mark($buf->get_insert(), 0.0, TRUE, 0, 0.5);
             }
             # Mode 1 (edge): scroll only when cursor leaves the viewport.
-            # We intercept arrow keys in the 'event' signal to prevent
-            # double movement, which also prevents GtkTextView's built-in
-            # scrolling from key bindings.  scroll_mark_onscreen scrolls
+            # Navigation keys are handled by our key-press-event handler
+            # (with signal_stop_emission to prevent GTK's key bindings
+            # from double-handling), so GtkTextView's built-in scrolling
+            # from key bindings never fires.  scroll_mark_onscreen scrolls
             # the minimum amount to keep the cursor visible, matching the
             # original edge-scrolling behavior.
             # For scroll_lock, the cursor doesn't move so skip.
