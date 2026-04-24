@@ -25,7 +25,7 @@ The improvements are implemented in the order specified by the project owner:
 | 15 | [14-undo-semantics-layer.md](14-undo-semantics-layer.md) | Undo semantics layer | Done | Abstract begin/end_user_action, Test redo, undo grouping |
 | 16 | [15-pluggable-completion.md](15-pluggable-completion.md) | Pluggable completion | Done | Tab-completion in :e/:r via pluggable completer interface |
 | 18 | [16-keyboard-layout-abstraction.md](16-keyboard-layout-abstraction.md) | Keyboard layout abstraction | Done | Centralized keyval helpers in Util, deduplicated 4 GDK patterns |
-| 19 | — | Text object system | Pending | — |
+| 19 | [17-text-object-system.md](17-text-object-system.md) | Text object system | Done | Around-variants, caw/yaw, quote/bracket factories |
 
 ## Implementation Rules
 
