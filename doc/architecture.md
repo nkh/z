@@ -474,11 +474,11 @@ The context hash is the central state object passed to every action coderef. It 
 
   handle_insert_mode($ctx, $k)
          |
-         +-- _dispatch($ctx, insert_dispatch, insert_prefixes,
-                       insert_char_actions, $k, FALSE)
+         +-- $k in insert_dispatch?
              |
-             +-- Only Escape is intercepted -> exit_to_normal
-                 All other keys -> return FALSE (GTK inserts character)
+             +-- YES -> _execute_action($ctx, action_name, undef) -> TRUE
+             +-- NO  -> printable? -> insert_text($char) -> TRUE
+                        non-printable? -> consume silently -> TRUE
 
   --- Visual mode handler ----------------------------------------
 
@@ -594,7 +594,7 @@ The `_dispatch($ctx, $dispatch, $prefixes, $char_actions, $key, $on_miss)` funct
     - If `$original_key` is a single character AND the action exists in `%ACTIONS`, execute with `($ctx, $count, $char)`, clear buffer, return `TRUE`.
     - Otherwise (multi-char key like `'Escape'`, `'Up'`), cancel the pending char action, clear buffer, return `TRUE`.
 
-12. **Nothing matched** -- Clear buffer, return `$on_miss` (defaults to `TRUE`). For insert mode, `$on_miss` is `FALSE`, allowing GTK to handle the key natively.
+12. **Nothing matched** -- Clear buffer, return `$on_miss` (defaults to `TRUE`).
 
 ### 5.7 Ctrl-Key Handling (`handle_ctrl_key`)
 
@@ -603,8 +603,7 @@ The `handle_ctrl_key($ctx, $key)` function dispatches Ctrl-key combinations. The
 **Behavior per mode:**
 - **Normal mode**: Looks up `$key` in `$ctx->{normal_ctrl_dispatch}`. If found, executes the action (no count). If not found, returns `FALSE` (GTK handles natively).
 - **Visual modes** (visual, visual_line, visual_block): Same as normal -- looks up in the visual mode's ctrl_dispatch table (which inherits from normal mode's `_ctrl` map).
-- **Insert mode**: Not called -- the signal handler returns `FALSE` directly for all Ctrl keys in insert mode, letting GTK handle Ctrl+C/V/Z/A natively.
-- **Replace mode**: Same as insert -- not called, returns `FALSE`.
+- **Insert mode**: Ctrl keys are looked up in the insert mode ctrl dispatch table first; if matched, the action is executed via `_execute_action`. Unrecognised Ctrl keys are suppressed (return TRUE) to prevent GTK's native Ctrl-C/V/Z.
 - **Command mode**: Not applicable (command entry has its own signal handler).
 
 **Default Ctrl-key bindings (normal mode):**
@@ -692,7 +691,7 @@ The editor supports 7 modes. Each mode has its own keymap, dispatch table, and b
 | Mode | String Identifier | Trigger Keys | Description |
 |------|-------------------|-------------|-------------|
 | **Normal** | `'normal'` | Default on startup; Escape from insert/visual/command | The primary navigation and command mode. The cursor is a block. All editing is done through command sequences (e.g., `dd` to delete a line, `x` to delete a character). The text view is set to non-editable. Navigation uses h/j/k/l, w/b/e, gg/G, f/F/t/T, and page keys. |
-| **Insert** | `'insert'` | `i` (before cursor), `a` (after cursor), `I` (line start), `A` (line end), `o` (open below), `O` (open above), `c` commands (change) | Text insertion mode. The cursor becomes an I-beam. The text view is set to editable. Printable keystrokes are passed through to GTK for native text insertion. Only Escape is intercepted (exits to normal, moves cursor back one position). Ctrl keys (Ctrl+C/V/X/Z/A) pass through to GTK natively. |
+| **Insert** | `'insert'` | `i` (before cursor), `a` (after cursor), `I` (line start), `A` (line end), `o` (open below), `O` (open above), `c` commands (change) | Text insertion mode. The cursor becomes an I-beam. The text view is set to editable. All keyboard events are handled by `handle_insert_mode`: registered keys (Escape, Tab, arrows, Page Up/Down, etc.) are dispatched via `insert_dispatch` and `_execute_action`; printable characters are inserted via `insert_text`; non-printable keys are consumed silently. No keys pass through to GTK. |
 | **Replace** | `'replace'` | `R` | Overtype mode. Similar to insert, but each printable character replaces the character under the cursor instead of inserting. The cursor advances one position after each replacement. BackSpace moves the cursor back one position. Escape exits to normal. Uses `_char_actions => { _any => 'do_replace_char' }` to intercept all printable characters. |
 | **Visual (character-wise)** | `'visual'` | `v`, `gv` (reselect last) | Character-wise selection mode. Movement keys extend the selection from the anchor point (set when entering visual mode) to the cursor position. Operations (y/d/c) operate on the selection and return to normal mode. Case toggle (~) stays in visual mode. |
 | **Visual Line** | `'visual_line'` | `V` | Line-wise selection mode. Entire lines between the anchor and cursor are selected. Operations (y/d/c) operate on whole lines. Shares the same keymap as visual mode. |

@@ -79,7 +79,7 @@ $ACTIONS->{reverse_line} = sub {
 
 ### Adding Keymap Entries
 
-The `modes` key in the return descriptor accepts per-mode keymap overrides. Each mode can include regular key mappings plus the special `_prefixes`, `_immediate`, `_char_actions`, and `_ctrl` keys:
+The `modes` key in the return descriptor accepts per-mode keymap overrides. Each mode can include regular key mappings plus the special `_prefixes`, `_immediate`, `_char_actions`, and `_ctrl` keys. Note that `_immediate` is only meaningful for modes with an accumulation buffer (normal, visual, replace); insert mode uses only plain key-to-action mappings:
 
 ```perl
 return {
@@ -88,11 +88,12 @@ return {
             F5             => 'my_action',
             gg             => 'my_gg_action',  # multi-key prefix
             _prefixes      => ['gg', 'F5'],     # declare as prefix
-            _immediate     => ['Escape'],
+            _immediate     => ['Page_Up', 'Page_Down'],
             _char_actions  => { r => 'my_replace' },
             _ctrl          => { w => 'my_ctrl_w' },
         },
         insert => {
+            # No _immediate needed — all keys go through insert_dispatch
             F5 => 'my_insert_action',
         },
     },

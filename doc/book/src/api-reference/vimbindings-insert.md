@@ -3,7 +3,7 @@
 > **Package**: `Gtk3::SourceEditor::VimBindings::Insert`
 > **Version**: 0.04
 
-Handles key bindings and actions for Vim-style insert mode and replace mode. Insert mode returns FALSE from the key handler for all non-intercepted keys, allowing GTK to process printable keystrokes directly as text input. Replace mode uses a separate keymap that intercepts all printable characters and replaces (rather than inserts) them.
+Handles key bindings and actions for Vim-style insert mode and replace mode. Insert mode consumes all keyboard events (returns TRUE): registered keys are dispatched via `insert_dispatch` through `_execute_action`; printable characters are inserted via `insert_text`; non-printable keys are consumed silently. No keys pass through to GTK. Replace mode uses a separate keymap that intercepts all printable characters and replaces (rather than inserts) them.
 
 ## Synopsis
 

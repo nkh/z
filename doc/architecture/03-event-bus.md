@@ -40,11 +40,10 @@ patching core files.
 - **`EditorContext.pm`** — Adds `use Gtk3::SourceEditor::EventBus` and
   creates `$ctx->{event_bus}` in constructor.
 
-- **`VimBindings.pm`** — Added `_execute_action()` and `_execute_handler()`
-  helpers that wrap action execution with undo grouping and event bus hooks.
-  Wired `mode_change` hook into the `set_mode` closure.  Used
-  `_execute_action()` for char_actions (replace mode `_any`, find-char
-  completion) where the action name is available.
+- **`VimBindings.pm`** — Added `_execute_action()` helper that wraps action
+  execution with undo grouping and event bus hooks.  All execution paths
+  (dispatch, immediate, ctrl) route through this single function.
+  Wired `mode_change` hook into the `set_mode` closure.
 
 ### Hook Points
 

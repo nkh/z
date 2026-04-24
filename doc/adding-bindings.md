@@ -598,8 +598,8 @@ subtest 'my action works' => sub {
 
 ### How to test insert mode
 
-Insert mode text is inserted manually in tests (since `simulate_keys` returns
-`FALSE` for unhandled insert-mode keys):
+Insert mode text is inserted manually in tests (since `simulate_keys` handles
+registered keys but printable characters are inserted via `insert_text`):
 
 ```perl
 subtest 'insert mode' => sub {

@@ -100,7 +100,7 @@ Returns the global action registry. Keys are action name strings; values are cod
 
 ### `get_default_keymap() → hashref`
 
-Returns the default keymap structure. Keys are mode names (`normal`, `insert`, `command`, `visual`, `visual_line`, `visual_block`, `replace`); values are hashrefs with `_immediate`, `_prefixes`, `_char_actions`, `_ctrl`, and key-to-action mappings.
+Returns the default keymap structure. Keys are mode names (`normal`, `insert`, `command`, `visual`, `visual_line`, `visual_block`, `replace`); values are hashrefs with `_immediate` (modes with accumulation buffer only), `_prefixes`, `_char_actions`, `_ctrl`, and key-to-action mappings.
 
 ### `get_default_ex_commands() → hashref`
 
@@ -177,7 +177,7 @@ The module provides mode-specific handler functions:
 | Handler | Modes | Description |
 |---------|-------|-------------|
 | `handle_normal_mode($ctx, $k)` | normal | Arrow keys remapped to h/j/k/l, clears undo highlight |
-| `handle_insert_mode($ctx, $k)` | insert | Only intercepts Escape and Tab; returns FALSE for all other keys so GTK handles text input |
+| `handle_insert_mode($ctx, $k)` | insert | Dispatches all registered keys via `insert_dispatch` + `_execute_action`; inserts printable chars; consumes non-printable silently |
 | `handle_visual_mode($ctx, $k)` | visual, visual_line, visual_block | Arrow keys remapped, uses `_dispatch` |
 | `handle_replace_mode($ctx, $k)` | replace | Uses `_dispatch` with replace keymap |
 | `handle_ctrl_key($ctx, $key)` | all | Handles `Control-x` formatted keys via mode-specific ctrl dispatch tables |

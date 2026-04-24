@@ -153,7 +153,7 @@ The keymap returned by `register()` uses four special keys:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `_immediate` | arrayref | Keys that fire immediately without accumulation (e.g., `Escape`) |
+| `_immediate` | arrayref | Keys that bypass the accumulation buffer and fire via `_execute_action` (e.g., `Page_Up`, `Page_Down`, `Home`, `End`) |
 | `_prefixes` | arrayref | Multi-character key prefixes that trigger accumulation (e.g., `'g'`, `'greater'`, `'less'`) |
 | `_char_actions` | hashref | Keys that wait for one more character to complete (e.g., `r`, `m`, `grave`, `apostrophe`) |
 | `_ctrl` | hashref | Ctrl-key mappings (key letter => action name) |

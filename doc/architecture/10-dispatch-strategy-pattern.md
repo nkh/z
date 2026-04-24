@@ -12,9 +12,9 @@ events and handles undo grouping.
 This meant that plugin/extension hooks registered on the event bus would
 miss the majority of keybinding-triggered actions.
 
-Additionally, `_execute_action` and `_execute_handler` duplicated the same
-event bus + undo wrapping logic.  The distinction (action name vs coderef)
-was unnecessary since the dispatch tables already knew the action names.
+Additionally, `_execute_handler` duplicated the same
+event bus + undo wrapping logic but was never called.  It has been removed;
+all execution now goes through `_execute_action` exclusively.
 
 ## Solution
 
@@ -32,6 +32,20 @@ was unnecessary since the dispatch tables already knew the action names.
 4. **Removed manual undo wrapping** from `_dispatch` — `_execute_action`
    already handles this.
 
+5. **All `_immediate` entries route through `_execute_action`**.  The
+   immediate tables now store action name strings (not coderefs), and mode
+   handlers call `_execute_action` instead of invoking coderefs directly.
+   This gives consistent event bus integration and undo grouping for all
+   code paths.
+
+6. **Removed `_execute_handler`** (dead code — was never called).
+
+7. **Insert mode no longer uses `_immediate`**.  All keys go through
+   `insert_dispatch`, eliminating a redundant lookup.
+
+8. **Extracted `_build_mode_tables`** to eliminate duplicated dispatch
+   table building between production and test initialization.
+
 ## Changes
 
 | Location | Before | After |
@@ -41,10 +55,15 @@ was unnecessary since the dispatch tables already knew the action names.
 | `_dispatch` (exact match) | Direct `$handler->($ctx, $count)` + manual undo | `_execute_action($ctx, $action_name, $count)` |
 | `_dispatch` (count prefix) | Direct `$handler->($ctx, $count)` + manual undo | `_execute_action($ctx, $action_name, $count)` |
 | `handle_ctrl_key` | Direct `$handler->($ctx, undef)` | `_execute_action($ctx, $action_name, undef)` |
+| `${mode}_immediate` tables | Coderef `$ACTIONS{$a}` | Action name string `$a` |
+| `_immediate` mode handlers | Raw `$imm{$k}->($ctx, 1)` | `_execute_action($ctx, $imm{$k}, undef)` |
+| `handle_insert_mode` | Two lookups: `insert_immediate` + `insert_dispatch` | Single lookup: `insert_dispatch` |
+| `_execute_handler` | Existed, never called | Removed |
+| Table building loop | Duplicated in `add_vim_bindings` + `create_test_context` | Extracted to `_build_mode_tables()` |
 
 ### Net effect
 
-- **-7 lines net** — removed duplicated undo wrapping, simpler code.
+- **-24 lines net** (total across both refactors) — simpler, more uniform code.
 - All keybinding-triggered actions now emit `before_action`/`after_action`
   events on the event bus, making them visible to plugins.
 

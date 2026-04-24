@@ -737,12 +737,12 @@ Single-character keys can also map to action names directly if the key is a prin
 ### 7.2 _immediate -- Bypass Accumulation Buffer
 
 ```perl
-_immediate => ['Escape', 'Tab', 'BackSpace'],
+_immediate => ['Page_Up', 'Page_Down', 'Home', 'End', 'F11'],
 ```
 
-Keys listed in `_immediate` bypass the key accumulation buffer. When pressed, the accumulated buffer is cleared and the action is executed immediately. This is used for keys that must always respond instantly regardless of what was typed before (like Escape to exit insert mode).
+Keys listed in `_immediate` bypass the key accumulation buffer. When pressed, the accumulated buffer is cleared and the action is executed immediately via `_execute_action`. This is used for keys that must always respond instantly regardless of what was typed before (like Page_Up/Down to scroll). All `_immediate` entries benefit from event bus integration, undo grouping, and error handling — the same as regular dispatch.
 
-An `_immediate` key MUST also have a regular mapping in the keymap hash (e.g. `Escape => 'exit_to_normal'`).
+An `_immediate` key MUST also have a regular mapping in the keymap hash (e.g. `Page_Up => 'page_up'`). Insert mode does not use `_immediate` since it has no accumulation buffer; all keys go through `insert_dispatch`.
 
 ### 7.3 _prefixes -- Multi-Key Sequences
 

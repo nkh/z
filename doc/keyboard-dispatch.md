@@ -185,8 +185,8 @@ before we can stop emission. By handling arrow keys in the `event` signal and
 returning TRUE, `key-press-event` is never emitted, so GtkSourceView never
 sees the arrow key.
 
-In insert and replace modes, the handler returns FALSE to let GTK handle
-arrows natively (for cursor movement during text editing).
+In insert and replace modes, the handler returns FALSE to let navigation keys
+fall through to `key-press-event`, where they are dispatched via `insert_dispatch`.
 
 Arrow keys are translated to their vim equivalents:
 `Down→j`, `Up→k`, `Left→h`, `Right→l`.

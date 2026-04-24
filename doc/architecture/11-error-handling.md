@@ -2,7 +2,7 @@
 
 ## Problem
 
-The `_execute_action` and `_execute_handler` functions silently swallowed
+The `_execute_action` function silently swallowed
 exceptions.  When an action handler threw an error (e.g., a missing method on
 an older GTK installation, a file system error, or a programming bug), the
 error was discarded without any user feedback or logging.  This made
@@ -11,9 +11,9 @@ an action partially succeeded before throwing.
 
 ## Solution
 
-Added error handling to both `_execute_action` and `_execute_handler`:
+Added error handling to `_execute_action`:
 
-1. **Catch exceptions** after the `eval` block in both functions.
+1. **Catch exceptions** after the `eval` block.
 2. **Emit an `error` event** on the event bus with structured context
    (`source`, `action`, `error` message, `ctx`).  This allows plugins to
    hook into error reporting (e.g., logging to a file, showing a dialog).
@@ -21,6 +21,9 @@ Added error handling to both `_execute_action` and `_execute_handler`:
    error is immediately visible in the editor's status bar.
 4. **Return TRUE** to prevent key propagation (the key was consumed, even
    though the action failed).
+
+All execution paths (dispatch, immediate, ctrl, command) now route through
+`_execute_action`, so this error handling covers every action invocation.
 
 ### Error event structure
 
