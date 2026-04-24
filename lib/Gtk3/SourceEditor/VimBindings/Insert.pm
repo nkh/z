@@ -203,10 +203,6 @@ sub register {
     };
     
     return {
-        _immediate => ['Escape', 'Tab', 'BackSpace', 'Delete', 'Return',
-                       'Home', 'End',
-                       'Up', 'Down', 'Left', 'Right',
-                       'Page_Up', 'Page_Down'],
         _prefixes  => [],
         _char_actions => {},
         _ctrl => {
@@ -317,8 +313,10 @@ All keyboard events in insert mode are handled directly -- nothing is
 passed through to GTK.  Printable characters are inserted via
 C<insert_text>, and editing keys (BackSpace, Delete, Return, Home, End)
 have dedicated actions.  Navigation keys (arrows, Page Up/Down) use
-the same actions as normal mode.  Ctrl-key combinations (Ctrl-u, Ctrl-d,
-Ctrl-f, Ctrl-b, Ctrl-r, etc.) are also handled.
+the same actions as normal mode.  All registered keys are routed through
+C<insert_dispatch> to C<_execute_action>, providing consistent event bus
+integration, undo grouping, and error handling.  Ctrl-key combinations
+(Ctrl-u, Ctrl-d, Ctrl-f, Ctrl-b, Ctrl-r, etc.) are also handled.
 
 IME compose sequences (CJK input, dead-key accents) are detected via
 the GtkIMContext preedit signals and passed through to GTK during

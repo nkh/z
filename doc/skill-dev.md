@@ -37,8 +37,8 @@ Do **not** use this skill for:
 3. **Keymap hash** — maps GDK key names to action name strings. Special keys:
    `_immediate`, `_prefixes`, `_char_actions`, `_ctrl`.
 4. **`_dispatch()`** — accumulates keystrokes and resolves to actions (normal/visual/replace).
-5. **`handle_insert_mode()`** — no accumulation; only intercepts `_immediate` and
-   exact-match dispatch entries; returns `FALSE` for pass-through.
+5. **`handle_insert_mode()`** — no accumulation; only checks `insert_dispatch`
+   for exact-match entries; returns `TRUE` for everything else.
 6. **`_derive_prefixes()`** — auto-generates intermediate prefix strings from
    `_prefixes` list and multi-char keymap keys.
 
@@ -198,8 +198,7 @@ _ctrl => {
     w => 'insert_delete_word_backward',
     X => 'my_insert_action',
 },
-# Or add to _immediate:
-_immediate => ['Escape', 'Tab', 'NewKey'],
+# Or add as a regular keymap entry:
 NewKey => 'my_insert_action',
 ```
 
@@ -466,11 +465,12 @@ if ($col >= $len && $len > 0) {
 ### Insert mode does NOT use `_dispatch`
 
 Insert mode uses its own handler (`handle_insert_mode`) that:
-1. Checks `_immediate` keys (Escape, Tab, etc.) — fires immediately.
-2. Checks `insert_dispatch` for exact-match entries — fires immediately.
-3. Returns `FALSE` for everything else — GTK handles text input.
+1. Checks `insert_dispatch` for exact-match entries — fires via `_execute_action`.
+2. Inserts printable characters via `insert_text`.
+3. Consumes all other keys silently (returns TRUE).
 
-Do **not** add keys that should pass through to GTK into `_immediate`.
+Do **not** add keys that should pass through to GTK into the keymap; they
+are already handled by the printable-character insertion logic.
 
 ### `_prefixes` vs derived prefixes
 

@@ -213,7 +213,21 @@ Insert mode is used for entering text. It is entered from normal mode via `i`, `
 |-----|-------------|
 | `Escape` | Return to normal mode |
 | `Tab` | Insert a tab character (or spaces, depending on configuration) |
+| `BackSpace` | Delete the character before the cursor |
+| `Delete` | Delete the character at the cursor |
+| `Return` | Insert a newline |
+| `Home` | Move to the first non-whitespace character on the line |
+| `End` | Move to the end of the line |
+| Arrow keys | Move cursor (Up/Down/Left/Right) |
+| `Page Up` / `Page Down` | Scroll up/down by one page |
 | `Ctrl-w` | Delete the word before the cursor |
+| `Ctrl-u` | Scroll viewport up by half a page |
+| `Ctrl-d` | Scroll viewport down by half a page |
+| `Ctrl-f` | Scroll viewport forward one full page |
+| `Ctrl-b` | Scroll viewport backward one full page |
+| `Ctrl-y` | Scroll viewport up by one line |
+| `Ctrl-e` | Scroll viewport down by one line |
+| `Ctrl-r` | Redo the last undone change |
 
 > **Note:** Standard GTK text input is active in insert mode, so clipboard shortcuts like Ctrl+C, Ctrl+V, Ctrl+X, and Ctrl+Z also function as expected.
 

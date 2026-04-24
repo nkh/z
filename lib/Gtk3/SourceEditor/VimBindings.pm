@@ -148,6 +148,34 @@ sub _derive_prefixes {
     return \%p;
 }
 
+# _build_mode_tables($ctx, $resolved)
+#
+# Builds per-mode dispatch tables (dispatch, prefixes, char_actions,
+# ctrl_dispatch, immediate) from the resolved keymap.  Shared by both
+# add_vim_bindings (production) and create_test_context (tests).
+#
+# The immediate table stores action NAME strings (not coderefs), so
+# all mode handlers route through _execute_action for consistent
+# event bus integration, undo grouping, and error handling.
+sub _build_mode_tables {
+    my ($ctx, $resolved) = @_;
+    for my $mode (qw(normal insert command visual visual_line visual_block replace)) {
+        my $mm = $resolved->{$mode};
+        my %imm;
+        for my $ik (@{$mm->{_immediate} // []}) {
+            my $a = $mm->{$ik};
+            # Store action NAME (string) for consistent _execute_action routing.
+            # Previously stored coderefs, which bypassed event bus and undo grouping.
+            $imm{$ik} = $a if $a && exists $ACTIONS{$a};
+        }
+        $ctx->{"${mode}_immediate"}    = \%imm;
+        $ctx->{"${mode}_dispatch"}     = _build_dispatch($mm);
+        $ctx->{"${mode}_prefixes"}     = _derive_prefixes($mm);
+        $ctx->{"${mode}_char_actions"} = $mm->{_char_actions} // {};
+        $ctx->{"${mode}_ctrl_dispatch"} = _build_ctrl_dispatch($mm);
+    }
+}
+
 sub _build_dispatch {
     my ($km) = @_;
     my %d;
@@ -309,19 +337,7 @@ sub add_vim_bindings {
     $ctx->{resolved_keymap} = $resolved;
     $ctx->{ex_cmds}         = $ex_cmds;
 
-    for my $mode (qw(normal insert command visual visual_line visual_block replace)) {
-        my $mm = $resolved->{$mode};
-        my %imm;
-        for my $ik (@{$mm->{_immediate} // []}) {
-            my $a = $mm->{$ik};
-            $imm{$ik} = $ACTIONS{$a} if $a && exists $ACTIONS{$a};
-        }
-        $ctx->{"${mode}_immediate"}    = \%imm;
-        $ctx->{"${mode}_dispatch"}     = _build_dispatch($mm);
-        $ctx->{"${mode}_prefixes"}     = _derive_prefixes($mm);
-        $ctx->{"${mode}_char_actions"} = $mm->{_char_actions} // {};
-        $ctx->{"${mode}_ctrl_dispatch"} = _build_ctrl_dispatch($mm);
-    }
+    _build_mode_tables($ctx, $resolved);
 
     # Debug helper: when _debug_key is set, print what GTK reports and
     # what the dispatch resolves to.  Useful for diagnosing key bindings
@@ -358,7 +374,7 @@ sub add_vim_bindings {
     # IMPORTANT: Only intercept for normal/visual modes (where the textview
     # is non-editable).  For insert/replace modes, the textview IS editable,
     # so we let navigation keys fall through to the 'key-press-event' handler
-    # which processes them via the same action dispatch (insert_immediate),
+    # which processes them via insert_dispatch -> _execute_action,
     # then stops emission to prevent GTK from double-handling.  This avoids
     # issues with the 'event' signal not firing reliably on some GDK backends
     # (notably Wayland) where key events may be delivered differently.
@@ -404,7 +420,7 @@ sub add_vim_bindings {
                         || $k eq 'Page_Up' || $k eq 'Page_Down';
         # For insert/replace modes, let navigation keys fall through to
         # 'key-press-event'.  The textview is editable in these modes,
-        # and the key-press-event handler handles them via insert_immediate
+        # and the key-press-event handler handles them via insert_dispatch.
         # + signal_stop_emission, which is more reliable across GDK backends.
         my $mode = ${$ctx->{vim_mode}};
         return FALSE if $mode eq 'insert' || $mode eq 'replace';
@@ -736,19 +752,7 @@ sub create_test_context {
     $ctx->{resolved_keymap} = $resolved;
     $ctx->{ex_cmds}         = $ex_cmds;
 
-    for my $mode (qw(normal insert command visual visual_line visual_block replace)) {
-        my $mm = $resolved->{$mode};
-        my %imm;
-        for my $ik (@{$mm->{_immediate} // []}) {
-            my $a = $mm->{$ik};
-            $imm{$ik} = $ACTIONS{$a} if $a && exists $ACTIONS{$a};
-        }
-        $ctx->{"${mode}_immediate"}    = \%imm;
-        $ctx->{"${mode}_dispatch"}     = _build_dispatch($mm);
-        $ctx->{"${mode}_prefixes"}     = _derive_prefixes($mm);
-        $ctx->{"${mode}_char_actions"} = $mm->{_char_actions} // {};
-        $ctx->{"${mode}_ctrl_dispatch"} = _build_ctrl_dispatch($mm);
-    }
+    _build_mode_tables($ctx, $resolved);
 
     # Mode is already 'normal' from EditorContext->new
     return $ctx;
@@ -841,50 +845,6 @@ sub _execute_action {
 
     $bus->emit('after_action', {
         action_name => $action_name,
-        count       => $count,
-        result      => $result,
-        ctx         => $ctx,
-    }) if $bus;
-
-    return defined $result ? $result : TRUE;
-}
-
-# _execute_handler($ctx, $handler, $action_name, $count)
-#
-# Same as _execute_action but takes a coderef directly (for immediate-mode
-# handlers that bypass the ACTIONS registry).  Includes error handling
-# consistent with _execute_action.
-sub _execute_handler {
-    my ($ctx, $handler, $action_name, $count) = @_;
-    my $bus = $ctx->{event_bus};
-    my $vb  = $ctx->{vb};
-
-    $bus->emit('before_action', {
-        action_name => $action_name // '_immediate',
-        count       => $count,
-        ctx         => $ctx,
-    }) if $bus;
-
-    my $result;
-    $vb->begin_user_action;
-    eval { $result = $handler->($ctx, $count) };
-    $vb->end_user_action;
-
-    if ($@) {
-        my $err = $@;
-        chomp $err;
-        $bus->emit('error', {
-            source => 'handler',
-            action => $action_name // '_immediate',
-            error  => $err,
-            ctx    => $ctx,
-        }) if $bus;
-        $ctx->{show_status}->("Error: $err") if $ctx->{show_status};
-        return TRUE;
-    }
-
-    $bus->emit('after_action', {
-        action_name => $action_name // '_immediate',
         count       => $count,
         result      => $result,
         ctx         => $ctx,
@@ -1016,8 +976,7 @@ sub handle_normal_mode {
     Gtk3::SourceEditor::VimBindings::Normal::_clear_undo_highlight($ctx);
     if (exists $ctx->{normal_immediate}{$k}) {
         ${$ctx->{cmd_buf}} = '';
-        $ctx->{normal_immediate}{$k}->($ctx, 1);
-        return TRUE;
+        return _execute_action($ctx, $ctx->{normal_immediate}{$k}, undef);
     }
     return _dispatch($ctx, $ctx->{normal_dispatch}, $ctx->{normal_prefixes},
                      $ctx->{normal_char_actions}, $k);
@@ -1030,16 +989,11 @@ sub handle_insert_mode {
     # editing operations without relying on GtkTextView's key bindings.
     ${$ctx->{cmd_buf}} = '';
 
-    # Immediate keys: Escape, Tab, BackSpace, Delete, Return, Home, End,
-    # arrows, and page navigation.
-    if (exists $ctx->{insert_immediate}{$k}) {
-        $ctx->{insert_immediate}{$k}->($ctx, 1);
-        return TRUE;
-    }
-    # User-defined dispatch entries (exact match, no count prefix).
-    # After the dispatch strategy refactor, the dispatch table stores
-    # action names (strings) instead of coderefs, so we must route
-    # through _execute_action for proper execution.
+    # All registered keys (navigation, editing, Escape, Tab, etc.) are in
+    # insert_dispatch (built from the keymap).  Route through _execute_action
+    # for consistent event bus integration, undo grouping, and error handling.
+    # The _immediate table is no longer needed for insert mode since there's
+    # no prefix buffer to bypass.
     if (exists $ctx->{insert_dispatch}{$k}) {
         my $action_name = $ctx->{insert_dispatch}{$k};
         return _execute_action($ctx, $action_name, undef);
@@ -1071,11 +1025,10 @@ sub handle_visual_mode {
     if ($ctx->{_showing_status} && $ctx->{clear_status}) {
         $ctx->{clear_status}->($ctx);
     }
-    # Immediate keys bypass _dispatch (no buffer accumulation, no undo group)
+    # Immediate keys bypass _dispatch (no buffer accumulation)
     if (exists $ctx->{visual_immediate}{$k}) {
         ${$ctx->{cmd_buf}} = '';
-        $ctx->{visual_immediate}{$k}->($ctx, 1);
-        return TRUE;
+        return _execute_action($ctx, $ctx->{visual_immediate}{$k}, undef);
     }
     return _dispatch($ctx, $ctx->{visual_dispatch}, $ctx->{visual_prefixes},
                      $ctx->{visual_char_actions}, $k);
@@ -1083,14 +1036,12 @@ sub handle_visual_mode {
 
 sub handle_replace_mode {
     my ($ctx, $k) = @_;
-    my $mode_name = 'replace';
-    if (exists $ctx->{"${mode_name}_immediate"}{$k}) {
+    if (exists $ctx->{replace_immediate}{$k}) {
         ${$ctx->{cmd_buf}} = '';
-        $ctx->{"${mode_name}_immediate"}{$k}->($ctx, 1);
-        return TRUE;
+        return _execute_action($ctx, $ctx->{replace_immediate}{$k}, undef);
     }
-    return _dispatch($ctx, $ctx->{"${mode_name}_dispatch"}, $ctx->{"${mode_name}_prefixes"},
-                     $ctx->{"${mode_name}_char_actions"}, $k, FALSE);
+    return _dispatch($ctx, $ctx->{replace_dispatch}, $ctx->{replace_prefixes},
+                     $ctx->{replace_char_actions}, $k, FALSE);
 }
 
 # ==========================================================================
@@ -1148,8 +1099,7 @@ sub handle_command_entry {
                 }
             }
         }
-        $ctx->{command_immediate}{$k}->($ctx);
-        return TRUE;
+        return _execute_action($ctx, $ctx->{command_immediate}{$k}, undef);
     }
     if ($k eq 'Return') {
         my $raw = $ce->get_text();

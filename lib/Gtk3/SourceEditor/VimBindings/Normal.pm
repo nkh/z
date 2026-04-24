@@ -915,16 +915,6 @@ sub register {
     #  Editing
     # ================================================================
 
-    $ACTIONS->{exit_to_normal} = sub {
-        my ($ctx) = @_;
-        $ctx->{set_mode}->('normal');
-        my $vb = $ctx->{vb};
-        my $col = $vb->cursor_col;
-        if ($col > 0) {
-            $vb->set_cursor($vb->cursor_line, $col - 1);
-        }
-    };
-
     $ACTIONS->{delete_char} = sub {
         my ($ctx, $count) = @_;
         $count ||= 1;

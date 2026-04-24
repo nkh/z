@@ -55,15 +55,20 @@ Each mode's keymap is a hash with the following reserved keys (prefixed with `_`
 
 ### `_immediate` (array of key names)
 
-Keys listed here bypass `_dispatch` entirely. They are checked first in the mode
-handler and, if matched, clear `cmd_buf` and execute immediately without
-accumulation or undo grouping. This is used for keys that must fire on every
-press regardless of accumulated state, such as `Escape`.
+Keys listed here bypass the `_dispatch` accumulator buffer. They are checked
+first in the mode handler and, if matched, clear `cmd_buf` and execute
+immediately — no key accumulation or prefix buffering. This is used for keys
+that must fire on every press regardless of accumulated state, such as
+`Page_Up`, `Page_Down`, `Home`, `End`, and `F11`.
 
-**Normal mode**: `['Escape', 'colon', 'u']`
-**Insert mode**: `['Escape', 'Tab']`
-**Visual mode**: `['Escape']`
-**Replace mode**: `['Escape', 'BackSpace']`
+All `_immediate` entries are routed through `_execute_action` (consistent
+with the regular dispatch path), so they benefit from event bus integration,
+undo grouping, and error handling.
+
+**Normal mode**: `['Page_Up', 'Page_Down', 'caret', 'asciicircum', 'dead_circumflex', 'Home', 'End', 'F11']`
+**Insert mode**: *(not used — all keys go through `insert_dispatch`)*
+**Visual mode**: *(inherited from normal mode)*
+**Replace mode**: `['Escape', 'BackSpace', 'Delete', 'Up', 'Down', 'Left', 'Right', 'Page_Up', 'Page_Down', 'Home', 'End']`
 **Command mode**: `['Escape']`
 
 ### `_prefixes` (array of multi-key sequences)
@@ -126,13 +131,11 @@ precedence:
 
 ### Undo Grouping
 
-Every action fired through `_dispatch` is wrapped in `begin_user_action` /
-`end_user_action` on the VimBuffer, making it a single undo step in GTK's
-undo stack. The only exceptions are:
-
-- `_immediate` keys (Escape, etc.) — these are not wrapped.
-- `redo` — which explicitly closes its undo group first, since `_dispatch`
-  already opened one.
+Every action fired through `_dispatch` or the `_immediate` path is wrapped in
+`begin_user_action` / `end_user_action` on the VimBuffer (via `_execute_action`),
+making it a single undo step in GTK's undo stack. The only exception is
+`redo`, which explicitly closes its undo group first, since `_execute_action`
+already opened one.
 
 ### Numeric Prefix Extraction
 
@@ -217,7 +220,7 @@ All other keys are handled by GTK's entry widget natively (typing the command).
 
 1. Translate arrow keys to `h/j/k/l`.
 2. Clear any pending status message.
-3. Check `_immediate` keys → if match, clear `cmd_buf` and fire.
+3. Check `_immediate` keys → if match, clear `cmd_buf` and fire via `_execute_action`.
 4. Otherwise, call `_dispatch(normal_dispatch, normal_prefixes, normal_char_actions)`.
 
 Viewport line motions (`H`, `M`, `L`) are included in the normal keymap. They
@@ -227,15 +230,17 @@ with optional numeric prefix for offset from the edge.
 ### `handle_insert_mode($ctx, $key)`
 
 Does NOT use `_dispatch` — numeric accumulation would swallow digits before
-GTK can process them as text input.
+GTK can process them as text input.  Instead, all registered keys (Escape,
+Tab, BackSpace, arrows, Page Up/Down, etc.) are in `insert_dispatch` and
+are routed through `_execute_action` for consistent event bus integration,
+undo grouping, and error handling.
 
-1. Check `_immediate` keys → if match, clear `cmd_buf` and fire.
-2. Check exact match in `insert_dispatch` (user-defined entries only).
-3. Return FALSE for everything else, letting GTK handle the key as text input.
+1. Check exact match in `insert_dispatch` → fire via `_execute_action`.
+2. Check if the key is a printable character → insert it at the cursor.
+3. Consume non-printable, non-registered keys silently (return TRUE).
 
-This is why insert mode works: printable keys pass through to GTK which inserts
-the character into the text buffer. Only Escape (exit to normal) and Tab
-(insert tab character) are intercepted.
+The `_immediate` mechanism is not used for insert mode because there is no
+prefix buffer to bypass — every keypress is handled independently.
 
 ### `handle_visual_mode($ctx, $key)`
 
@@ -244,12 +249,12 @@ field determines how selection operations behave.
 
 1. Translate arrow keys to `h/j/k/l`.
 2. Clear any pending status message.
-3. Check `_immediate` keys → if match, clear `cmd_buf` and fire.
+3. Check `_immediate` keys → if match, clear `cmd_buf` and fire via `_execute_action`.
 4. Otherwise, call `_dispatch(visual_dispatch, visual_prefixes, visual_char_actions)`.
 
 ### `handle_replace_mode($ctx, $key)`
 
-1. Check `_immediate` keys → if match, clear `cmd_buf` and fire.
+1. Check `_immediate` keys → if match, clear `cmd_buf` and fire via `_execute_action`.
 2. Call `_dispatch(replace_dispatch, replace_prefixes, replace_char_actions, key, FALSE)`.
 
 The `_char_actions` for replace mode has `_any => 'do_replace_char'`, so any

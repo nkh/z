@@ -128,7 +128,7 @@ sub register {
 
     # 2. Return keymap
     return {
-        _immediate    => ['Escape', 'Tab'],
+        _immediate    => ['Page_Up', 'Page_Down'],
         _prefixes     => ['g', 'd'],
         _char_actions => { r => 'replace_char' },
         _ctrl         => { w => 'insert_delete_word_backward' },
@@ -144,7 +144,7 @@ The keymap hash has special underscore-prefixed keys and regular key entries:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `_immediate` | arrayref | Keys that bypass accumulation and fire immediately |
+| `_immediate` | arrayref | Keys that bypass the accumulation buffer and fire via `_execute_action` (normal/visual/replace modes only) |
 | `_prefixes` | arrayref | Characters that start multi-key sequences (e.g., `'g'`, `'d'`) |
 | `_char_actions` | hashref | Keys that wait for one more character (e.g., `f` → `find_char_forward`) |
 | `_ctrl` | hashref | Ctrl-key combos without `Control-` prefix (e.g., `u` → `scroll_half_up`) |
@@ -165,9 +165,10 @@ decision tree:
 7. **Pending char action completion**: dispatch with the pending char.
 8. **Nothing matched**: reset buffer, return `$on_miss`.
 
-Insert mode does **not** use `_dispatch` — it only checks `_immediate` keys and
-exact-match dispatch entries, returning `FALSE` for everything else so GTK
-handles text input natively.
+Insert mode does **not** use `_dispatch` — it only checks `insert_dispatch` for
+exact-match entries and returns `TRUE` for everything else (printable characters
+are inserted, non-printable keys are consumed).  All registered keys are routed
+through `_execute_action` for consistent event bus integration.
 
 ### How `_derive_prefixes` works
 
@@ -281,20 +282,28 @@ current line content so `U` can restore it later.
 Insert mode is different from normal mode:
 
 - It does **not** use `_dispatch` (no key accumulation).
-- Most keys pass through to GTK for native text input (return `FALSE`).
-- Only explicitly registered keys are intercepted.
+- All registered keys (Escape, Tab, BackSpace, arrows, etc.) are in
+  `insert_dispatch` and routed through `_execute_action`.
+- Printable characters are inserted via `insert_text`; non-registered keys
+  are consumed silently.
 
-### Using `_immediate` for bypass keys
+### Adding a new key binding
 
-Keys in `_immediate` fire immediately, bypassing any accumulation:
+Simply add a key-to-action mapping in the Insert.pm `register()` return hash.
+No `_immediate` declaration is needed — all regular keymap entries go directly
+into `insert_dispatch`:
 
 ```perl
 # In Insert.pm's register() return:
 return {
-    _immediate => ['Escape', 'Tab', 'BackSpace'],
-    Escape      => 'exit_to_normal',
-    Tab         => 'insert_tab',
-    BackSpace   => 'insert_backspace',
+    _prefixes     => [],
+    _char_actions => {},
+    _ctrl         => { w => 'insert_delete_word_backward' },
+    Escape        => 'exit_to_normal',
+    Tab           => 'insert_tab',
+    BackSpace     => 'insert_backspace',
+    # Add new bindings directly:
+    MySpecialKey  => 'my_insert_action',
 };
 ```
 
@@ -316,17 +325,16 @@ $ACTIONS->{my_insert_ctrl_action} = sub {
     # $count is always undef in insert mode ctrl actions
     my $vb = $ctx->{vb};
     # ... implementation ...
-    # Return value is ignored by handle_insert_mode
-    # To pass the key through to GTK: return FALSE from the key handler
-    # (but since ctrl keys don't go through _dispatch, the action always fires)
 };
 ```
 
-### Important: return FALSE for pass-through
+### How pass-through works
 
-Insert mode must return `FALSE` for unhandled keys so GTK can process text
-input. This is handled automatically by `handle_insert_mode` — only keys found
-in `_immediate` or `insert_dispatch` return `TRUE`.
+Insert mode consumes ALL keys (returns TRUE). Printable characters that are not
+registered as keymap entries are inserted via `insert_text` inside
+`handle_insert_mode`. This means there is no "return FALSE for pass-through"
+pattern — the handler always returns TRUE, and text insertion is handled
+explicitly.
 
 ---
 

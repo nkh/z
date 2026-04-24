@@ -65,14 +65,25 @@ Registers replace-mode-specific actions (`replace_backspace`). Called separately
 
 | Component | Value | Description |
 |-----------|-------|-------------|
-| `_immediate` | `['Escape', 'Tab']` | Keys that fire without accumulation |
 | `_prefixes` | `[]` | No multi-character prefixes |
 | `_char_actions` | `{}` | No char-action completions |
 | `_ctrl` | `{ w => 'insert_delete_word_backward' }` | Ctrl-w deletes word backward |
 | `Escape` | `exit_to_normal` | Exit insert mode |
 | `Tab` | `insert_tab` | Insert tab character |
+| `BackSpace` | `insert_backspace` | Delete character before cursor |
+| `Delete` | `insert_delete` | Delete character at cursor |
+| `Return` | `insert_newline` | Insert newline |
+| `Home` | `insert_home` | Jump to first non-whitespace character |
+| `End` | `insert_end` | Jump to end of line |
+| `Up` / `Down` / `Left` / `Right` | `move_up` / `move_down` / `move_left` / `move_right` | Cursor navigation |
+| `Page_Up` / `Page_Down` | `page_up` / `page_down` | Page navigation |
 
-Insert mode returns FALSE for any key not in `_immediate` or `_ctrl`, allowing GTK to handle text input natively. The `_dispatch` function is intentionally **not** used for insert mode because its numeric accumulation would swallow digits before GTK can process them.
+All registered keys are in `insert_dispatch` and routed through `_execute_action`
+for consistent event bus integration, undo grouping, and error handling.
+The `_dispatch` function is intentionally **not** used for insert mode because
+its numeric accumulation would swallow digits before GTK can process them.
+The `_immediate` mechanism is not used for insert mode — there is no prefix
+buffer to bypass.
 
 ### Replace Mode Keymap
 
