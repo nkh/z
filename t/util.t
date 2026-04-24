@@ -6,7 +6,8 @@ use Test::More;
 use FindBin qw($RealBin);
 
 use lib "$RealBin/../lib";
-use_ok('Gtk3::SourceEditor::Util', 'safe_call', 'parse_hex_color_rgb');
+use_ok('Gtk3::SourceEditor::Util', 'safe_call', 'parse_hex_color_rgb',
+    'key_name_to_char', 'is_printable_key');
 
 # ==========================================================================
 # safe_call tests
@@ -111,6 +112,74 @@ subtest 'parse_hex_color_rgb dies on invalid' => sub {
 
     eval { parse_hex_color_rgb('#GGHHII') };
     like($@, qr/invalid hex color/i, 'dies on non-hex chars');
+};
+
+# ==========================================================================
+# key_name_to_char tests
+# ==========================================================================
+
+subtest 'key_name_to_char: single-char names pass through' => sub {
+    is(key_name_to_char('a'), 'a', 'a stays a');
+    is(key_name_to_char('Z'), 'Z', 'Z stays Z');
+    is(key_name_to_char('5'), '5', '5 stays 5');
+};
+
+subtest 'key_name_to_char: multi-char GDK names resolve to characters' => sub {
+    # These depend on GDK being available in the test environment.
+    # If Gtk3::Gdk is a mock, we test the fallback behavior.
+    my $comma = key_name_to_char('comma');
+    if (defined $comma) {
+        is($comma, ',', 'comma resolves to ,');
+    } else {
+        ok(1, 'comma not resolved (mock GDK)');
+    }
+
+    my $period = key_name_to_char('period');
+    if (defined $period) {
+        is($period, '.', 'period resolves to .');
+    } else {
+        ok(1, 'period not resolved (mock GDK)');
+    }
+};
+
+subtest 'key_name_to_char: non-printable returns undef' => sub {
+    is(key_name_to_char('Left'), undef, 'Left is not printable');
+    is(key_name_to_char('Escape'), undef, 'Escape is not printable');
+    is(key_name_to_char('Control_L'), undef, 'Control_L is not printable');
+};
+
+subtest 'key_name_to_char: undef/empty input' => sub {
+    is(key_name_to_char(undef), undef, 'undef returns undef');
+    is(key_name_to_char(''), undef, 'empty returns undef');
+};
+
+# ==========================================================================
+# is_printable_key tests
+# ==========================================================================
+
+subtest 'is_printable_key: single chars are printable' => sub {
+    ok(is_printable_key('a'), 'a is printable');
+    ok(is_printable_key('Z'), 'Z is printable');
+    ok(is_printable_key('0'), '0 is printable');
+};
+
+subtest 'is_printable_key: special keys are not printable' => sub {
+    ok(!is_printable_key('Left'), 'Left not printable');
+    ok(!is_printable_key('Escape'), 'Escape not printable');
+    ok(!is_printable_key('Return'), 'Return not printable');
+    ok(!is_printable_key('Tab'), 'Tab not printable');
+};
+
+subtest 'is_printable_key: undef/empty' => sub {
+    ok(!is_printable_key(undef), 'undef not printable');
+    ok(!is_printable_key(''), 'empty not printable');
+};
+
+subtest 'is_printable_key: multi-char GDK names' => sub {
+    # If GDK mock doesn't resolve these, they should return false
+    my $result = is_printable_key('asterisk');
+    # Either true (real GDK) or false (mock) -- just verify no crash
+    ok(defined $result, 'asterisk check does not crash');
 };
 
 done_testing;

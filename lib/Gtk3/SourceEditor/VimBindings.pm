@@ -2,7 +2,8 @@ package Gtk3::SourceEditor::VimBindings;
 use strict;
 use warnings;
 use Gtk3;
-use Gtk3::SourceEditor::Util qw(parse_hex_color_rgb);
+use Gtk3::SourceEditor::Util qw(parse_hex_color_rgb
+                                   resolve_key_event key_name_to_char is_printable_key);
 
 sub TRUE  { 1 }
 sub FALSE { 0 }
@@ -442,16 +443,8 @@ sub add_vim_bindings {
         my ($w, $e) = @_;
         # During IME compose sequences, let GTK handle everything.
         return FALSE if $ctx->{_ime_composing};
-        my $raw_k = eval { Gtk3::Gdk::keyval_name($e->keyval) } // '';
-        my $k = $raw_k;
-        # Fallback for keyboard layouts where GDK reports unexpected key
-        # names for * and # (e.g. dead_acute instead of asterisk on some
-        # European layouts, or different names under Wayland).  Use
-        # keyval_to_unicode to match by Unicode codepoint, which is
-        # independent of the GDK key name string.
-        my $unicode = eval { Gtk3::Gdk::keyval_to_unicode($e->keyval) } // 0;
-        if ($unicode == 42) { $k = 'asterisk'; }
-        elsif ($unicode == 35) { $k = 'numbersign'; }
+        my ($k, $unicode) = resolve_key_event($e);
+        my $raw_k = $k;
         # Ctrl-key combinations are handled here so they can be dispatched
         # to actions (e.g., Ctrl-U, Ctrl-D, Ctrl-R).  We construct a
         # synthetic key name like 'Control-u' for the dispatch tables.
@@ -779,16 +772,8 @@ sub simulate_keys {
                 # replicate that here.  Without this translation,
                 # typing '.' would insert the string "period" into
                 # the search pattern instead of the character '.'.
-                my $ch = $k;
-                if (length($k) > 1) {
-                    eval {
-                        my $kv = Gtk3::Gdk::keyval_from_name($k);
-                        if ($kv) {
-                            my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
-                            $ch = chr($uc) if $uc && $uc > 0 && $uc < 0x10000;
-                        }
-                    };
-                }
+                my $ch = key_name_to_char($k);
+                $ch //= $k;  # fallback to raw GDK name if resolution fails
                 $ctx->{cmd_entry}->set_text($ctx->{cmd_entry}->get_text . $ch);
             }
         }
@@ -915,27 +900,10 @@ sub _dispatch {
     # triggers the action immediately, no accumulation needed).
     # Checked BEFORE the numeric accumulation so that digits are also
     # caught by _any in replace mode.
-    # Uses keyval_to_unicode to detect printable characters instead of
-    # length($original_key) == 1, because GDK reports multi-character key
-    # names for symbols (e.g. 'asterisk', 'numbersign', 'comma', 'period')
-    # which are printable characters that should be caught.
+    # Uses is_printable_key to detect printable characters (handles both
+    # single-char and multi-char GDK key names like 'asterisk', 'period').
     if ($char_actions && exists $char_actions->{_any}) {
-        my $is_printable = 0;
-        # Single-char GDK names (a-z, 0-9) are always printable.
-        if (length($original_key) == 1) {
-            $is_printable = 1;
-        }
-        # Multi-char GDK names: check via keyval_to_unicode.
-        else {
-            eval {
-                my $kv = Gtk3::Gdk::keyval_from_name($original_key);
-                if ($kv) {
-                    my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
-                    $is_printable = 1 if $uc && $uc > 0 && $uc < 0x10000;
-                }
-            };
-        }
-        if ($is_printable) {
+        if (is_printable_key($original_key)) {
             my $action_name = $char_actions->{_any};
             $$buf = '';
             if (exists $ACTIONS{$action_name}) {
@@ -1072,19 +1040,8 @@ sub handle_insert_mode {
     # Printable character insertion: insert the character at the cursor.
     # GTK key names for printable characters are either single-char (a-z,
     # 0-9) or multi-char names for symbols (asterisk, numbersign, comma,
-    # period, etc.).  Use keyval_to_unicode to convert both forms.
-    my $char = undef;
-    if (length($k) == 1) {
-        $char = $k;
-    } else {
-        eval {
-            my $kv = Gtk3::Gdk::keyval_from_name($k);
-            if ($kv) {
-                my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
-                $char = chr($uc) if $uc && $uc > 0 && $uc < 0x10000;
-            }
-        };
-    }
+    # period, etc.).  Use key_name_to_char for consistent resolution.
+    my $char = key_name_to_char($k);
     if (defined $char && length($char)) {
         $ctx->{vb}->insert_text($char);
         return TRUE;

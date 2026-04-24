@@ -7,7 +7,8 @@ our $VERSION = '0.07';
 our @EXPORT_OK = qw(safe_call parse_hex_color_rgb tint_color
                     clipboard_set clipboard_get
                     viewport_visible_lines viewport_ensure_bounds
-                    viewport_scroll_pixels);
+                    viewport_scroll_pixels
+                    resolve_key_event key_name_to_char is_printable_key);
 
 # Shared state for warn-once behavior across all safe_call invocations.
 my %_missing_warned;
@@ -213,6 +214,84 @@ sub viewport_scroll_pixels {
     };
 }
 
+# ==========================================================================
+# Keyboard layout abstraction
+#
+# These functions centralise the GDK keyval ↔ key name ↔ Unicode character
+# conversions that were previously scattered across VimBindings.pm,
+# Insert.pm, and Macro/Context.pm.  All keyboard-layout-dependent code
+# should go through these helpers so that layout workarounds and special
+# key handling are in one place.
+# ==========================================================================
+
+# Known Unicode codepoints that GDK may report under unexpected key names
+# on non-US keyboard layouts.  When keyval_to_unicode matches one of these,
+# we override the GDK key name.
+my %_UNICODE_KEY_OVERRIDES = (
+    42 => 'asterisk',     # * -- dead_acute on some European layouts
+    35 => 'numbersign',   # # -- sometimes misreported under Wayland
+);
+
+# resolve_key_event( $event )
+#
+# Extract the GDK key name from a key-press event, applying layout-aware
+# overrides for known problematic keys.  Returns the key name string
+# (e.g. 'a', 'asterisk', 'Left', 'Control-r').
+#
+# This replaces the pattern:
+#   my $k = Gtk3::Gdk::keyval_name($event->keyval);
+#   my $unicode = Gtk3::Gdk::keyval_to_unicode($event->keyval);
+#   if ($unicode == 42) { $k = 'asterisk'; }
+sub resolve_key_event {
+    my ($event) = @_;
+    my $k = eval { Gtk3::Gdk::keyval_name($event->keyval) } // '';
+    my $unicode = eval { Gtk3::Gdk::keyval_to_unicode($event->keyval) } // 0;
+    if (exists $_UNICODE_KEY_OVERRIDES{$unicode}) {
+        $k = $_UNICODE_KEY_OVERRIDES{$unicode};
+    }
+    return wantarray ? ($k, $unicode) : $k;
+}
+
+# key_name_to_char( $key_name )
+#
+# Convert a GDK key name to the corresponding printable character.
+# Single-character names (a-z, 0-9) are returned as-is.  Multi-character
+# names (asterisk, numbersign, comma, period, etc.) are resolved via
+# keyval_from_name → keyval_to_unicode.
+#
+# Returns the character string, or undef if the key is not printable.
+# This replaces the repeated pattern in VimBindings.pm and Insert.pm:
+#   my $kv = Gtk3::Gdk::keyval_from_name($k);
+#   my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
+#   $char = chr($uc) if $uc && $uc > 0 && $uc < 0x10000;
+sub key_name_to_char {
+    my ($key_name) = @_;
+    return undef unless defined $key_name && length $key_name;
+    # Single-char GDK names are always printable
+    return $key_name if length($key_name) == 1;
+    # Multi-char: resolve through GDK
+    eval {
+        my $kv = Gtk3::Gdk::keyval_from_name($key_name);
+        if ($kv) {
+            my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
+            return chr($uc) if $uc && $uc > 0 && $uc < 0x10000;
+        }
+    };
+    return undef;
+}
+
+# is_printable_key( $key_name )
+#
+# Returns true if the given GDK key name represents a printable character.
+# Used by the _dispatch _any mechanism to detect printable keys in replace
+# mode without hardcoding length checks.
+sub is_printable_key {
+    my ($key_name) = @_;
+    return 0 unless defined $key_name && length $key_name;
+    return 1 if length($key_name) == 1;
+    return defined key_name_to_char($key_name);
+}
+
 1;
 
 __END__
@@ -224,7 +303,9 @@ Gtk3::SourceEditor::Util - Shared utility functions for the editor module
 =head1 SYNOPSIS
 
     use Gtk3::SourceEditor::Util qw(safe_call parse_hex_color_rgb tint_color
-                                   clipboard_set clipboard_get);
+                                   clipboard_set clipboard_get
+                                   resolve_key_event key_name_to_char
+                                   is_printable_key);
 
     # Safe method dispatch (warns once per missing method)
     safe_call($widget, 'set_show_line_numbers', TRUE);

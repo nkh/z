@@ -1,6 +1,7 @@
 package Gtk3::SourceEditor::VimBindings::Insert;
 use strict;
 use warnings;
+use Gtk3::SourceEditor::Util qw(key_name_to_char);
 
 our $VERSION = '0.04';
 
@@ -113,16 +114,8 @@ sub register {
     $ACTIONS->{do_replace_char} = sub {
         my ($ctx, $count, $char) = @_;
         return unless defined $char && length($char);
-        if (length($char) > 1) {
-            eval {
-                my $kv = Gtk3::Gdk::keyval_from_name($char);
-                if ($kv) {
-                    my $uc = Gtk3::Gdk::keyval_to_unicode($kv);
-                    $char = chr($uc) if $uc && $uc > 0 && $uc < 0x10000;
-                }
-            };
-            return unless length($char) == 1;
-        }
+        $char = key_name_to_char($char) // $char;
+        return unless length($char) == 1;
         $ctx->{vb}->replace_char($char);
         # buf->insert() inside replace_char already advances the cursor
         # past the inserted character, so no explicit move is needed.
