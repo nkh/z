@@ -79,25 +79,108 @@ $ACTIONS->{reverse_line} = sub {
 
 ### Adding Keymap Entries
 
-The `modes` key in the return descriptor accepts per-mode keymap overrides. Each mode can include regular key mappings plus the special `_prefixes`, `_char_actions`, and `_ctrl` keys.
+The `modes` key in the return descriptor accepts per-mode keymap overrides. Each mode can include regular key-to-action mappings plus the three special metadata keys: `_prefixes`, `_char_actions`, and `_ctrl`.
 
 ```perl
 return {
     modes => {
         normal => {
             F5             => 'my_action',
-            gg             => 'my_gg_action',  # multi-key prefix
-            _prefixes      => ['gg', 'F5'],     # declare as prefix
-_char_actions  => { r => 'my_replace' },
+            gg             => 'my_gg_action',  # multi-key command
+            _prefixes      => ['F5'],           # declare F5 as prefix
+            _char_actions  => { r => 'my_replace' },
             _ctrl          => { w => 'my_ctrl_w' },
         },
         insert => {
-            F5 => 'my_insert_action',
+            F5             => 'my_insert_action',
+            _ctrl          => { b => 'my_insert_bold' },
         },
     },
-    # ...
+    ex_commands => {
+        align => 'align_text_action',
+    },
 };
 ```
+
+#### How Special Keys Merge with Defaults
+
+Plugin special keys are **merged** into the existing mode's defaults, not replaced:
+
+- **`_prefixes`**: Plugin prefix arrays are **appended** to the mode's existing prefix list. Multiple plugins can each add their own prefixes without overwriting each other.
+- **`_char_actions`**: Plugin char_action hashes are **merged** into the existing hash. Two plugins that both define `r => ...` will conflict (last one wins), but different keys coexist.
+- **`_ctrl`**: Plugin Ctrl-key hashes are **merged** into the existing Ctrl table. Multiple plugins can add different Ctrl-key bindings.
+- **Regular keys**: Plugin key mappings **override** defaults with the same key name (last plugin wins). Set a key to `undef` to explicitly remove a default binding.
+
+#### Plugin Keymap Examples
+
+**Single-key binding** (simplest case):
+```perl
+modes => {
+    normal => {
+        F5 => 'hello_world',    # F5 triggers hello_world action
+    },
+},
+```
+
+**Multi-key command with prefix reservation**:
+```perl
+modes => {
+    normal => {
+        _prefixes => ['q'],                # reserve 'q' namespace
+        qa => 'quick_action_a',            # qa fires the action
+        qb => 'quick_action_b',            # qb fires the action
+        # qx, qz etc. will accumulate and wait (no binding yet)
+    },
+},
+```
+
+**Char-action** (command that takes a character argument):
+```perl
+# User types 'rc' -> my_replace($ctx, undef, 'c')
+modes => {
+    normal => {
+        _char_actions => { r => 'my_replace' },
+    },
+},
+# The 'r' prefix is auto-derived from the existing 'r' in normal mode.
+# If adding to a mode where 'r' is not already a prefix, also add:
+#   _prefixes => ['r'],
+```
+
+**Multi-key char-action** (e.g., `gc` comment toggle):
+```perl
+# User types 'gcc' -> toggle_comment($ctx, undef, 'c')
+# User types 'gcj' -> toggle_comment($ctx, undef, 'j')
+modes => {
+    normal => {
+        _char_actions => { gc => 'toggle_comment' },
+        # 'gc' is auto-derived as a prefix from the existing 'g' prefix
+    },
+},
+```
+
+**Ctrl-key binding**:
+```perl
+modes => {
+    normal => {
+        _ctrl => { w => 'my_ctrl_w' },    # Ctrl-W in normal mode
+    },
+    insert => {
+        _ctrl => { b => 'my_insert_bold' },  # Ctrl-B in insert mode
+    },
+},
+# Plugin _ctrl entries merge with existing defaults, not replace them.
+```
+
+**Removing a default binding**:
+```perl
+modes => {
+    normal => {
+        K => undef,    # remove the default K binding
+    },
+},
+```
+
 
 ### Defining Ex-Commands
 

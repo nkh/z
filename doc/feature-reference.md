@@ -367,8 +367,7 @@ visibility (inverted text).
 
 ## 16. Custom Keymaps
 
-Per-mode key→action overrides. Special: `_prefixes`,
-`_char_actions`, `_ctrl`. Set `undef` to remove default.
+Per-mode key→action overrides. Three special metadata keys control dispatch behavior: `_prefixes` (multi-key sequences), `_char_actions` (keys that take a character argument), and `_ctrl` (Ctrl-key bindings). Plugin special keys merge with defaults; regular key entries override them. Set `undef` to remove a default. See [Adding Bindings](adding-bindings.md) and [Plugin System](book/src/plugins.md) for details and examples.
 
 ---
 

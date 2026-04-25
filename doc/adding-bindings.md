@@ -172,12 +172,43 @@ through `_execute_action` for consistent event bus integration.
 
 `_derive_prefixes($km)` auto-generates intermediate prefix strings:
 
-1. From explicitly listed `_prefixes` characters: `'greaterless'` → prefixes
-   `'g'`, `'gr'`, `'gre'`, `'grea'`, `'great'`, `'greater'`, `'greatere'`, etc.
+1. From explicitly listed `_prefixes` characters: `'greater'` → prefixes
+   `'g'`, `'gr'`, `'gre'`, `'grea'`, `'great'`, `'greater'`, `'greatere'`,
+   `'greaterg'`, etc. Each prefix is a substring of increasing length.
 2. From multi-character keys in the keymap that start with a known prefix
    character: if `'g'` is a prefix and key `'gq'` exists, then `'gq'` is also
    a valid prefix (so `'gqi'` can accumulate). The exact-match check in
    `_dispatch` runs before the prefix check, so `'gg'` still fires immediately.
+
+### Special keys vs regular keys
+
+Not every key needs to be in a special metadata key. Use this decision guide:
+
+| Pattern | Mechanism | Example |
+|---------|-----------|---------|
+| Single key fires an action | Regular entry | `x => 'delete_char'` |
+| Multi-char command name | Regular entry + auto-derived prefix | `dd => 'delete_line'`, `gg => 'file_start'` |
+| Reserve a prefix with no bindings yet | `_prefixes` | `_prefixes => ['q']` |
+| Command that takes a character argument | `_char_actions` | `_char_actions => { r => 'replace_char' }` |
+| Any printable char triggers same action | `_char_actions => { _any => ... }` | Replace mode |
+| Ctrl-key combination | `_ctrl` | `_ctrl => { u => 'scroll_half_up' }` |
+
+### Plugin keymap considerations
+
+When writing a plugin, the same three special keys are available. Plugin special
+keys **merge** with the mode defaults (see [Plugin System](../book/src/plugins.md)):
+
+- `_prefixes` arrays are appended (not replaced), so multiple plugins can add
+  prefixes without conflicts.
+- `_char_actions` hashes are merged (last plugin wins on key conflicts).
+- `_ctrl` hashes are merged (last plugin wins on key conflicts).
+- Regular key entries override the default (or another plugin's binding).
+
+A plugin adding a char-action typically does not need to declare the first
+character in `_prefixes` because `_derive_prefixes` handles it from existing
+multi-character entries. For example, a plugin adding `gc => 'toggle_comment'`
+does not need `_prefixes => ['g']` because `'g'` is already a prefix in normal
+mode and `'gc'` will be auto-derived.
 
 ---
 

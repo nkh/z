@@ -740,35 +740,84 @@ Single-character keys can also map to action names directly if the key is a prin
 _prefixes => [qw(g d y c greater less)],
 ```
 
-Strings listed in `_prefixes` define multi-key sequences. The dispatch system derives all valid prefixes from these. For example, `'greater'` derives prefixes `'g'`, `'gr'`, `'gre'`, ..., `'greatergreater'`. When the user types a prefix, the key is accumulated and the system waits for more input.
+Strings listed in `_prefixes` define characters that start multi-key command sequences. When the user types a prefix character, `_dispatch` accumulates it in the buffer and waits for more input instead of treating it as a miss.
 
-A complete multi-key command (like `'gg'`, `'dd'`, `'greatergreater'`) must have a mapping in the keymap:
+The prefix derivation system (`_derive_prefixes`) works in two ways:
+
+1. **Explicit prefixes**: Characters listed in `_prefixes` are expanded into all their intermediate substrings. For example, `'greater'` generates `'g'`, `'gr'`, `'gre'`, ..., `'greatere'`, `'greatergreater'`. The user never needs to declare intermediate prefixes manually.
+
+2. **Derived prefixes**: If a character is already a known prefix and multi-character keys starting with that character exist in the keymap, their intermediate substrings are automatically derived. For example, if `'y'` is a prefix and `yiw` exists in the keymap, then `yi` becomes a derived prefix — so the dispatcher waits for `yiw` to complete instead of failing at `yi`.
+
+You rarely need to list full words like `'greater'` — listing `'g'` is usually sufficient because `_derive_prefixes` handles the rest from the keymap entries. The explicit list is mainly useful for **reserving a namespace** before any long-form bindings exist:
+
+```perl
+# Reserve 'q' as a prefix even though only 'qa' is implemented yet.
+# Without this, typing 'qb' would silently fail instead of waiting.
+_prefixes => ['q'],
+qa => 'my_qa_action',
+# qb, qc etc. will accumulate and wait once implemented
+```
+
+Every complete multi-key command must have a corresponding keymap entry:
 
 ```perl
 gg            => 'file_start',
 dd            => 'delete_line',
 greatergreater => 'indent_right',
-lessless     => 'indent_left',
 ```
 
-### 7.3 _char_actions -- Keys Needing a Following Character
+**Important**: `_prefixes` is not needed for single-character keys that are also complete commands. For example, `y` is both a prefix (waiting for `yw`, `yy`, `yiw`) and a complete command (`yw` is a two-char key that exists in the keymap, while `y` followed by a non-matching key resets the buffer). The exact-match check in `_dispatch` runs before the prefix check, so complete keys like `yy` fire immediately rather than being treated as a prefix for a longer sequence.
+
+### 7.3 _char_actions -- Keys That Take a Character Argument
+
+_char_actions implement a "command + data" pattern: the first key identifies the action, and the **next physical keypress is passed as a character argument** to the action — not as part of the command name.
 
 ```perl
 _char_actions => {
-    r           => 'replace_char',
-    m           => 'set_mark',
-    grave       => 'jump_mark',
-    apostrophe  => 'jump_mark_line',
-    f           => 'find_char_forward',
-    F           => 'find_char_backward',
-    t           => 'till_char_forward',
-    T           => 'till_char_backward',
+    r           => 'replace_char',        # rx -> replace with 'x'
+    m           => 'set_mark',             # ma -> set mark 'a'
+    grave       => 'jump_mark',            # `a -> jump to mark 'a'
+    apostrophe  => 'jump_mark_line',       # 'a -> jump to mark 'a' (line)
+    f           => 'find_char_forward',    # fx -> find 'x'
+    F           => 'find_char_backward',   # Fx -> find 'x' backward
+    t           => 'till_char_forward',    # tx -> till before 'x'
+    T           => 'till_char_backward',   # Tx -> till after 'x'
 },
 ```
 
-When a key in `_char_actions` is pressed, the dispatch system waits for one more keypress and passes it to the action as an `@extra` argument. The special key `_any` matches any single printable character (used in replace mode to intercept all typing).
+**How it works**: When a key in `_char_actions` is pressed, the dispatcher stores the action name in `$ctx->{_char_action_prefix}` (and any pending count in `$ctx->{_char_action_count}`). On the next keypress, the stored action is called with the character as the third argument: `$ACTIONS{$action}->($ctx, $count, $char)`.
 
-Example: pressing `rx` dispatches `replace_char($ctx, 1, 'x')` where `'x'` is the extra character.
+**Numeric prefixes work**: pressing `2f` stores count=2 and action=`find_char_forward`. The next character key completes the call as `find_char_forward($ctx, 2, 'x')`.
+
+**Multi-key char actions**: A char_action key can be a multi-character string. For example, to implement `gc` (comment toggle) where the user types `gcc` for line comments and `gcj` for block comments:
+
+```perl
+_char_actions => {
+    gc          => 'toggle_comment',   # gcc, gcj, etc.
+    # ... existing entries ...
+},
+# gc is auto-derived as a prefix from g, no need to add to _prefixes
+
+# In the action:
+$ACTIONS->{toggle_comment} = sub {
+    my ($ctx, $count, $char) = @_;
+    if ($char eq 'c') {
+        # toggle line comment
+    } elsif ($char eq 'j') {
+        # toggle block comment
+    }
+};
+```
+
+Dispatch flow for `gcc`: buffer accumulates `g` (prefix) -> buffer accumulates `gc` (step 9: char_action key -> store prefix) -> next key `c` arrives (step 10: pending char_action -> dispatch `toggle_comment(ctx, undef, 'c')`).
+
+**The `_any` wildcard**: When `_char_actions` contains `_any => action_name`, any single printable character triggers the action immediately, bypassing accumulation entirely. This is used by replace mode so every printable character replaces the character under the cursor:
+
+```perl
+_char_actions => { _any => 'do_replace_char' },
+```
+
+**Char action vs prefix**: With a prefix, the second key is part of the **command name** (`dd` = delete line, `dw` = delete word). With a char_action, the second key is **data** passed to the action (`rx` = replace with character `x`, `ma` = set mark named `a`). The distinction matters because char_action completions are cancelled by navigation keys (Escape, arrows, etc.), while prefix accumulation continues for any non-matching key until the buffer is cleared.
 
 ### 7.4 _ctrl -- Ctrl-Key Bindings
 
@@ -781,12 +830,35 @@ _ctrl => {
     y => 'scroll_line_up',
     e => 'scroll_line_down',
     r => 'redo',
+    g => 'show_file_info',
+    l => 'cmd_no_hlsearch',
 },
 ```
 
-Ctrl-key bindings are handled separately from regular keys. The signal handler intercepts all Ctrl combinations (detected via `control-mask`), constructs a key name like `'Control-u'`, and looks it up in the Ctrl dispatch table. The action name in the hash maps to the `%ACTIONS` registry.
+Ctrl-key combinations are dispatched through a separate code path (`handle_ctrl_key`) because GTK encodes modifier state differently from regular keys. The signal handler intercepts all Ctrl combinations (detected via `control-mask`), constructs a synthetic key name like `'Control-u'`, and looks it up in a per-mode Ctrl dispatch table built by `_build_ctrl_dispatch`.
 
-Ctrl keys are only dispatched in normal and visual modes. In insert, replace, and command modes, all Ctrl keys are suppressed (return TRUE).
+**Mode-specific behavior**:
+- **Normal/Visual modes**: Registered Ctrl keys are dispatched to their actions. Unregistered Ctrl keys pass through to GTK (e.g., Ctrl-C for copy, Ctrl-V for paste in visual mode).
+- **Insert/Replace/Command modes**: All Ctrl keys are suppressed (return TRUE). Only explicitly registered Ctrl keys are executed; the rest are silently consumed. This prevents GTK's native Ctrl-C/V/Z from interfering with Vim-style editing.
+
+**Plugin example** -- adding a Ctrl-key binding:
+
+```perl
+return {
+    modes => {
+        normal => {
+            _ctrl => { w => 'my_ctrl_w_action' },  # adds to existing _ctrl
+        },
+        insert => {
+            _ctrl => { b => 'my_insert_ctrl_b' },  # Ctrl-B in insert mode
+        },
+    },
+};
+```
+
+Plugin `_ctrl` entries are **merged** with the existing mode's Ctrl table (not replaced), so plugins can add new Ctrl-key bindings without overwriting the defaults.
+
+**AltGr handling**: On European keyboards, AltGr produces characters like `@`, `#`, `€`. GTK reports AltGr as Ctrl+Mod1 (or Ctrl+Mod5). The signal handler detects this combination and treats the key as a regular (non-Ctrl) key, so AltGr characters work correctly in all modes.
 
 ### 7.5 Removing a Binding
 

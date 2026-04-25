@@ -55,41 +55,46 @@ Each mode's keymap is a hash with the following reserved keys (prefixed with `_`
 
 ### `_prefixes` (array of multi-key sequences)
 
-Defines multi-key sequences that require further input. For example, `g` is a
-prefix because `gg`, `gv`, `gq` are all valid commands. The prefix derivation
-system (`_derive_prefixes`) automatically generates partial prefixes: if `g` is
-declared as a prefix, then `g` itself becomes a known prefix string so the
-dispatcher keeps accumulating.
+Defines characters that start multi-key command sequences. When the user types a
+prefix character, `_dispatch` accumulates it and waits for more input.
 
-Additionally, `_derive_prefixes` scans the keymap for multi-character keys that
-start with a known prefix character and generates derived prefixes for them.
-For example, if `y` is a prefix and `yiw` exists in the keymap, then `yi` is
-automatically treated as a derived prefix.
+The prefix derivation system (`_derive_prefixes`) works in two ways:
+
+1. **From explicit declarations**: Characters listed in `_prefixes` are expanded into all intermediate substrings. For example, `'greater'` generates `'g'`, `'gr'`, `'gre'`, etc.
+
+2. **From existing keymap entries**: If a character is a known prefix and multi-character keys starting with that character exist in the keymap, their intermediate substrings are automatically derived. For example, if `'y'` is a prefix and `yiw` exists in the keymap, then `yi` becomes a derived prefix so `yiw` can accumulate.
+
+In practice, you only need to list the single starting character (`'g'`) rather than full words (`'greater'`), because `_derive_prefixes` handles the rest from the keymap entries. The main use case for declaring a character that has no multi-char bindings yet is **namespace reservation** — ensuring the dispatcher waits for more input instead of treating the character as a miss.
 
 ### `_char_actions` (hash: key name → action name)
 
-Character actions are a two-keystroke mechanism where the first key identifies
-the action and the second key provides a character argument. The dispatcher
-recognises two special entries:
+Implements a "command + data" pattern: the first key identifies the action, and the next physical keypress is passed as a **character argument** to the action. The dispatcher recognises two kinds of entries:
 
-- **`_any`**: Any single-character key triggers the action immediately,
+- **`_any`**: Any single printable character triggers the action immediately,
   bypassing accumulation. Used by replace mode (`do_replace_char`) so every
   printable character replaces the character under the cursor.
-- **Named keys**: Keys like `r`, `grave` (backtick), `apostrophe`, `m`, `f`,
-  `F`, `t`, `T` wait for the next keypress to complete the action.
+- **Named keys**: Keys like `r`, `m`, `f`, `grave`, `apostrophe` wait for the
+  next keypress to complete the action. The character is passed as an argument,
+  not as part of the command name.
 
 When a named char_action key is pressed, the dispatcher stores the action name
-in `$ctx->{_char_action_prefix}`. On the next keypress, if this prefix is set,
-the stored action is called with the character as an argument. This supports
-numeric prefixes: pressing `2f` stores count=2, action=`find_char_forward`,
-and the next character key completes the call with count=2.
+in `$ctx->{_char_action_prefix}`. On the next keypress, the stored action is
+called as `$ACTIONS{$action}->($ctx, $count, $char)`. Numeric prefixes are
+supported: `2fx` calls `find_char_forward($ctx, 2, 'x')`.
+
+Multi-key char_actions are supported: a char_action key can be a multi-character
+string like `gc`. The dispatcher first accumulates `g` as a prefix, then
+recognises `gc` as a char_action, and the next key completes the action. For
+example, `gcc` would dispatch `toggle_comment($ctx, undef, 'c')`.
 
 ### `_ctrl` (hash: letter → action name)
 
-Ctrl-key combinations. These are handled separately from the main dispatch
-because GTK encodes modifier state differently. The `handle_ctrl_key` function
-constructs a synthetic key like `Control-u` and looks it up in a pre-built
-dispatch table (`${mode}_ctrl_dispatch`).
+Ctrl-key combinations, dispatched through a separate code path because GTK
+encodes modifier state differently. The `handle_ctrl_key` function constructs a
+synthetic key like `Control-u` and looks it up in a per-mode dispatch table
+(`${mode}_ctrl_dispatch`). In normal and visual modes, unregistered Ctrl keys
+pass through to GTK. In insert, replace, and command modes, all unregistered
+Ctrl keys are suppressed to prevent GTK's native bindings from interfering.
 
 ## The `_dispatch` Function
 
