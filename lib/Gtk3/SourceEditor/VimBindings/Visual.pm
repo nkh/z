@@ -596,7 +596,6 @@ sub register {
     # Return the keymap
     # ----------------------------------------------------------------
     return {
-        _immediate     => [qw(Escape)],
         _prefixes      => ['g', 'greater', 'less'],
         _char_actions  => {},
         Escape         => 'visual_exit',

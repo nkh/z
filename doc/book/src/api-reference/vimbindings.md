@@ -100,7 +100,7 @@ Returns the global action registry. Keys are action name strings; values are cod
 
 ### `get_default_keymap() → hashref`
 
-Returns the default keymap structure. Keys are mode names (`normal`, `insert`, `command`, `visual`, `visual_line`, `visual_block`, `replace`); values are hashrefs with `_immediate` (modes with accumulation buffer only), `_prefixes`, `_char_actions`, `_ctrl`, and key-to-action mappings.
+Returns the default keymap structure. Keys are mode names (`normal`, `insert`, `command`, `visual`, `visual_line`, `visual_block`, `replace`); values are hashrefs with `_prefixes`, `_char_actions`, `_ctrl`, and key-to-action mappings.
 
 ### `get_default_ex_commands() → hashref`
 

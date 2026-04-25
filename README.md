@@ -111,7 +111,7 @@ Options unique to `source-dialog-editor`: `-b/--no-border`, `-B/--no-buttons`, `
    central `%ACTIONS` hash, registered at compile time by mode-specific
    sub-modules. The dispatch system maps key events to action names.
 3. **Configurable Dispatch** -- per-mode keymaps map GDK key names to action
-   names. Special metadata keys (`_immediate`, `_prefixes`, `_char_actions`,
+   names. Special metadata keys (`_prefixes`, `_char_actions`,
    `_ctrl`) control dispatch behavior. Users can override any binding via the
    `keymap` constructor option or `undef` to remove a default.
 

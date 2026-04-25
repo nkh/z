@@ -47,7 +47,7 @@ GTK key-press-event signal
 
 **Layer 1 -- Signal Handler.** Located in `VimBindings.pm`, the `key-press-event` signal handler on the text view receives every key press. It checks the current mode, extracts the GDK key name, handles Ctrl keys, and delegates to the appropriate mode handler (`handle_normal_mode`, `handle_insert_mode`, etc.).
 
-**Layer 2 -- Dispatch System.** The mode handlers use `_dispatch()` to route keys. This function accumulates keys in a buffer, checks for numeric prefixes (like `3j`), matches against the dispatch table, handles `_immediate` keys that bypass accumulation, and manages `_char_actions` that wait for a second character.
+**Layer 2 -- Dispatch System.** The mode handlers use `_dispatch()` to route keys. This function accumulates keys in a buffer, checks for numeric prefixes (like `3j`), matches against the dispatch table, and manages `_char_actions` that wait for a second character.
 
 **Layer 3 -- Action Coderef.** The final target is a named coderef stored in `%ACTIONS`. The action receives the context object (`$ctx`) and an optional numeric count, then operates on the text buffer through `$ctx->{vb}` (the VimBuffer interface). The action has no knowledge of GTK widgets.
 
@@ -734,17 +734,7 @@ The left side is a GDK key name (string). The right side is an action name (stri
 
 Single-character keys can also map to action names directly if the key is a printable character.
 
-### 7.2 _immediate -- Bypass Accumulation Buffer
-
-```perl
-_immediate => ['Page_Up', 'Page_Down', 'Home', 'End', 'F11'],
-```
-
-Keys listed in `_immediate` bypass the key accumulation buffer. When pressed, the accumulated buffer is cleared and the action is executed immediately via `_execute_action`. This is used for keys that must always respond instantly regardless of what was typed before (like Page_Up/Down to scroll). All `_immediate` entries benefit from event bus integration, undo grouping, and error handling — the same as regular dispatch.
-
-An `_immediate` key MUST also have a regular mapping in the keymap hash (e.g. `Page_Up => 'page_up'`). Insert mode does not use `_immediate` since it has no accumulation buffer; all keys go through `insert_dispatch`.
-
-### 7.3 _prefixes -- Multi-Key Sequences
+### 7.2 _prefixes -- Multi-Key Sequences
 
 ```perl
 _prefixes => [qw(g d y c greater less)],
@@ -761,7 +751,7 @@ greatergreater => 'indent_right',
 lessless     => 'indent_left',
 ```
 
-### 7.4 _char_actions -- Keys Needing a Following Character
+### 7.3 _char_actions -- Keys Needing a Following Character
 
 ```perl
 _char_actions => {
@@ -780,7 +770,7 @@ When a key in `_char_actions` is pressed, the dispatch system waits for one more
 
 Example: pressing `rx` dispatches `replace_char($ctx, 1, 'x')` where `'x'` is the extra character.
 
-### 7.5 _ctrl -- Ctrl-Key Bindings
+### 7.4 _ctrl -- Ctrl-Key Bindings
 
 ```perl
 _ctrl => {
@@ -798,7 +788,7 @@ Ctrl-key bindings are handled separately from regular keys. The signal handler i
 
 Ctrl keys are only dispatched in normal and visual modes. In insert, replace, and command modes, all Ctrl keys are suppressed (return TRUE).
 
-### 7.6 Removing a Binding
+### 7.5 Removing a Binding
 
 Set a key's value to `undef` in a user keymap override to remove it from the defaults:
 

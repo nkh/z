@@ -53,24 +53,6 @@ operations (yank, delete, change, indent) interpret the region.
 
 Each mode's keymap is a hash with the following reserved keys (prefixed with `_`):
 
-### `_immediate` (array of key names)
-
-Keys listed here bypass the `_dispatch` accumulator buffer. They are checked
-first in the mode handler and, if matched, clear `cmd_buf` and execute
-immediately — no key accumulation or prefix buffering. This is used for keys
-that must fire on every press regardless of accumulated state, such as
-`Page_Up`, `Page_Down`, `Home`, `End`, and `F11`.
-
-All `_immediate` entries are routed through `_execute_action` (consistent
-with the regular dispatch path), so they benefit from event bus integration,
-undo grouping, and error handling.
-
-**Normal mode**: `['Page_Up', 'Page_Down', 'caret', 'asciicircum', 'dead_circumflex', 'Home', 'End', 'F11']`
-**Insert mode**: *(not used — all keys go through `insert_dispatch`)*
-**Visual mode**: *(inherited from normal mode)*
-**Replace mode**: `['Escape', 'BackSpace', 'Delete', 'Up', 'Down', 'Left', 'Right', 'Page_Up', 'Page_Down', 'Home', 'End']`
-**Command mode**: `['Escape']`
-
 ### `_prefixes` (array of multi-key sequences)
 
 Defines multi-key sequences that require further input. For example, `g` is a
@@ -131,7 +113,7 @@ precedence:
 
 ### Undo Grouping
 
-Every action fired through `_dispatch` or the `_immediate` path is wrapped in
+Every action fired through `_dispatch` or the `insert_dispatch` path is wrapped in
 `begin_user_action` / `end_user_action` on the VimBuffer (via `_execute_action`),
 making it a single undo step in GTK's undo stack. The only exception is
 `redo`, which explicitly closes its undo group first, since `_execute_action`
@@ -220,8 +202,7 @@ All other keys are handled by GTK's entry widget natively (typing the command).
 
 1. Translate arrow keys to `h/j/k/l`.
 2. Clear any pending status message.
-3. Check `_immediate` keys → if match, clear `cmd_buf` and fire via `_execute_action`.
-4. Otherwise, call `_dispatch(normal_dispatch, normal_prefixes, normal_char_actions)`.
+3. Call `_dispatch(normal_dispatch, normal_prefixes, normal_char_actions)`.
 
 Viewport line motions (`H`, `M`, `L`) are included in the normal keymap. They
 move the cursor to the top, middle, and bottom of the visible area respectively,
@@ -239,9 +220,6 @@ undo grouping, and error handling.
 2. Check if the key is a printable character → insert it at the cursor.
 3. Consume non-printable, non-registered keys silently (return TRUE).
 
-The `_immediate` mechanism is not used for insert mode because there is no
-prefix buffer to bypass — every keypress is handled independently.
-
 ### `handle_visual_mode($ctx, $key)`
 
 Used for all three visual sub-modes (char, line, block). The `visual_type`
@@ -249,13 +227,11 @@ field determines how selection operations behave.
 
 1. Translate arrow keys to `h/j/k/l`.
 2. Clear any pending status message.
-3. Check `_immediate` keys → if match, clear `cmd_buf` and fire via `_execute_action`.
-4. Otherwise, call `_dispatch(visual_dispatch, visual_prefixes, visual_char_actions)`.
+3. Call `_dispatch(visual_dispatch, visual_prefixes, visual_char_actions)`.
 
 ### `handle_replace_mode($ctx, $key)`
 
-1. Check `_immediate` keys → if match, clear `cmd_buf` and fire via `_execute_action`.
-2. Call `_dispatch(replace_dispatch, replace_prefixes, replace_char_actions, key, FALSE)`.
+1. Call `_dispatch(replace_dispatch, replace_prefixes, replace_char_actions, key, FALSE)`.
 
 The `_char_actions` for replace mode has `_any => 'do_replace_char'`, so any
 single-character key immediately triggers character replacement. The `$on_miss`
@@ -269,12 +245,11 @@ Returns TRUE unconditionally (Ctrl keys are always consumed).
 
 ### `handle_command_entry($ctx, $key)`
 
-1. Check `_immediate` keys on the command entry widget (Escape → cancel).
-2. On Return: parse the command text, dispatch to the appropriate action.
+1. On Return: parse the command text, dispatch to the appropriate action.
    - Search patterns (`/pattern`, `?pattern`) → `search_set_pattern` action.
    - Bare line number (`:42`) → `cmd_goto_line` action.
    - Ex commands → parsed by `parse_ex_command()`, looked up in `%ex_cmds`.
-3. Return FALSE for all other keys (let GTK handle typing into the entry).
+2. Return FALSE for all other keys (let GTK handle typing into the entry).
 
 ## Text Objects
 
@@ -427,7 +402,7 @@ merges user overrides onto the defaults:
 
 - User keys override default keys for the same mode.
 - Setting a key to `undef` removes it from the keymap.
-- `_immediate`, `_prefixes`, `_char_actions`, and `_ctrl` arrays/hashes are
+- `_prefixes`, `_char_actions`, and `_ctrl` arrays/hashes are
   replaced entirely if provided.
 
 ## Visual Mode Selection Highlighting

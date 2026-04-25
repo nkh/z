@@ -49,7 +49,6 @@ $normal_km{N} = 'search_prev';
 my $visual_nav_ref = Gtk3::SourceEditor::VimBindings::Visual::navigation_keys();
 my %visual_nav = %$visual_nav_ref;
 my %visual_km  = (%visual_base, %visual_nav);
-$visual_km{_immediate}     = $visual_base{_immediate}     // [];
 $visual_km{_prefixes}      = $visual_base{_prefixes}      // [];
 # Inherit find-char char_actions from normal mode so f/F/t/T work in visual
 $visual_km{_char_actions}  = { %{$visual_base{_char_actions} // {}},
@@ -78,7 +77,7 @@ my $replace_km = Gtk3::SourceEditor::VimBindings::Insert::get_replace_keymap();
 my %DEFAULT_KEYMAP = (
     normal       => \%normal_km,
     insert       => \%insert_km,
-    command      => { _immediate => ['Escape'], _prefixes => [], _char_actions => {}, Escape => 'exit_to_normal' },
+    command      => { _prefixes => [], _char_actions => {}, Escape => 'exit_to_normal' },
     visual       => \%visual_km,
     visual_line  => \%visual_line_km,
     visual_block => \%visual_block_km,
@@ -101,24 +100,22 @@ sub _resolve_keymap {
     my ($user_km, $user_ex) = @_;
     my %resolved;
     for my $mode (keys %DEFAULT_KEYMAP) {
-        my %mk; my @imm; my @pfx; my $ca;
+        my %mk; my @pfx; my $ca;
         my $def = $DEFAULT_KEYMAP{$mode};
         $mk{$_} = $def->{$_} for grep { !/^_/ } keys %$def;
-        @imm = @{$def->{_immediate} // []};
         @pfx = @{$def->{_prefixes}  // []};
         $ca   = $def->{_char_actions} // {};
         my $ctrl = $def->{_ctrl} // {};
         if ($user_km && $user_km->{$mode}) {
             for my $k (keys %{$user_km->{$mode}}) {
-                if    ($k eq '_immediate')     { @imm = @{$user_km->{$mode}{$k}}; }
-                elsif ($k eq '_prefixes')      { @pfx = @{$user_km->{$mode}{$k}}; }
+                if    ($k eq '_prefixes')      { @pfx = @{$user_km->{$mode}{$k}}; }
                 elsif ($k eq '_char_actions')  { $ca = $user_km->{$mode}{$k}; }
                 elsif ($k eq '_ctrl')          { $ctrl = $user_km->{$mode}{$k}; }
                 elsif (!defined $user_km->{$mode}{$k}) { delete $mk{$k}; }
                 else { $mk{$k} = $user_km->{$mode}{$k}; }
             }
         }
-        $resolved{$mode} = { _immediate => \@imm, _prefixes => \@pfx, _char_actions => $ca, _ctrl => $ctrl, %mk };
+        $resolved{$mode} = { _prefixes => \@pfx, _char_actions => $ca, _ctrl => $ctrl, %mk };
     }
     my %ex = %DEFAULT_EX_COMMANDS;
     if ($user_ex) {
@@ -151,24 +148,12 @@ sub _derive_prefixes {
 # _build_mode_tables($ctx, $resolved)
 #
 # Builds per-mode dispatch tables (dispatch, prefixes, char_actions,
-# ctrl_dispatch, immediate) from the resolved keymap.  Shared by both
+# ctrl_dispatch) from the resolved keymap.  Shared by both
 # add_vim_bindings (production) and create_test_context (tests).
-#
-# The immediate table stores action NAME strings (not coderefs), so
-# all mode handlers route through _execute_action for consistent
-# event bus integration, undo grouping, and error handling.
 sub _build_mode_tables {
     my ($ctx, $resolved) = @_;
     for my $mode (qw(normal insert command visual visual_line visual_block replace)) {
         my $mm = $resolved->{$mode};
-        my %imm;
-        for my $ik (@{$mm->{_immediate} // []}) {
-            my $a = $mm->{$ik};
-            # Store action NAME (string) for consistent _execute_action routing.
-            # Previously stored coderefs, which bypassed event bus and undo grouping.
-            $imm{$ik} = $a if $a && exists $ACTIONS{$a};
-        }
-        $ctx->{"${mode}_immediate"}    = \%imm;
         $ctx->{"${mode}_dispatch"}     = _build_dispatch($mm);
         $ctx->{"${mode}_prefixes"}     = _derive_prefixes($mm);
         $ctx->{"${mode}_char_actions"} = $mm->{_char_actions} // {};
@@ -525,9 +510,6 @@ sub add_vim_bindings {
             my $action = undef;
             my $km = $ctx->{resolved_keymap}{$cur_mode} // {};
             if (exists $km->{$k}) { $action = $km->{$k}; }
-            elsif (exists $km->{_immediate} && grep { $_ eq $k } @{$km->{_immediate}}) {
-                $action = $km->{$k};
-            }
             $_debug_key->($raw_k, $k, $state, $unicode, $action, $e->keyval);
         }
         my $m = ${$ctx->{vim_mode}};
@@ -710,9 +692,7 @@ sub create_test_context {
                 $pkm{$mode} //= {};
                 my $src = $r->{modes}{$mode};
                 for my $k (keys %$src) {
-                    if ($k eq '_immediate') {
-                        push @{$pkm{$mode}{$k}}, @{$src->{$k} // []};
-                    } elsif ($k eq '_prefixes') {
+                    if ($k eq '_prefixes') {
                         push @{$pkm{$mode}{$k}}, @{$src->{$k} // []};
                     } elsif ($k eq '_char_actions') {
                         $pkm{$mode}{$k} //= {};
@@ -974,10 +954,6 @@ sub handle_normal_mode {
     # Remove the undo/redo highlight tint on any subsequent keypress.
     # The selection itself collapses naturally via set_cursor -> place_cursor.
     Gtk3::SourceEditor::VimBindings::Normal::_clear_undo_highlight($ctx);
-    if (exists $ctx->{normal_immediate}{$k}) {
-        ${$ctx->{cmd_buf}} = '';
-        return _execute_action($ctx, $ctx->{normal_immediate}{$k}, undef);
-    }
     return _dispatch($ctx, $ctx->{normal_dispatch}, $ctx->{normal_prefixes},
                      $ctx->{normal_char_actions}, $k);
 }
@@ -992,8 +968,6 @@ sub handle_insert_mode {
     # All registered keys (navigation, editing, Escape, Tab, etc.) are in
     # insert_dispatch (built from the keymap).  Route through _execute_action
     # for consistent event bus integration, undo grouping, and error handling.
-    # The _immediate table is no longer needed for insert mode since there's
-    # no prefix buffer to bypass.
     if (exists $ctx->{insert_dispatch}{$k}) {
         my $action_name = $ctx->{insert_dispatch}{$k};
         return _execute_action($ctx, $action_name, undef);
@@ -1025,21 +999,12 @@ sub handle_visual_mode {
     if ($ctx->{_showing_status} && $ctx->{clear_status}) {
         $ctx->{clear_status}->($ctx);
     }
-    # Immediate keys bypass _dispatch (no buffer accumulation)
-    if (exists $ctx->{visual_immediate}{$k}) {
-        ${$ctx->{cmd_buf}} = '';
-        return _execute_action($ctx, $ctx->{visual_immediate}{$k}, undef);
-    }
     return _dispatch($ctx, $ctx->{visual_dispatch}, $ctx->{visual_prefixes},
                      $ctx->{visual_char_actions}, $k);
 }
 
 sub handle_replace_mode {
     my ($ctx, $k) = @_;
-    if (exists $ctx->{replace_immediate}{$k}) {
-        ${$ctx->{cmd_buf}} = '';
-        return _execute_action($ctx, $ctx->{replace_immediate}{$k}, undef);
-    }
     return _dispatch($ctx, $ctx->{replace_dispatch}, $ctx->{replace_prefixes},
                      $ctx->{replace_char_actions}, $k, FALSE);
 }
@@ -1087,11 +1052,11 @@ sub handle_command_entry {
         }
     }
 
-    if (exists $ctx->{command_immediate}{$k}) {
+    if ($k eq 'Escape') {
         ${$ctx->{cmd_buf}} = '';
         # When escaping from a search entry (/ or ? prefix), clear any
         # incremental search highlights that were applied while typing.
-        if ($k eq 'Escape' && $ce) {
+        if ($ce) {
             my $text = $ce->get_text // '';
             if ($text =~ m{^/[^\n]*$} || $text =~ m{^\?[^\n]*$}) {
                 if ($ctx->{search_context}) {
@@ -1099,7 +1064,7 @@ sub handle_command_entry {
                 }
             }
         }
-        return _execute_action($ctx, $ctx->{command_immediate}{$k}, undef);
+        return _execute_action($ctx, 'exit_to_normal', undef);
     }
     if ($k eq 'Return') {
         my $raw = $ce->get_text();

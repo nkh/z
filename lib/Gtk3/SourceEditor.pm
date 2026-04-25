@@ -845,7 +845,7 @@ when the editor is closed. Has no effect unless C<window> is also specified.
 
 A hashref for customizing Vim keybindings. The hash is structured by mode
 (normal, insert, visual, etc.), with each mode containing key-to-action-name
-mappings. Keys prefixed with underscore (C<_immediate>, C<_prefixes>,
+mappings. Keys prefixed with underscore (C<_prefixes>,
 C<_char_actions>, C<_ctrl>) have special meaning for the dispatch engine.
 Set a key's value to C<undef> to remove it from the default keymap. See
 L<Gtk3::SourceEditor::VimBindings> for the full keymap format.

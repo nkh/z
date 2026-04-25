@@ -128,7 +128,6 @@ sub register {
 
     # 2. Return keymap
     return {
-        _immediate    => ['Page_Up', 'Page_Down'],
         _prefixes     => ['g', 'd'],
         _char_actions => { r => 'replace_char' },
         _ctrl         => { w => 'insert_delete_word_backward' },
@@ -144,7 +143,6 @@ The keymap hash has special underscore-prefixed keys and regular key entries:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `_immediate` | arrayref | Keys that bypass the accumulation buffer and fire via `_execute_action` (normal/visual/replace modes only) |
 | `_prefixes` | arrayref | Characters that start multi-key sequences (e.g., `'g'`, `'d'`) |
 | `_char_actions` | hashref | Keys that wait for one more character (e.g., `f` → `find_char_forward`) |
 | `_ctrl` | hashref | Ctrl-key combos without `Control-` prefix (e.g., `u` → `scroll_half_up`) |
@@ -290,9 +288,6 @@ Insert mode is different from normal mode:
 ### Adding a new key binding
 
 Simply add a key-to-action mapping in the Insert.pm `register()` return hash.
-No `_immediate` declaration is needed — all regular keymap entries go directly
-into `insert_dispatch`:
-
 ```perl
 # In Insert.pm's register() return:
 return {

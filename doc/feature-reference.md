@@ -367,7 +367,7 @@ visibility (inverted text).
 
 ## 16. Custom Keymaps
 
-Per-mode key→action overrides. Special: `_immediate`, `_prefixes`,
+Per-mode key→action overrides. Special: `_prefixes`,
 `_char_actions`, `_ctrl`. Set `undef` to remove default.
 
 ---

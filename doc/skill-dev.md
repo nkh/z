@@ -35,7 +35,7 @@ Do **not** use this skill for:
 2. **`register(\%ACTIONS)`** — each mode module registers actions into `%ACTIONS`
    and returns a keymap hashref.
 3. **Keymap hash** — maps GDK key names to action name strings. Special keys:
-   `_immediate`, `_prefixes`, `_char_actions`, `_ctrl`.
+   `_prefixes`, `_char_actions`, `_ctrl`.
 4. **`_dispatch()`** — accumulates keystrokes and resolves to actions (normal/visual/replace).
 5. **`handle_insert_mode()`** — no accumulation; only checks `insert_dispatch`
    for exact-match entries; returns `TRUE` for everything else.

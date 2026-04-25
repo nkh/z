@@ -2016,7 +2016,6 @@ sub register {
     # ================================================================
 
     return {
-        _immediate => [qw(Page_Up Page_Down caret asciicircum dead_circumflex Home End F11)],
         _prefixes  => [qw(g d y c greater less z)],
         _char_actions => {
             r      => 'replace_char',

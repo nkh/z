@@ -82,14 +82,11 @@ All registered keys are in `insert_dispatch` and routed through `_execute_action
 for consistent event bus integration, undo grouping, and error handling.
 The `_dispatch` function is intentionally **not** used for insert mode because
 its numeric accumulation would swallow digits before GTK can process them.
-The `_immediate` mechanism is not used for insert mode — there is no prefix
-buffer to bypass.
 
 ### Replace Mode Keymap
 
 | Component | Value | Description |
 |-----------|-------|-------------|
-| `_immediate` | `['Escape', 'BackSpace']` | Keys that fire without accumulation |
 | `_prefixes` | `[]` | No multi-character prefixes |
 | `_char_actions` | `{ _any => 'do_replace_char' }` | Any printable character triggers replace |
 | `Escape` | `exit_replace_to_normal` | Exit replace mode |

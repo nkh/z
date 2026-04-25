@@ -233,9 +233,6 @@ sub register {
 
 sub get_replace_keymap {
     return {
-        _immediate => ['Escape', 'BackSpace', 'Delete',
-                       'Up', 'Down', 'Left', 'Right',
-                       'Page_Up', 'Page_Down', 'Home', 'End'],
         _prefixes  => [],
         _char_actions => {
             _any => 'do_replace_char',

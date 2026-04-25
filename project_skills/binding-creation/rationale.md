@@ -20,7 +20,7 @@ When an AI agent is asked to "add the `diw` binding", it must understand:
 - The project's file organization (which of 15 `.pm` files to modify)
 - The binding dispatch architecture (5 different dispatch mechanisms)
 - The VimBuffer abstraction layer (27 methods, 2 backends)
-- The keymap hash structure (`_prefixes`, `_char_actions`, `_immediate`, `_ctrl`)
+- The keymap hash structure (`_prefixes`, `_char_actions`, `_ctrl`)
 - The test infrastructure (headless VimBuffer::Test, mock objects)
 - The documentation system (`:bindings` help text, `doc/bindings.md`)
 - GDK key name mappings (`$` → `dollar`, `^` → `caret`)

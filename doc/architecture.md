@@ -14,7 +14,7 @@ The design philosophy centers on four core principles that permeate every layer 
 
 2. **Action Registry** -- Every editing operation (move cursor, delete line, search, change case) is registered as a named coderef in a module-level `%ACTIONS` hash inside `VimBindings.pm`. Mode-specific sub-modules (`Normal.pm`, `Insert.pm`, `Visual.pm`, `Command.pm`, `Search.pm`) populate this registry at compile time via their `register()` functions. Actions receive `($ctx, $count, @extra)` and operate entirely through `$ctx->{vb}` (the VimBuffer interface), never accessing GTK widgets.
 
-3. **Configurable Dispatch** -- Key events are routed through mode-specific dispatch tables that map GDK key names to action names. Each mode has a keymap hashref with regular key-to-action mappings plus four special metadata keys (`_immediate`, `_prefixes`, `_char_actions`, `_ctrl`). Users can pass a custom `keymap` option to override any binding without modifying core code -- setting a key's value to `undef` removes it from the defaults. All execution paths (dispatch, immediate, ctrl) route through `_execute_action` for consistent event bus integration, undo grouping, and error handling.
+3. **Configurable Dispatch** -- Key events are routed through mode-specific dispatch tables that map GDK key names to action names. Each mode has a keymap hashref with regular key-to-action mappings plus three special metadata keys (`_prefixes`, `_char_actions`, `_ctrl`). Users can pass a custom `keymap` option to override any binding without modifying core code -- setting a key's value to `undef` removes it from the defaults. All execution paths (dispatch, insert_dispatch, ctrl) route through `_execute_action` for consistent event bus integration, undo grouping, and error handling.
 
 4. **Configurable via Files and CLI** -- Editor behavior is configurable through a `key = value` config file (parsed by `Config.pm`) with CLI override precedence. All GtkSourceView properties (line numbers, tab width, indent, margin, bracket matching, etc.) are exposed as config keys. Config file values serve as defaults; explicit constructor options always take precedence.
 
@@ -360,7 +360,7 @@ This is the main public function that wires the entire Vim emulation layer into 
 3. Calls `_init_mode_setter($ctx)` to set up the `set_mode` closure.
 4. Auto-detects `page_size` from GTK view if not provided.
 5. Calls `_resolve_keymap()` to merge user keymaps with defaults.
-6. Builds per-mode dispatch tables: `immediate`, `dispatch`, `prefixes`, `char_actions`, `ctrl_dispatch` -- for all 7 modes.
+6. Builds per-mode dispatch tables: `dispatch`, `prefixes`, `char_actions`, `ctrl_dispatch` -- for all 7 modes.
 7. Connects `key-press-event` signal on `$textview` (if defined).
 8. Connects `key-press-event` signal on `$cmd_entry` (if defined).
 9. Sets initial mode to `'normal'` via `$ctx->{set_mode}->('normal')`.
@@ -394,7 +394,6 @@ The context hash is the central state object passed to every action coderef. It 
 | `after_move` | `coderef` | Stable | Closure to scroll the GTK view after cursor movement. Calls `scroll_to_mark` on the buffer's insert mark to keep the cursor visible. No-op if `gtk_view` is `undef`. |
 | `resolved_keymap` | `hashref` | Stable | The fully resolved keymap (defaults merged with user overrides). Keys are mode names, values are keymap hashrefs. Used by `:bindings` help dialog. |
 | `ex_cmds` | `hashref` | Stable | The fully resolved ex-command map (defaults merged with user overrides). Keys are ex-command names (w, q, wq, e, r, s, bindings), values are action names. |
-| `${mode}_immediate` | `hashref` | Stable | Per-mode immediate dispatch table. Keys are GDK key names, values are action name strings. These keys bypass the accumulation buffer but are still routed through `_execute_action` for event bus integration and undo grouping. Built by `_build_mode_tables()` for keys listed in `_immediate`. |
 | `${mode}_dispatch` | `hashref` | Stable | Per-mode dispatch table. Keys are GDK key names (including multi-key sequences like `dd`, `gg`), values are action coderefs. Used by `_dispatch()`. |
 | `${mode}_prefixes` | `hashref` | Stable | Per-mode prefix set. Keys are all valid prefixes of multi-key sequences (derived from `_prefixes` list). Used by `_dispatch()` to determine if accumulated keys could still form a valid command. |
 | `${mode}_char_actions` | `hashref` | Stable | Per-mode char-action map. Keys are GDK key names that need a following character (e.g., `r`, `f`, `m`), values are action names. Special key `_any` matches any single printable character (used in replace mode). |
@@ -445,9 +444,6 @@ The context hash is the central state object passed to every action coderef. It 
 
   handle_normal_mode($ctx, $k)
          |
-         +-- $k in ${normal_immediate}?
-         |   +-- YES -> clear cmd_buf, execute immediately, return TRUE
-         |
          +-- _dispatch($ctx, normal_dispatch, normal_prefixes,
                        normal_char_actions, $k)
              |
@@ -494,9 +490,6 @@ The context hash is the central state object passed to every action coderef. It 
 
   handle_replace_mode($ctx, $k)
          |
-         +-- $k in ${replace_immediate}? (Escape, BackSpace)
-         |   +-- YES -> clear cmd_buf, execute immediately
-         |
          +-- _dispatch($ctx, replace_dispatch, replace_prefixes,
                        replace_char_actions, $k)
              |
@@ -506,9 +499,6 @@ The context hash is the central state object passed to every action coderef. It 
   --- Command entry handler -------------------------------------
 
   handle_command_entry($ctx, $k)
-         |
-         +-- $k in ${command_immediate}? (Escape)
-         |   +-- YES -> clear cmd_buf, execute exit_to_normal
          |
          +-- $k eq 'Return'?
          |   +-- Starts with '/'? -> forward search
@@ -537,7 +527,6 @@ gg          => 'file_start',      # multi-key sequence
 
 | Metadata Key | Type | Description |
 |-------------|------|-------------|
-| `_immediate` | `arrayref` of GDK key names | Keys that bypass the accumulation buffer and execute immediately without waiting for a multi-key sequence to complete. Used for keys that must be responsive (e.g., arrow keys, Page_Up/Down in normal mode). These keys are stored as action name strings in `${mode}_immediate` and routed through `_execute_action` for consistent event bus integration, undo grouping, and error handling. Example: `[qw(Page_Up Page_Down Home End F11)]` in normal mode, `['Escape', 'BackSpace']` in replace mode. Insert mode does not use `_immediate` — all keys go through `insert_dispatch`. |
 | `_prefixes` | `arrayref` of GDK key names | Complete multi-key sequences that serve as prefixes for two-key commands. The dispatcher derives all valid partial prefixes from this list (e.g., `'greater'` from `'greatergreater'`). When the accumulated buffer matches any prefix, the dispatcher keeps accumulating. Example: `[qw(g d y c greater less)]` in normal mode. |
 | `_char_actions` | `hashref` of key -> action name | Keys that need a following character to complete the action. When the accumulated buffer matches a char_action key, the dispatcher stores it in `_char_action_prefix` and waits for the next key. The next single-character key is passed as an `@extra` argument to the action. Special key `_any` matches any single printable character (used in replace mode). Example: `{ r => 'replace_char', m => 'set_mark', f => 'find_char_forward', _any => 'do_replace_char' }`. |
 | `_ctrl` | `hashref` of single char -> action name | Ctrl-key combinations for the mode. Keys are lowercase single characters; the dispatcher prepends `'Control-'` to form the lookup key. Example: `{ u => 'scroll_half_up', d => 'scroll_half_down', f => 'page_down', b => 'page_up', y => 'scroll_line_up', e => 'scroll_line_down', r => 'redo' }`. |
@@ -624,10 +613,10 @@ The `_resolve_keymap($user_km, $user_ex)` function merges user-provided keymaps 
 
 1. Start with the default keymap for that mode.
 2. Copy all non-underscore-prefixed key->action mappings from the default.
-3. Copy the default `_immediate`, `_prefixes`, `_char_actions`, and `_ctrl` values.
+3. Copy the default `_prefixes`, `_char_actions`, and `_ctrl` values.
 4. If the user provided a keymap for this mode:
    - For each key in the user's mode keymap:
-     - If the key is `_immediate`, `_prefixes`, `_char_actions`, or `_ctrl`: **replace** the entire default value with the user's value.
+     - If the key is `_prefixes`, `_char_actions`, or `_ctrl`: **replace** the entire default value with the user's value.
      - If the user's value is `undef`: **delete** the key from the merged keymap (removes the binding).
      - Otherwise: **add or override** the key in the merged keymap.
 5. For ex-commands: start with default ex-command map, then for each user ex-command:
@@ -637,7 +626,6 @@ The `_resolve_keymap($user_km, $user_ex)` function merges user-provided keymaps 
 This means users can:
 - **Remove** a binding: `{ normal => { j => undef } }`
 - **Add** a binding: `{ normal => { ZZ => 'cmd_force_quit' } }`
-- **Replace** all immediate keys: `{ normal => { _immediate => ['Escape'] } }`
 - **Replace** all char actions: `{ normal => { _char_actions => { r => 'custom_replace' } } }`
 
 ### 5.9 Visual Mode Keymap Merging
@@ -647,7 +635,7 @@ The visual mode keymap is assembled in `VimBindings.pm` during module initializa
 1. `Visual::register(\%ACTIONS)` returns the **visual base keymap** -- contains visual-specific actions (yank, delete, change, swap ends, case toggle, etc.) plus prefixes (`g`, `greater`, `less`).
 2. `Visual::navigation_keys()` returns the **navigation keymap** -- contains movement keys shared with normal mode (h, j, k, l, w, b, e, 0, $, ^, G, gg, Up, Down, Page_Up, Page_Down).
 3. These are merged: `%visual_km = (%visual_base, %visual_nav)`.
-4. Metadata keys are preserved from the visual base: `_immediate`, `_prefixes`, `_char_actions`.
+4. Metadata keys are preserved from the visual base: `_prefixes`, `_char_actions`.
 5. **Ctrl-key inheritance**: `$visual_km{_ctrl} = $normal_km{_ctrl}` -- visual modes inherit all Ctrl-key bindings from normal mode.
 6. **Visual line and block modes** are created as shallow copies: `%visual_line_km = %visual_km` and `%visual_block_km = %visual_km`.
 
