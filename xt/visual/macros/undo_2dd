@@ -1,95 +1,43 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+line one
+line two
+line three
 END_CODE
 
 {
-    desc => q{Undo 2dd restores both},
+    desc => q{u undoes a 2dd (counted line delete)},
     description => <<'END_DESC',
-Action: 2dd deletes 2 lines, u restores both
+## Macro: `xt/visual/macros/undo_2dd`
 
-_1.png (initial state):
-- 3 lines, cursor at line 1
+Tests that **u** restores two lines deleted by **2dd** as a single undo unit.
 
-Sub-commands: keys('2ddu')
+**Keys:** `2dd`, `u`
 
-_2.png (after action):
-- Both lines restored
-- Original 3 lines intact
+**initial.png**
+- Buffer has 3 lines: "line one", "line two", "line three"
+- Cursor on line 1
+
+**after_2dd.png**
+- Buffer has 1 line: "line three"
+- First two lines deleted by 2dd
+- Intermediate snapshot showing the changed state
+
+**after_undo.png**
+- Buffer restored to 3 lines (identical to initial)
+- Both deleted lines restored in one undo step
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('2ddu');
+        $ctx->keys('2dd');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_2dd');
+        $ctx->delay(100);
+        $ctx->keys('u');
+        $ctx->delay(100);
+        $ctx->snapshot('after_undo');
     },
 }

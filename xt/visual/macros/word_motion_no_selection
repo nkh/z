@@ -1,96 +1,34 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+one two three four five
+six seven eight nine ten
 END_CODE
 
 {
-    desc => q{Word motion leaves no selection},
+    desc => 'w/b/e word motions leave no visual selection in normal mode',
     description => <<'END_DESC',
-Action: w/b/e sequence should not leave a visual selection
+Macro: `xt/visual/macros/word_motion_no_selection`
 
-_1.png (initial state):
-- Cursor at line 1, col 0
-- No selection
+Tests that word motion commands (`w`, `b`, `e`) in normal mode move the
+cursor without entering visual mode or leaving a selection.
 
-Sub-commands: keys('wbbe')
+Keys: `w` then `b` then `b` then `e`
 
-_2.png (after action):
-- Cursor moved but NO selection visible
-- Mode label still shows "-- NORMAL --"
+- **word_motion_no_selection_initial.png**: Cursor at line 1 col 0 on "one"; mode shows "-- NORMAL --", no selection.
+- **word_motion_no_selection_after_w.png**: After `w`, cursor moved to "two"; still normal mode, no selection.
+- **word_motion_no_selection_after_bbe.png**: After `b` `b` `e`, cursor on end of "one"; still normal mode, no selection.
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('wbbe');
+        $ctx->keys('w');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_w');
+        $ctx->delay(100);
+        $ctx->keys('bbe');
+        $ctx->delay(100);
+        $ctx->snapshot('after_bbe');
     },
 }

@@ -1,17 +1,20 @@
 {
-    desc => q{:bp switches to previous buffer},
+    desc => ':bp switches to previous buffer in the buffer list',
     description => <<'END_DESC',
-Action: :bp cycles to the previous buffer in the registry
+Macro: `xt/visual/macros/multi_buffer_bp`
 
-_1.png (initial state):
-- Editor on buffer 1 after opening two temp files
+Tests that `:bp` (buffer previous) cycles backward through the buffer
+registry, wrapping from the first buffer back to the last.
 
-Sub-commands: keys(':bp'), key('Enter')
+Setup: Open two temporary files via `:e`, navigate to buffer 1, then run
+`:bp`.
 
-_2.png (after action):
-- Buffer content switches to the second file
-- Mode label briefly shows the filename of the switched-to buffer
-- Tests :bp (buffer previous) command
+Ex: `:bp`
+
+- **multi_buffer_bp_on_buffer_one.png**: Editor showing the content of
+  buffer 1 ("First file") with cursor in NORMAL mode.
+- **multi_buffer_bp_after_switch.png**: After `:bp`, the editor displays
+  buffer 2 ("Second file"), having wrapped from the start of the buffer list.
 END_DESC
     run => sub {
         my ($ctx) = @_;
@@ -19,11 +22,11 @@ END_DESC
         # Create two temporary files
         require File::Temp;
         my ($fh1, $f1) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
-        print $fh1 "Buffer One - First File\nLine 2 of file 1\nLine 3\n";
+        print $fh1 "First file - buffer 1\nLine 2 of buffer 1\nLine 3 of buffer 1\n";
         close $fh1;
 
         my ($fh2, $f2) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
-        print $fh2 "Buffer Two - Second File\nLine 2 of file 2\n";
+        print $fh2 "Second file - buffer 2\nLine 2 of buffer 2\n";
         close $fh2;
 
         # Open both files
@@ -37,11 +40,11 @@ END_DESC
         $ctx->delay(200);
 
         # We're now on buffer 1 - snapshot shows buffer 1 content
-        $ctx->snapshot('1');
+        $ctx->snapshot('on_buffer_one');
 
         # Switch to previous buffer (wraps to buffer 2)
         $ctx->ex('bp');
         $ctx->delay(200);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_switch');
     },
 }

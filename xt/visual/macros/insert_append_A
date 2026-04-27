@@ -1,97 +1,35 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+Hello world
 END_CODE
 
 {
-    desc => q{Append at end of line A},
+    desc => q{A appends text at end of line},
     description => <<'END_DESC',
-Action: A moves to end of line and enters insert mode
+## Macro: `xt/visual/macros/insert_append_A`
 
-_1.png (initial state):
-- Normal mode, cursor at line 1, col 0
+Tests that the **A** command moves the cursor to the end of the current line
+and enters insert mode, so typed text is appended to the end of the line.
 
-Sub-commands: key('A'), type('XX'), key('Escape')
+**Keys:** `A`, type `!`, `Escape`
 
-_2.png (after action):
-- Line 1 ends with "line oneXX"
-- Cursor before the XX
+**initial.png**
+- Buffer contains "Hello world"
+- Cursor at column 0 on 'H'
+
+**after_append_to_eol.png**
+- Line reads "Hello world!" (exclamation appended at end)
+- Cursor on '!' (moved back one after Escape)
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->key('A');
-        $ctx->type('XX');
+        $ctx->type('!');
         $ctx->key('Escape');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_append_to_eol');
     },
 }

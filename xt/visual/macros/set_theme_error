@@ -1,31 +1,38 @@
 my $CODE = <<'END_CODE';
-line one
-line two
-line three
+# Theme switch test
+Hello, World!
+my $x = 42;
+print "dark mode\n";
 END_CODE
 
 {
-    desc => q{:set theme= unknown error},
+    desc => ':set theme=nonexistent shows an error for unknown theme names',
     description => <<'END_DESC',
-Action: :set theme= with unknown theme shows error
+Macro: `xt/visual/macros/set_theme_error`
 
-_1.png (initial state):
-- Normal mode
+Tests that `:set theme=` with a nonexistent theme name displays an error
+message and does not change the current theme.
 
-Action: ex command ":set theme=nonexistent"
+Starts from the dark theme to ensure the error is visible against a known
+background.
 
-_2.png (after action):
-- Error message for unknown theme
+Ex: `:set theme=nonexistent`
+
+- **set_theme_error_dark_before.png**: Dark theme active, normal editing
+  state before the invalid command.
+- **set_theme_error_message.png**: Error message displayed in the status
+  area indicating the theme name was not recognized; the dark theme
+  remains unchanged.
 END_DESC
     run => sub {
         my ($ctx) = @_;
         $ctx->editor->set_theme('dark');
         $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('dark_before');
         $ctx->delay(100);
         $ctx->ex('set theme=nonexistent');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('message');
     },
 }

@@ -1,95 +1,32 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+line one
+line two
+line three
+line four
+line five
 END_CODE
 
 {
-    desc => q{:set cursorline toggle},
+    desc => ':set cursorline highlights the current line',
     description => <<'END_DESC',
-Action: :set cursorline highlights current line
+Macro: `xt/visual/macros/set_cursorline`
 
-_1.png (initial state):
-- No cursor line highlight
+Tests that `:set cursorline` adds a background highlight to the current
+cursor line, making it visually distinct.
 
-Action: ex command ":set cursorline"
+Ex: `:set cursorline`
 
-_2.png (after action):
-- Current line (line 1) highlighted with background color
-- Cursor line visibly distinct from other lines
+- **set_cursorline_initial.png**: No cursor line highlight; all lines have the same background.
+- **set_cursorline_after_set.png**: Line 1 highlighted with cursorline background color; cursor sits on the highlighted line.
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->ex('set cursorline');
-        $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->delay(200);
+        $ctx->snapshot('after_set');
     },
 }

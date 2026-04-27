@@ -1,95 +1,32 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+Hello World
 END_CODE
 
 {
-    desc => q{Delete before cursor X},
+    desc => q{X deletes character before cursor},
     description => <<'END_DESC',
-Action: X deletes character before cursor
+Action: `X` deletes the character before (to the left of) the cursor
 
-_1.png (initial state):
-- Cursor at line 1, col 5 (after "hello")
+Macro: `xt/visual/macros/delete_before_X`
 
-Sub-commands: keys('5lX')
+**initial.png** (before):
+- Line 1: `Hello World`
+- Cursor at line 1, col 0
 
-_2.png (after action):
-- Character before cursor deleted: "hell world this is a test"
-- Cursor at line 1, col 4
+Keys: `5lX`
+
+**after_X.png** (after):
+- Line 1: `Hell World` (`o` at col 4 deleted)
+- Cursor at line 1, col 4 (on the space)
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->keys('5lX');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_X');
     },
 }

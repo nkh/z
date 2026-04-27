@@ -1,0 +1,37 @@
+my $CODE = <<'END_CODE';
+first line
+second line
+END_CODE
+
+{
+    desc => 'yy then p yanks a line and pastes it below',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/yank_paste_line`
+
+Tests `yy` to yank the current line, then `p` to paste it below.
+
+**initial.png** — Two lines of text. Cursor at line 1 col 0.
+
+Keys: `yy` then `p`
+
+**after_yank_line.png** — Intermediate state: line 1 yanked into register.
+Cursor still at line 1.
+
+**after_paste_line.png** — Line 1 (`first line`) is duplicated below itself.
+Buffer now has 3 lines: `first line`, `first line`, `second line`.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('yy');
+        $ctx->delay(100);
+        $ctx->snapshot('after_yank_line');
+        $ctx->delay(100);
+        $ctx->keys('p');
+        $ctx->delay(100);
+        $ctx->snapshot('after_paste_line');
+    },
+}

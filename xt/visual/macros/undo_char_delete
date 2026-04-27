@@ -1,95 +1,42 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+hello
 END_CODE
 
 {
-    desc => q{Undo restores deleted char},
+    desc => q{u undoes a character delete (x)},
     description => <<'END_DESC',
-Action: x deletes char, u restores it
+## Macro: `xt/visual/macros/undo_char_delete`
 
-_1.png (initial state):
-- Cursor at line 1, col 0
+Tests that **u** undoes a single character deletion performed by **x**.
+This is a round-trip test: start and end states look the same.
 
-Sub-commands: keys('xxu')
+**Keys:** `x`, `u`
 
-_2.png (after action):
-- Line 1 starts with "ine one" (1 char deleted, 1 restored)
-- Cursor at line 1, col 0
+**initial.png**
+- Buffer contains "hello"
+- Cursor at column 0 on 'h'
+
+**after_delete.png**
+- Buffer contains "ello" (first char deleted)
+- Cursor at column 0 on 'e'
+- Intermediate snapshot showing the changed state
+
+**after_undo.png**
+- Buffer restored to "hello" (identical to initial)
+- Cursor back at column 0
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('xxu');
+        $ctx->keys('x');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_delete');
+        $ctx->delay(100);
+        $ctx->keys('u');
+        $ctx->delay(100);
+        $ctx->snapshot('after_undo');
     },
 }

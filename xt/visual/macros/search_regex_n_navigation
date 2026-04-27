@@ -1,101 +1,46 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+move max moon
 END_CODE
 
 {
-    desc => 'Regex n navigates to all match types',
+    desc => q{n navigates through regex matches in order},
     description => <<'END_DESC',
-Action: /m. then n navigates to mo, ma, mo matches in order
+## Macro: `xt/visual/macros/search_regex_n_navigation`
 
-_1.png (initial state):
+**/m.** matches any two-character sequence starting with 'm'. Pressing **n** navigates through each match in order.
+
+**Keys:** `/m.\n` then `n` then `n`
+
+**initial.png**
 - Cursor at line 1, col 0
+- Line: `move max moon`
 
-Sub-commands: keys('/m.\n'), keys('n'), keys('n')
+**after_regex_search.png**
+- Cursor on first match "mo" at col 0
+- All matches highlighted: "mo", "ma", "mo"
 
-_2.png (after action):
-- First /m. highlights all matches: "mo" in move, "ma" in max, "mo" in moon
-- First n goes to next match after "move": "ma" in "max"
-- Second n goes to next match after "max": "mo" in "moon"
-- Cursor at "moon" on line 1
+**after_first_n.png**
+- Cursor on second match "ma" at col 5
+
+**after_second_n.png**
+- Cursor on third match "mo" at col 9
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->keys('/m.\n');
         $ctx->delay(300);
+        $ctx->snapshot('after_regex_search');
+        $ctx->delay(100);
         $ctx->keys('n');
         $ctx->delay(200);
+        $ctx->snapshot('after_first_n');
+        $ctx->delay(100);
         $ctx->keys('n');
         $ctx->delay(200);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_second_n');
     },
 }

@@ -1,97 +1,48 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+line one
+line two
+line three
+line four
 END_CODE
 
 {
-    desc => q{Undo restores cursor position},
+    desc => q{u restores cursor position after dd},
     description => <<'END_DESC',
-Action: dd deletes line, u restores line and cursor position
+## Macro: `xt/visual/macros/undo_cursor_position`
 
-_1.png (initial state):
-- Cursor at line 2
+Tests that **u** not only restores the deleted line content but also
+restores the cursor to its original position (line and column).
 
-Sub-commands: keys('j'), keys('ddu')
+**Keys:** `j`, `l`, `dd`, `u`
 
-_2.png (after action):
-- Original line 2 restored
-- Cursor returns to original position (line 2)
+**initial.png**
+- Buffer has 4 lines: "line one", "line two", "line three", "line four"
+- Cursor on line 2, column 1 (on 'i' of "line two")
+
+**after_dd.png**
+- Buffer has 3 lines: "line one", "line three", "line four"
+- "line two" was deleted
+- Cursor moved to line 2 (now "line three")
+- Intermediate snapshot showing the deletion
+
+**after_undo_cursor_restored.png**
+- Buffer restored to 4 lines (identical to initial)
+- Cursor back on line 2, column 1 (original position restored)
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->keys('j');
+        $ctx->keys('jl');
         $ctx->delay(50);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('ddu');
+        $ctx->keys('dd');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_dd');
+        $ctx->delay(100);
+        $ctx->keys('u');
+        $ctx->delay(100);
+        $ctx->snapshot('after_undo_cursor_restored');
     },
 }

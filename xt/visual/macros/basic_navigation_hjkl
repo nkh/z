@@ -1,97 +1,41 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+Hello world
+foo bar baz
+one two three
+alpha beta
+gamma delta
 END_CODE
 
 {
-    desc => q{Basic navigation h/j/k/l},
+    desc => q{Basic h/j/k/l cursor movement},
     description => <<'END_DESC',
-Action: h/j/k/l cursor movement
+Macro: `xt/visual/macros/basic_navigation_hjkl`
 
-_1.png (initial state):
-- Default theme with standard test file
-- Cursor at line 1, col 0
+Tests the four basic cursor movement keys: `h` (left), `j` (down), `k` (up), `l` (right).
 
-Sub-commands: keys('jj')
+Keys: `l` → `l` → `j` → `j` → `h` → `k`
 
-_2.png (after action):
-- Cursor at line 3, col 0 (block cursor on 'l' of 'line three')
-- No text content change
-- Position label shows line 3
+- **basic_navigation_hjkl_initial.png**: Cursor at line 1, col 0 on `H` of "Hello"
+- **basic_navigation_hjkl_after_ll.png**: Cursor at line 1, col 2 on first `l` of "Hello" (moved right twice)
+- **basic_navigation_hjkl_after_jj.png**: Cursor at line 3, col 2 on `e` of "one" (moved down twice)
+- **basic_navigation_hjkl_after_hk.png**: Cursor at line 2, col 2 on first `o` of "foo" (left then up)
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('ll');
+        $ctx->delay(100);
+        $ctx->snapshot('after_ll');
         $ctx->delay(100);
         $ctx->keys('jj');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_jj');
+        $ctx->delay(100);
+        $ctx->keys('hk');
+        $ctx->delay(100);
+        $ctx->snapshot('after_hk');
     },
 }

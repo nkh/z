@@ -1,32 +1,37 @@
 my $CODE = <<'END_CODE';
-line one
-line two
-line three
+# Theme switch test
+Hello, World!
+my $x = 42;
+print "light mode\n";
 END_CODE
 
 {
-    desc => q{:set theme=light},
+    desc => ':set theme=light switches from dark to light theme',
     description => <<'END_DESC',
-Action: :set theme=light switches to light theme
+Macro: `xt/visual/macros/set_theme_light`
 
-_1.png (initial state):
-- Dark theme
+Tests that `:set theme=light` applies the light color scheme at runtime,
+changing the editor background to a light tone and adjusting all foreground
+and syntax colors for readability on a bright background.
 
-Action: ex command ":set theme=light"
+Starts from the dark theme so the transition to light is clearly visible.
 
-_2.png (after action):
-- Light theme applied (white/light background)
-- Text colors appropriate for light background
+Ex: `:set theme=light`
+
+- **set_theme_light_dark_initial.png**: Dark theme active with dark
+  background and light text before the switch.
+- **set_theme_light_applied.png**: Light theme active with light/warm
+  background and dark text; syntax colors updated for the light palette.
 END_DESC
     run => sub {
         my ($ctx) = @_;
         $ctx->editor->set_theme('dark');
         $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('dark_initial');
         $ctx->delay(100);
         $ctx->ex('set theme=light');
         $ctx->delay(200);
-        $ctx->snapshot('2');
+        $ctx->snapshot('applied');
     },
 }

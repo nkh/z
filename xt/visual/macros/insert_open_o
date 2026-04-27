@@ -1,100 +1,36 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+line one
+line two
 END_CODE
 
 {
-    desc => q{Open line below o},
+    desc => q{o opens a new line below and enters insert mode},
     description => <<'END_DESC',
-Action: o opens new line below and enters insert mode
+## Macro: `xt/visual/macros/insert_open_o`
 
-_1.png (initial state):
-- Normal mode, cursor at line 2
+Tests that the **o** command opens a new blank line below the current line
+and enters insert mode with the cursor on the new line.
 
-Sub-commands: keys('j'), key('o'), type('new line'), key('Escape')
+**Keys:** `o`, type `inserted line`, `Escape`
 
-_2.png (after action):
-- New line "new line" inserted between line 2 and line 3
-- Buffer now has 4 lines
-- Cursor on the new line
+**initial.png**
+- Buffer has 2 lines: "line one" and "line two"
+- Cursor on line 1 at column 0
+
+**after_open_below.png**
+- Buffer has 3 lines: "line one", "inserted line", "line two"
+- Cursor on line 2 (the new line)
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->keys('j');
-        $ctx->delay(50);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->key('o');
-        $ctx->type('new line');
+        $ctx->type('inserted line');
         $ctx->key('Escape');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_open_below');
     },
 }

@@ -1,95 +1,67 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+line one
+line two
+line three
+line four
+line five
 END_CODE
 
 {
-    desc => q{Multiple marks coexist},
+    desc => q{Multiple marks (a, b) coexist and can be jumped between},
     description => <<'END_DESC',
-Action: Set marks a and b, jump between them
+## Macro: `xt/visual/macros/mark_multiple`
 
-_1.png (initial state):
+Multiple marks can be set and jumped between independently. **ma** and **mb** store separate positions; `` `a `` and `` `b `` jump to their respective locations.
+
+**Keys:** `ma` then `jj` then `mb` then `j` then `` `a `` then `` `b ``
+
+**initial.png**
 - Cursor at line 1, col 0
 
-Sub-commands: keys('majjmbk`a`b`a')
+**after_mark_a.png**
+- Mark 'a' set at line 1, col 0
+- Cursor still at line 1
 
-_2.png (after action):
-- Cursor at line 1 after jumping between marks
-- Both marks a and b stored and functional
+**after_mark_b.png**
+- Moved down 2 lines to line 3, col 0
+- Mark 'b' set at line 3, col 0
+
+**after_move_down.png**
+- Cursor at line 4, col 0
+
+**after_jump_a.png**
+- Cursor back at line 1, col 0 (mark 'a' location)
+
+**after_jump_b.png**
+- Cursor at line 3, col 0 (mark 'b' location)
+- Both marks preserved independently
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('majjmbk`a`b`a');
+        $ctx->keys('ma');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_mark_a');
+        $ctx->delay(100);
+        $ctx->keys('jj');
+        $ctx->delay(100);
+        $ctx->keys('mb');
+        $ctx->delay(100);
+        $ctx->snapshot('after_mark_b');
+        $ctx->delay(100);
+        $ctx->keys('j');
+        $ctx->delay(100);
+        $ctx->snapshot('after_move_down');
+        $ctx->delay(100);
+        $ctx->keys('`a');
+        $ctx->delay(100);
+        $ctx->snapshot('after_jump_a');
+        $ctx->delay(100);
+        $ctx->keys('`b');
+        $ctx->delay(100);
+        $ctx->snapshot('after_jump_b');
     },
 }

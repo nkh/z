@@ -1,17 +1,20 @@
 {
-    desc => q{:bn switches to next buffer},
+    desc => ':bn switches to next buffer in the buffer list',
     description => <<'END_DESC',
-Action: :bn cycles to the next buffer in the registry
+Macro: `xt/visual/macros/multi_buffer_bn`
 
-_1.png (initial state):
-- Editor after opening two temp files and being on buffer 2
+Tests that `:bn` (buffer next) cycles forward through the buffer registry,
+wrapping from the last buffer back to the first.
 
-Sub-commands: keys(':bn'), key('Enter')
+Setup: Open two temporary files via `:e`, so the buffer list contains two
+entries. Navigate to buffer 2, then run `:bn`.
 
-_2.png (after action):
-- Buffer content switches to the first file
-- Mode label briefly shows the filename of the switched-to buffer
-- Tests :bn (buffer next) command
+Ex: `:bn`
+
+- **multi_buffer_bn_on_buffer_two.png**: Editor showing the content of
+  buffer 2 ("Second file") with cursor in NORMAL mode.
+- **multi_buffer_bn_after_switch.png**: After `:bn`, the editor displays
+  buffer 1 ("First file"), having wrapped from the end of the buffer list.
 END_DESC
     run => sub {
         my ($ctx) = @_;
@@ -19,11 +22,11 @@ END_DESC
         # Create two temporary files
         require File::Temp;
         my ($fh1, $f1) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
-        print $fh1 "Buffer One - First File\nLine 2 of file 1\nLine 3\n";
+        print $fh1 "First file - buffer 1\nLine 2 of buffer 1\nLine 3 of buffer 1\n";
         close $fh1;
 
         my ($fh2, $f2) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
-        print $fh2 "Buffer Two - Second File\nLine 2 of file 2\n";
+        print $fh2 "Second file - buffer 2\nLine 2 of buffer 2\n";
         close $fh2;
 
         # Open both files
@@ -33,11 +36,11 @@ END_DESC
         $ctx->delay(200);
 
         # We're now on buffer 2 - snapshot shows buffer 2 content
-        $ctx->snapshot('1');
+        $ctx->snapshot('on_buffer_two');
 
         # Switch to next buffer (wraps to buffer 1)
         $ctx->ex('bn');
         $ctx->delay(200);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_switch');
     },
 }

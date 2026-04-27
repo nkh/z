@@ -1,102 +1,56 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+line one
+line two
+line three
+line four
+line five
 END_CODE
 
 {
-    desc => 'Overwrite existing mark then jump to it',
+    desc => q{Setting a mark overwrites the previous value at that mark},
     description => <<'END_DESC',
-Action: Set mark a, move, overwrite mark a, jump back
+## Macro: `xt/visual/macros/mark_overwrite`
 
-_1.png (initial state):
+Setting the same mark twice replaces the old position with the new one. **ma** on line 1, then **ma** on line 4 — jumping back with `` `a `` goes to line 4.
+
+**Keys:** `ma` then `jjj` then `ma` then `` `a ``
+
+**initial.png**
 - Cursor at line 1, col 0
 
-Sub-commands: keys('ma'), keys('kk'), keys('jjj'), keys('ma'), keys('`a')
+**after_first_mark.png**
+- Mark 'a' set at line 1, col 0
 
-_2.png (after action):
-- Cursor at line 3, col 0 (jumped to overwritten mark a position)
+**after_move_down.png**
+- Cursor at line 4, col 0
+
+**after_overwrite_mark.png**
+- Mark 'a' overwritten at line 4, col 0
+
+**after_jump_overwritten.png**
+- Cursor at line 4, col 0 (the overwritten position, not line 1)
+- Old mark position (line 1) discarded
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->keys('ma');
-        $ctx->delay(50);
-        $ctx->keys('kk');
-        $ctx->delay(50);
+        $ctx->delay(100);
+        $ctx->snapshot('after_first_mark');
+        $ctx->delay(100);
         $ctx->keys('jjj');
-        $ctx->delay(50);
+        $ctx->delay(100);
+        $ctx->snapshot('after_move_down');
+        $ctx->delay(100);
         $ctx->keys('ma');
-        $ctx->delay(50);
+        $ctx->delay(100);
+        $ctx->snapshot('after_overwrite_mark');
+        $ctx->delay(100);
         $ctx->keys('`a');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_jump_overwritten');
     },
 }

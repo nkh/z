@@ -1,125 +1,59 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
+line one
 
-package Sample::Module;
-use strict;
-use warnings;
+line two
 
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+line three
 END_CODE
 
 {
-    desc => 'Regex n navigates across empty lines',
+    desc => q{/^$ regex matches empty lines correctly},
     description => <<'END_DESC',
-Action: /m. then n repeatedly — must skip empty lines correctly
+## Macro: `xt/visual/macros/search_regex_empty_lines`
 
-Regression test for GTK forward_to_line_end bug on empty lines.
-Bug: line_text() returned next-line content for empty lines,
-causing search_forward to find matches beyond the empty line's
-actual length. set_cursor clamped the out-of-bounds column to 0,
-creating an infinite loop where n kept "finding" the same match.
+**/^$** searches for empty lines using regex. This is a regression test for the GTK `forward_to_line_end` bug on empty lines where `line_text()` returned next-line content for empty lines, causing `search_forward` to find matches beyond an empty line's actual length and creating an infinite loop.
 
-_1.png (initial state):
-- Default theme, Normal mode, cursor at line 1
-- Multiple empty lines between content
+**Keys:** `/^$\n` then `n` repeated 4 times
 
-Sub-commands: keys('/m.\n'), keys('n'), keys('n'), keys('nnn')
+**initial.png**
+- Cursor at line 1, col 0
+- Three text lines with empty lines between them
 
-_2.png (search + first n):
-- Search highlights visible on all m. matches (mi, me, me, me, mo, mo, mo, ma, mo, me, ma, me)
-- Cursor on first match: "mi" in "Vim" (line 0, col 4)
-- First n moves to "me" in "Documentation" (line 0, col 19)
+**after_search_empty.png**
+- Cursor on first empty line (line 2, col 0)
+- Empty line highlighted
 
-Action: keystrokes "n" (second n)
+**after_first_n.png**
+- Cursor on second empty line (line 4, col 0)
+- Crossed over non-empty "line two" correctly
 
-_3.png (second n — crosses empty line):
-- n skips past "me" in Documentation, crosses the empty line (line 1),
-  lands on "me" in "Version" (line 2, col 14)
-- Search highlights still visible on all matches
+**after_second_n.png**
+- Cursor wrapped to first empty line (line 2, col 0)
+- Search wrapped around correctly, no infinite loop
 
-Action: keystrokes "nnn" (three more n presses)
-
-_4.png (after three more n):
-- Cursor advances through Normal(mo), Motions(mo), move(mo)
+**after_fourth_n.png**
+- Cursor back on second empty line (line 4, col 0)
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(200);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(200);
-        $ctx->keys('/m.\n');
+        $ctx->keys('/^$\n');
         $ctx->delay(500);
-        $ctx->keys('n');
-        $ctx->delay(300);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_search_empty');
         $ctx->delay(100);
         $ctx->keys('n');
         $ctx->delay(300);
-        $ctx->snapshot('3');
+        $ctx->snapshot('after_first_n');
         $ctx->delay(100);
-        $ctx->keys('nnn');
+        $ctx->keys('n');
         $ctx->delay(300);
-        $ctx->snapshot('4');
+        $ctx->snapshot('after_second_n');
+        $ctx->delay(100);
+        $ctx->keys('nn');
+        $ctx->delay(300);
+        $ctx->snapshot('after_fourth_n');
     },
 }

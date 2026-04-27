@@ -1,17 +1,20 @@
 {
-    desc => q{:ls lists open buffers in mode label},
+    desc => ':ls lists open buffers with index, name, and flags',
     description => <<'END_DESC',
-Action: :ls displays the buffer list in the mode label area
+Macro: `xt/visual/macros/multi_buffer_ls`
 
-_1.png (initial state):
-- Editor with default content, NORMAL mode
+Tests that `:ls` displays the buffer list in the mode label area, showing
+buffer indices, filenames, and markers (`%` for current, `+` for modified).
 
-Sub-commands: Create temp files, open them with :e, then run :ls
+Setup: Open two temporary files via `:e`, then run `:ls` to display the
+buffer list.
 
-_2.png (after action):
-- Mode label shows buffer list with indices, filenames, and markers
-- % marks current buffer, + marks modified
-- Tests multi-buffer :ls command output
+Ex: `:ls`
+
+- **multi_buffer_ls_editor_ready.png**: Editor with the second buffer
+  loaded, NORMAL mode, before running `:ls`.
+- **multi_buffer_ls_buffer_list.png**: Mode label area shows the buffer
+  list output with index numbers, filenames, and status flags.
 END_DESC
     run => sub {
         my ($ctx) = @_;
@@ -19,27 +22,25 @@ END_DESC
         # Create two temporary files
         require File::Temp;
         my ($fh1, $f1) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
-        print $fh1 "First buffer content\nLine 2 of buffer 1\nLine 3\n";
+        print $fh1 "First file - buffer 1\nLine 2 of buffer 1\nLine 3 of buffer 1\n";
         close $fh1;
 
         my ($fh2, $f2) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
-        print $fh2 "Second buffer content\nLine 2 of buffer 2\n";
+        print $fh2 "Second file - buffer 2\nLine 2 of buffer 2\n";
         close $fh2;
 
-        $ctx->delay(100);
-        $ctx->snapshot('1');
-
-        # Open first file via :e
+        # Open both files via :e
         $ctx->ex("e $f1");
         $ctx->delay(200);
-
-        # Open second file via :e
         $ctx->ex("e $f2");
         $ctx->delay(200);
+
+        # Snapshot before :ls
+        $ctx->snapshot('editor_ready');
 
         # Now list buffers
         $ctx->ex('ls');
         $ctx->delay(200);
-        $ctx->snapshot('2');
+        $ctx->snapshot('buffer_list');
     },
 }

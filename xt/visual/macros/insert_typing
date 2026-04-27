@@ -1,98 +1,35 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+world
 END_CODE
 
 {
-    desc => q{Insert mode typing text},
+    desc => q{i enters insert mode and typing inserts text before cursor},
     description => <<'END_DESC',
-Action: i enters insert mode, type text, Esc exits
+## Macro: `xt/visual/macros/insert_typing`
 
-_1.png (initial state):
-- Normal mode, cursor at line 1, col 0
+Tests basic insert mode: **i** enters insert mode before the cursor,
+typed text is inserted, and **Escape** returns to normal mode.
 
-Sub-commands: key('i'), type('Hello'), key('Escape')
+**Keys:** `i`, type `Hello `, `Escape`
 
-_2.png (after action):
-- Line 1 now starts with "Hello" (inserted before 'l')
-- Mode label shows "-- NORMAL --"
-- Cursor after the inserted text
+**initial.png**
+- Buffer contains "world"
+- Cursor at column 0 on 'w'
+
+**after_typing.png**
+- Line reads "Hello world" ("Hello " inserted before 'w')
+- Cursor on 'w' (moved back one after Escape)
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->key('i');
-        $ctx->type('Hello');
+        $ctx->type('Hello ');
         $ctx->key('Escape');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_typing');
     },
 }

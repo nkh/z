@@ -1,94 +1,32 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+hello world
 END_CODE
 
 {
-    desc => q{Till char backward T},
+    desc => q{T{char} moves cursor to column after target character (backward)},
     description => <<'END_DESC',
-Action: T moves cursor to character after target (backward)
+## Macro: `xt/visual/macros/till_char_T`
 
-_1.png (initial state):
-- Cursor at line 1, col 10
+**T{char}** moves the cursor backward to the column just after the target character. Unlike `F{char}`, the cursor stops one character past.
 
-Sub-commands: keys('10lTo')
+**Keys:** `$To`
 
-_2.png (after action):
-- Cursor one position after 'o' in "hello" (col 5, the space)
+**initial.png**
+- Cursor at line 1, col 10 (on 'd' of "world", end of line)
+
+**after_To.png**
+- Cursor at col 8 (the 'r' in "world", one after the 'o' at col 7)
+- `T` stopped one character after 'o', landing on 'r'
+- Text unchanged
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('10lTo');
+        $ctx->keys('$To');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_To');
     },
 }

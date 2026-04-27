@@ -1,95 +1,58 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+aaa
+bbb
+ccc
+ddd
 END_CODE
 
 {
-    desc => q{Multiple sequential undo},
+    desc => q{multiple sequential undo operations restore original buffer},
     description => <<'END_DESC',
-Action: x, x, dd, then u, u, u to undo all
+## Macro: `xt/visual/macros/undo_multiple`
 
-_1.png (initial state):
-- 4 lines of text, cursor at line 1
+Tests multiple sequential **u** commands to undo a series of different
+operations (character deletes and line delete). Three changes are made,
+then three undo steps restore the original state.
 
-Sub-commands: keys('xxdduuu')
+**Keys:** `x`, `x`, `j`, `dd`, `u`, `u`, `u`
 
-_2.png (after action):
-- Original buffer content fully restored
-- All changes undone
+**initial.png**
+- Buffer has 4 lines: "aaa", "bbb", "ccc", "ddd"
+- Cursor on line 1
+
+**after_changes.png**
+- Two chars deleted from line 1 ("a" -> ""), then line 2 ("bbb") deleted
+- Buffer: "", "ccc", "ddd"
+- Cursor on line 1 (now empty)
+- Intermediate snapshot after all changes
+
+**after_partial_undo.png**
+- After first two `u` commands: "a" restored on line 1, "bbb" line restored
+- Buffer: "a", "bbb", "ccc", "ddd"
+- Intermediate snapshot showing partial restoration
+
+**after_all_undo.png**
+- Buffer restored to original 4 lines (identical to initial)
+- All changes fully undone
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('xxdduuu');
+        $ctx->keys('xx');
+        $ctx->delay(50);
+        $ctx->keys('jdd');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_changes');
+        $ctx->delay(100);
+        $ctx->keys('uu');
+        $ctx->delay(100);
+        $ctx->snapshot('after_partial_undo');
+        $ctx->delay(100);
+        $ctx->keys('u');
+        $ctx->delay(100);
+        $ctx->snapshot('after_all_undo');
     },
 }

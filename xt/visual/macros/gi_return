@@ -1,102 +1,59 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+aaa
+bbb
+ccc
 END_CODE
 
 {
-    desc => q{gi return to last insert point},
+    desc => q{gi returns to last insert position},
     description => <<'END_DESC',
-Action: Insert text at position, move away, gi returns
+## Macro: `xt/visual/macros/gi_return`
 
-_1.png (initial state):
-- Cursor at line 1, col 0
+Tests that **gi** enters insert mode at the position where the last
+insert session ended. After inserting text on line 1 and moving to
+line 3, gi returns to the insert point on line 1.
 
-Sub-commands: key('i'), type('X'), key('Escape'), keys('jj'), keys('gi'), type('Y'), key('Escape')
+**Keys:** `i`, type `X`, `Escape`, `jj`, `gi`, type `Y`, `Escape`
 
-_2.png (after action):
-- X inserted at line 1, cursor moved to line 3
-- gi returned to insert mode at line 1 where X was typed
-- Y inserted after X
+**initial.png**
+- Buffer has 3 lines: "aaa", "bbb", "ccc"
+- Cursor on line 1 at column 0
+
+**after_first_insert.png**
+- Line 1 reads "Xaaa" (X inserted at column 0)
+- Cursor on 'a' at column 1
+- Intermediate snapshot after first insert session
+
+**after_move_down.png**
+- Cursor moved to line 3 (after `jj`)
+- Content unchanged from after_first_insert
+- Intermediate snapshot showing cursor moved away
+
+**after_gi_return.png**
+- Line 1 reads "XYaaa" (Y inserted at column 1, where last insert ended)
+- Cursor on 'a' at column 2
+- gi correctly returned to the last insert position
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->key('i');
         $ctx->type('X');
         $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('after_first_insert');
+        $ctx->delay(100);
         $ctx->keys('jj');
+        $ctx->delay(100);
+        $ctx->snapshot('after_move_down');
+        $ctx->delay(100);
         $ctx->keys('gi');
         $ctx->type('Y');
         $ctx->key('Escape');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_gi_return');
     },
 }

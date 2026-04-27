@@ -1,99 +1,34 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+do not modify me
 END_CODE
 
 {
-    desc => q{Read-only blocks insert},
+    desc => 'read-only mode blocks editing',
     description => <<'END_DESC',
-Action: Read-only mode prevents editing
+Macro: `xt/visual/macros/readonly_blocks_edit`
 
-_1.png (initial state):
-- Normal mode
+Tests that setting the buffer to read-only prevents any text modification.
 
-Sub-commands: key('i'), type('X'), key('Escape')
+**initial.png** — Normal mode. Buffer contains `do not modify me`.
+The text view has been set to non-editable.
 
-_2.png (after action):
-- Buffer unchanged (insert blocked by read-only)
-- Mode may briefly show INSERT but text not modified
+Keys: `i` then type `NOPE` then `<Escape>`
+
+**after_blocked_edit.png** — Buffer content is **unchanged**.
+The read-only flag prevented the insert. Still reads `do not modify me`.
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
         $ctx->editor->get_textview->set_editable(0);
         $ctx->delay(50);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->key('i');
-        $ctx->type('X');
+        $ctx->type('NOPE');
         $ctx->key('Escape');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_blocked_edit');
     },
 }

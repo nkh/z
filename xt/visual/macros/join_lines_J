@@ -1,96 +1,35 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+hello
+world
+foo
 END_CODE
 
 {
-    desc => q{Join lines J},
+    desc => q{J joins current line with the next line},
     description => <<'END_DESC',
-Action: J joins current line with next
+## Macro: `xt/visual/macros/join_lines_J`
 
-_1.png (initial state):
-- Cursor at line 1
+Tests that the **J** command joins the current line with the line below,
+adding a space between them and placing the cursor at the join point.
 
-Sub-commands: keys('J')
+**Keys:** `J`
 
-_2.png (after action):
-- Line 1 and line 2 joined: "hello world"
-- Line 3 becomes line 2
-- Buffer has one fewer line
+**initial.png**
+- Buffer has 3 lines: "hello", "world", "foo"
+- Cursor on line 1 at column 0
+
+**after_join.png**
+- Buffer has 2 lines: "hello world" and "foo"
+- Cursor on the space between "hello" and "world"
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->keys('J');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_join');
     },
 }

@@ -1,98 +1,43 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+hello
 END_CODE
 
 {
-    desc => q{Ctrl-w in insert mode},
+    desc => q{Ctrl-w deletes word backward in insert mode},
     description => <<'END_DESC',
-Action: Ctrl-w deletes word backward in insert mode
+## Macro: `xt/visual/macros/ctrl_w_insert`
 
-_1.png (initial state):
-- Cursor at line 1, col 0
+Tests that **Ctrl-w** in insert mode deletes the word before the cursor
+(including trailing whitespace), similar to how backspace works on words.
 
-Sub-commands: key('i'), type('hello '), key('Control-w'), key('Escape')
+**Keys:** `A`, type ` beautiful world`, `Control-w`, `Escape`
 
-_2.png (after action):
-- "world" typed then deleted by Ctrl-w
-- Line 1 unchanged (or only partial text remains)
+**initial.png**
+- Buffer contains "hello"
+- Cursor at column 0
+
+**after_typing.png**
+- Line reads "hello beautiful world" after typing
+- Intermediate snapshot showing text before deletion
+
+**after_ctrl_w.png**
+- Line reads "hello beautiful" (word "world" deleted by Ctrl-w)
+- Cursor at end of "beautiful "
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->key('i');
-        $ctx->type('hello ');
+        $ctx->key('A');
+        $ctx->type(' beautiful world');
+        $ctx->delay(100);
+        $ctx->snapshot('after_typing');
+        $ctx->delay(100);
         $ctx->key('Control-w');
         $ctx->key('Escape');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_ctrl_w');
     },
 }

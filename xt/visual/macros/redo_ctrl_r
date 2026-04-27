@@ -1,101 +1,54 @@
 my $CODE = <<'END_CODE';
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
-
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+one
+two
+three
 END_CODE
 
 {
-    desc => q{Redo with Ctrl-r restores undone changes},
+    desc => q{Ctrl-r redoes the last undone change},
     description => <<'END_DESC',
-Action: Ctrl-r redoes the last undone operation
+## Macro: `xt/visual/macros/redo_ctrl_r`
 
-_1.png (initial state):
-- Default theme with standard test file
-- Cursor at line 1, col 0
+Tests that **Ctrl-r** redoes the most recently undone change.
+The flow is: delete a line, undo it, then redo it.
 
-Sub-commands: keys('dd'), keys('u'), keys('Control-r')
+**Keys:** `dd`, `u`, `Control-r`
 
-_2.png (after action):
-- "line one" deleted, then restored by undo, then re-deleted by redo
-- Buffer has 3 lines: next line, "line three", "line four"
-- Cursor at line 1, col 0
+**initial.png**
+- Buffer has 3 lines: "one", "two", "three"
+- Cursor on line 1
+
+**after_dd.png**
+- Buffer has 2 lines: "two", "three"
+- "one" deleted
+- Intermediate snapshot after deletion
+
+**after_undo.png**
+- Buffer restored to 3 lines (identical to initial)
+- "one" restored by undo
+- Intermediate snapshot after undo
+
+**after_redo.png**
+- Buffer back to 2 lines: "two", "three"
+- "one" deleted again by redo
+- Same state as after_dd
 END_DESC
     run => sub {
-        my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->keys('dd');
         $ctx->delay(100);
+        $ctx->snapshot('after_dd');
+        $ctx->delay(100);
         $ctx->keys('u');
+        $ctx->delay(100);
+        $ctx->snapshot('after_undo');
         $ctx->delay(100);
         $ctx->keys('Control-r');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_redo');
     },
 }

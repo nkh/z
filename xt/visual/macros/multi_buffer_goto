@@ -1,16 +1,20 @@
 {
-    desc => q{:b<N> switches to buffer by number},
+    desc => ':b<N> jumps directly to a buffer by index number',
     description => <<'END_DESC',
-Action: :b2 switches directly to buffer 2
+Macro: `xt/visual/macros/multi_buffer_goto`
 
-_1.png (initial state):
-- Editor on buffer 1 after opening two temp files
+Tests that `:b<N>` (buffer goto) switches directly to the buffer at the
+given index number without cycling through intermediate buffers.
 
-Sub-commands: keys(':b2'), key('Enter')
+Setup: Open two temporary files via `:e`, navigate to buffer 1, then run
+`:b2`.
 
-_2.png (after action):
-- Buffer content switches to the second file
-- Tests :b<N> (buffer goto) command
+Ex: `:b2`
+
+- **multi_buffer_goto_on_buffer_one.png**: Editor showing the content of
+  buffer 1 ("First file") with cursor in NORMAL mode.
+- **multi_buffer_goto_on_buffer_two.png**: After `:b2`, the editor displays
+  buffer 2 ("Second file") directly, without cycling.
 END_DESC
     run => sub {
         my ($ctx) = @_;
@@ -18,11 +22,11 @@ END_DESC
         # Create two temporary files
         require File::Temp;
         my ($fh1, $f1) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
-        print $fh1 "Buffer One - First File\nLine 2 of file 1\nLine 3\n";
+        print $fh1 "First file - buffer 1\nLine 2 of buffer 1\nLine 3 of buffer 1\n";
         close $fh1;
 
         my ($fh2, $f2) = File::Temp::tempfile(SUFFIX => '.txt', UNLINK => 1, DIR => '/tmp');
-        print $fh2 "Buffer Two - Second File\nLine 2 of file 2\n";
+        print $fh2 "Second file - buffer 2\nLine 2 of buffer 2\n";
         close $fh2;
 
         # Open both files
@@ -36,11 +40,11 @@ END_DESC
         $ctx->delay(200);
 
         # We're on buffer 1 - snapshot shows buffer 1 content
-        $ctx->snapshot('1');
+        $ctx->snapshot('on_buffer_one');
 
         # Jump directly to buffer 2
         $ctx->ex('b2');
         $ctx->delay(200);
-        $ctx->snapshot('2');
+        $ctx->snapshot('on_buffer_two');
     },
 }
