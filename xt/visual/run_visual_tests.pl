@@ -11,7 +11,7 @@
 #
 # The runner:
 #   1. Loads macros from directories and/or individual files given on the
-#      command line
+#      command line (recursively scanning subdirectories)
 #   2. Launches source-editor with --macro for each test
 #   3. The macro creates PNG files in the output directory
 #   4. Compares output against golden images
@@ -33,7 +33,7 @@
 #           xt/visual/macros
 #
 #   Run a specific macro file:
-#       perl xt/visual/run_visual_tests.pl --init xt/visual/macros/visual_dark_theme
+#       perl xt/visual/run_visual_tests.pl --init xt/visual/macros/themes/visual_dark_theme
 #
 #   Multiple directories:
 #       perl xt/visual/run_visual_tests.pl --init dir1 dir2 dir3
@@ -43,14 +43,28 @@
 #
 #   The script exits 0 if all pass, 1 on any failure.
 #
-# GOLDEN IMAGES & DESCRIPTION FILES
-# ==================================
-#   golden/<name>.png           - single-step golden image
-#   golden/<name>_1.png         - action test "before" golden image
-#   golden/<name>_2.png         - action test "after" golden image
-#   golden/<name>.txt           - human-readable description of what the
-#                                 test checks and what to verify visually.
-#                                 These are created/updated during --init.
+# DIRECTORY STRUCTURE
+# ===================
+#   Macros are organized in category subdirectories under the macros root.
+#   The golden, output, and diffs directories mirror this structure.
+#
+#   xt/visual/macros/
+#     editing/delete_eol_D
+#     basic_navigation/hjkl
+#     themes/visual_dark_theme
+#     ...
+#
+#   xt/visual/golden/
+#     editing/delete_eol_D.png
+#     editing/delete_eol_D_initial.png
+#     basic_navigation/hjkl.png
+#     themes/visual_dark_theme.png
+#     ...
+#
+#   xt/visual/golden/
+#     editing/delete_eol_D.md
+#     basic_navigation/hjkl.md
+#     ...
 #
 # OPTIONS
 # =======
@@ -69,8 +83,9 @@
 # ARGUMENTS
 # ========
 #   One or more paths.  Each path is either a directory (all macro files
-#   in it are loaded) or a single macro file.  At least one path is
-#   required unless --list is used with a default directory.
+#   in it and its subdirectories are loaded recursively) or a single macro
+#   file.  At least one path is required unless --list is used with a
+#   default directory.
 # ==========================================================================
 
 use strict;
@@ -129,12 +144,16 @@ make_path($golden_dir, $output_dir, $diffs_dir);
 
 # ==========================================================================
 # Discover and load macros from given paths
+# Track macro base directories for golden mirroring.
 # ==========================================================================
+
+my @macro_bases;   # Track directory roots for subpath computation
 
 for my $p (@paths) {
     # Convert to absolute path so they survive chdir in child process
     $p = File::Spec->rel2abs($p);
     if (-d $p) {
+        push @macro_bases, $p;
         Gtk3::SourceEditor::Macro->load(dir => $p);
     } elsif (-f $p) {
         Gtk3::SourceEditor::Macro->load(file => $p);
@@ -157,9 +176,39 @@ if ($mode eq 'list') {
     for my $name (@test_names) {
         my $meta = Gtk3::SourceEditor::Macro->meta($name);
         my $desc = $meta->{desc} // '';
-        printf "  %-40s %s\n", $name, $desc;
+        my $subdir = _macro_subdir($name);
+        my $display = $subdir ? "$subdir/$name" : $name;
+        printf "  %-50s %s\n", $display, $desc;
     }
     exit 0;
+}
+
+# ==========================================================================
+# Subdirectory resolution
+#
+# For a macro named 'delete_eol_D' loaded from
+# '/path/to/macros/editing/delete_eol_D', this returns 'editing'.
+# For top-level macros, returns ''.
+# ==========================================================================
+
+sub _macro_subdir {
+    my ($name) = @_;
+    my $info = Gtk3::SourceEditor::Macro->info($name);
+    return '' unless $info && $info->{file};
+
+    my $file = $info->{file};
+    for my $base (@macro_bases) {
+        my $rel = File::Spec->abs2rel($file, $base);
+        # If the file is directly under base (no subdir), rel has no /
+        if ($rel !~ m{/}) {
+            return '';
+        }
+        # Return the directory portion of the relative path
+        my $dir = dirname($rel);
+        return '' if $dir eq '.';
+        return $dir;
+    }
+    return '';
 }
 
 # ==========================================================================
@@ -268,15 +317,18 @@ sub compare_images {
 # ==========================================================================
 
 sub build_cmd {
-    my ($name, $meta) = @_;
+    my ($name, $meta, $subdir) = @_;
     my $info = Gtk3::SourceEditor::Macro->info($name);
     die "No file path registered for macro '$name'\n" unless $info && $info->{file};
+
+    my $snap_dir = $subdir ? "$output_dir/$subdir" : $output_dir;
+    make_path($snap_dir);
 
     my @cmd = (
         $^X, $script,
         '--macro',        $info->{file},
         '--macro-run',    $name,
-        '--snapshot-dir', $output_dir,
+        '--snapshot-dir', $snap_dir,
         '--snapshot-delay', $delay,
         '--size',         '800x400',
     );
@@ -313,15 +365,20 @@ sub run_child {
 }
 
 # ==========================================================================
-# Write description file
+# Write description file (markdown format)
 # ==========================================================================
 
 sub write_description {
-    my ($name, $meta) = @_;
-    my $desc_file = "$golden_dir/$name.txt";
+    my ($name, $meta, $subdir) = @_;
+    my $dir = $subdir ? "$golden_dir/$subdir" : $golden_dir;
+    make_path($dir);
+    my $desc_file = "$dir/$name.md";
     open my $fh, '>', $desc_file or do { warn "Cannot write $desc_file: $!"; return };
-    print $fh "Test: $name\n";
-    print $fh "Description: " . ($meta->{desc} // $name) . "\n\n";
+
+    my $desc = $meta->{desc} // $name;
+    print $fh "# $name\n\n";
+    print $fh "$desc\n\n";
+
     if ($meta->{description}) {
         print $fh $meta->{description};
         print $fh "\n" unless $meta->{description} =~ /\n$/;
@@ -336,20 +393,24 @@ sub write_description {
 #   labeled: <name>_1.png, <name>_2.png, ... <name>_N.png
 #
 # Returns (type, [labels]) where type is 'single' or 'labeled'.
+# Uses subdirectory-aware paths.
 # ==========================================================================
 
 sub collect_output_snapshots {
-    my ($name, $dir) = @_;
+    my ($name, $dir, $subdir) = @_;
     $dir //= $output_dir;
+    $subdir //= '';
+
+    my $base = $subdir ? "$dir/$subdir" : $dir;
 
     # Single (unlabeled) output
-    if (-f "$dir/${name}.png" && -s _) {
+    if (-f "$base/${name}.png" && -s _) {
         return ('single', []);
     }
 
     # Labeled snapshots: collect all <name>_<label>.png files
     my @labels;
-    for my $f (sort glob "$dir/${name}_*.png") {
+    for my $f (sort glob "$base/${name}_*.png") {
         next unless -s $f;
         if ($f =~ /\b${name}_(\w+)\.png$/) {
             push @labels, $1;
@@ -381,9 +442,15 @@ my $skipped = 0;
 my @failures;
 
 sub has_all_goldens {
-    my ($name) = @_;
-    return (-f "$golden_dir/${name}.png" && -s _)
-        || (collect_output_snapshots($name, $golden_dir))[0];
+    my ($name, $subdir) = @_;
+    my $base = $subdir ? "$golden_dir/$subdir" : $golden_dir;
+    return (-f "$base/${name}.png" && -s _)
+        || (collect_output_snapshots($name, $golden_dir, $subdir))[0];
+}
+
+sub _ensure_dir {
+    my ($dir) = @_;
+    make_path($dir) unless -d $dir;
 }
 
 TEST:
@@ -392,17 +459,23 @@ for my $name (@test_names) {
 
     my $meta = Gtk3::SourceEditor::Macro->meta($name);
     my $desc = $meta->{desc} // $name;
-    printf "  %-40s ", $name;
+    my $subdir = _macro_subdir($name);
+    my $display = $subdir ? "$subdir/$name" : $name;
+    printf "  %-50s ", $display;
+
+    my $gld_base = $subdir ? "$golden_dir/$subdir" : $golden_dir;
+    my $out_base = $subdir ? "$output_dir/$subdir" : $output_dir;
+    my $dif_base = $subdir ? "$diffs_dir/$subdir" : $diffs_dir;
 
     # --- init-missing: skip tests that already have golden images ---
-    if ($mode eq 'init-missing' && has_all_goldens($name)) {
+    if ($mode eq 'init-missing' && has_all_goldens($name, $subdir)) {
         print "SKIP (exists)\n";
         $skipped++;
         next TEST;
     }
 
     # --- Run source-editor with macro ---
-    my @cmd = build_cmd($name, $meta);
+    my @cmd = build_cmd($name, $meta, $subdir);
     my $rc = run_child(@cmd);
 
     if ($rc != 0) {
@@ -414,10 +487,11 @@ for my $name (@test_names) {
     }
 
     # --- Determine output type ---
-    my ($out_type, $out_labels) = collect_output_snapshots($name);
+    my ($out_type, $out_labels) = collect_output_snapshots($name, $output_dir, $subdir);
 
     # --- Init mode: copy to golden + write description ---
     if ($mode eq 'init' || $mode eq 'init-missing') {
+        _ensure_dir($gld_base);
         if ($out_type eq 'labeled') {
             unless (@$out_labels) {
                 print "FAIL (no labeled output)\n"; $failed++;
@@ -425,20 +499,20 @@ for my $name (@test_names) {
                 next TEST;
             }
             for my $lbl (@$out_labels) {
-                copy("$output_dir/${name}_${lbl}.png", "$golden_dir/${name}_${lbl}.png");
+                copy("$out_base/${name}_${lbl}.png", "$gld_base/${name}_${lbl}.png");
             }
             print "OK (golden saved, " . scalar(@$out_labels) . " snapshots)";
         } else {
-            my $out = "$output_dir/${name}.png";
+            my $out = "$out_base/${name}.png";
             unless (-f $out && -s $out) {
                 print "FAIL (no output)\n"; $failed++;
                 push @failures, { name => $name, error => "no output" };
                 next TEST;
             }
-            copy($out, "$golden_dir/${name}.png");
+            copy($out, "$gld_base/${name}.png");
             print "OK (golden saved)";
         }
-        write_description($name, $meta);
+        write_description($name, $meta, $subdir);
         print "\n";
         $passed++;
         next TEST;
@@ -446,7 +520,7 @@ for my $name (@test_names) {
 
     # --- Test mode: compare against golden ---
     if ($out_type eq 'labeled') {
-        my ($gld_type, $gld_labels) = collect_output_snapshots($name, $golden_dir);
+        my ($gld_type, $gld_labels) = collect_output_snapshots($name, $golden_dir, $subdir);
 
         unless (@$out_labels) {
             print "SKIP (no output)\n"; $skipped++; next TEST;
@@ -458,8 +532,8 @@ for my $name (@test_names) {
         my $all_match = 1;
         my @diffs;
         for my $lbl (sort @$out_labels) {
-            my $out_f = "$output_dir/${name}_${lbl}.png";
-            my $gld_f = "$golden_dir/${name}_${lbl}.png";
+            my $out_f = "$out_base/${name}_${lbl}.png";
+            my $gld_f = "$gld_base/${name}_${lbl}.png";
             next unless -f $out_f && -s $out_f;
             next unless -f $gld_f && -s $gld_f;
 
@@ -468,7 +542,8 @@ for my $name (@test_names) {
                 $all_match = 0;
                 push @diffs, { label => $lbl, diff_pct => $r->{diff_pct} };
                 if ($generate_diff) {
-                    my $dp = "$diffs_dir/${name}_${lbl}_diff.png";
+                    _ensure_dir($dif_base);
+                    my $dp = "$dif_base/${name}_${lbl}_diff.png";
                     generate_diff_image($gld_f, $out_f, $dp);
                 }
             }
@@ -481,7 +556,8 @@ for my $name (@test_names) {
             print "FAIL ($detail)";
             if ($generate_diff) {
                 for my $d (@diffs) {
-                    print "\n    diff: xt/visual/diffs/${name}_" . $d->{label} . "_diff.png";
+                    my $rel = $subdir ? "$subdir/" : '';
+                    print "\n    diff: xt/visual/diffs/${rel}${name}_" . $d->{label} . "_diff.png";
                 }
             }
             print "\n";
@@ -499,8 +575,8 @@ for my $name (@test_names) {
             $passed++;
         }
     } else {
-        my $out = "$output_dir/${name}.png";
-        my $gld = "$golden_dir/${name}.png";
+        my $out = "$out_base/${name}.png";
+        my $gld = "$gld_base/${name}.png";
 
         unless (-f $out && -s $out) {
             print "SKIP (no output)\n"; $skipped++; next TEST;
@@ -515,9 +591,11 @@ for my $name (@test_names) {
             my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
             print "FAIL ($d)";
             if ($generate_diff) {
-                my $dp = "$diffs_dir/${name}_diff.png";
+                _ensure_dir($dif_base);
+                my $dp = "$dif_base/${name}_diff.png";
                 generate_diff_image($gld, $out, $dp);
-                print "\n    diff: xt/visual/diffs/${name}_diff.png";
+                my $rel = $subdir ? "$subdir/" : '';
+                print "\n    diff: xt/visual/diffs/${rel}${name}_diff.png";
             }
             print "\n";
             $failed++;
@@ -540,7 +618,7 @@ if (@failures) {
     for my $f (@failures) {
         my $d1 = sprintf("%.2f%%", ($f->{diff_pct} // 0) * 100);
         my $d2 = defined $f->{diff_pct2} ? sprintf(", _2: %.2f%%", $f->{diff_pct2} * 100) : '';
-        printf "  FAIL: %-40s _1: %s%s\n", $f->{name}, $d1, $d2;
+        printf "  FAIL: %-50s _1: %s%s\n", $f->{name}, $d1, $d2;
     }
 }
 

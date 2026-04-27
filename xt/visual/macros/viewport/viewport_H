@@ -1,0 +1,69 @@
+{
+    desc => q{H moves cursor to top of viewport},
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/viewport_H`
+
+Tests that `H` jumps the cursor to the top line of the current viewport. The buffer has 40 lines to ensure scrolling occurs.
+
+Keys: `G` → `H`
+
+- **viewport_H_initial.png**: Cursor at line 1, col 0 on "viewport line 01"
+- **viewport_H_at_bottom.png**: Cursor at line 40 (last line) after `G`; viewport scrolled to bottom
+- **viewport_H_after_H.png**: Cursor jumped to the top line of the visible viewport (not line 1 of file, but top of current view)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('G');
+        $ctx->delay(200);
+        $ctx->snapshot('at_bottom');
+        $ctx->delay(100);
+        $ctx->keys('H');
+        $ctx->delay(200);
+        $ctx->snapshot('after_H');
+    },
+}
+__DATA__
+viewport line 01
+viewport line 02
+viewport line 03
+viewport line 04
+viewport line 05
+viewport line 06
+viewport line 07
+viewport line 08
+viewport line 09
+viewport line 10
+viewport line 11
+viewport line 12
+viewport line 13
+viewport line 14
+viewport line 15
+viewport line 16
+viewport line 17
+viewport line 18
+viewport line 19
+viewport line 20
+viewport line 21
+viewport line 22
+viewport line 23
+viewport line 24
+viewport line 25
+viewport line 26
+viewport line 27
+viewport line 28
+viewport line 29
+viewport line 30
+viewport line 31
+viewport line 32
+viewport line 33
+viewport line 34
+viewport line 35
+viewport line 36
+viewport line 37
+viewport line 38
+viewport line 39
+viewport line 40

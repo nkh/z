@@ -1,0 +1,33 @@
+{
+    desc => q{3F{char} finds the third occurrence of character backward},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/find_count_3F`
+
+**3F{char}** with a count prefix finds the nth occurrence of the character backward. `$3Fa` starts from the end and finds the third 'a' going backward.
+
+**Keys:** `$3Fa`
+
+**initial.png**
+- Cursor at line 1, col 10 (on 'a' at end of "abracadabra")
+- Text: `abracadabra`
+
+**after_3Fa.png**
+- Cursor on the third 'a' from the right at col 7 (abrac**a**dabra)
+- Counting backward from col 10: col 10 (1st), col 7 (2nd... wait, let me recount)
+- From position 10: 'a'@10 (skip, current), 'a'@7 (1st back), 'a'@5 (2nd back), 'a'@3 (3rd back)
+- Cursor on 'a' at col 3
+- Text unchanged
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('$3Fa');
+        $ctx->delay(100);
+        $ctx->snapshot('after_3Fa');
+    },
+}
+__DATA__
+abracadabra

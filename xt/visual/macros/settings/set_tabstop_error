@@ -1,0 +1,26 @@
+{
+    desc => ':set tabstop=invalid shows error for non-numeric value',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/set_tabstop_error`
+
+Tests that `:set tabstop=` with an invalid (non-numeric) value displays
+an error message in the status bar.
+
+Ex: `:set tabstop=abc`
+
+- **set_tabstop_error_initial.png**: Normal mode, plain text.
+- **set_tabstop_error_after_set.png**: Error message displayed for invalid tabstop value.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->ex('set tabstop=abc');
+        $ctx->delay(200);
+        $ctx->snapshot('after_set');
+    },
+}
+__DATA__
+some text here

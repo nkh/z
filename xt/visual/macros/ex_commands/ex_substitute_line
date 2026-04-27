@@ -1,0 +1,29 @@
+{
+    desc => ':s/pat/repl/ substitutes first occurrence on current line',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/ex_substitute_line`
+
+Tests the `:s/old/new/` ex command which replaces only the **first**
+occurrence of a pattern on the current line.
+
+**initial.png** — Buffer shows 2 lines with "hello" appearing twice on line 1.
+
+Keys: `:s/hello/HI/<Enter>`
+
+**after_substitute.png** — Only the first "hello" on line 1 changed to "HI".
+Line 1 reads `HI world hello again`. Line 2 is untouched.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->ex('s/hello/HI/');
+        $ctx->delay(200);
+        $ctx->snapshot('after_substitute');
+    },
+}
+__DATA__
+hello world hello again
+foo bar baz hello

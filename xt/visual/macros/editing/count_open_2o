@@ -1,0 +1,35 @@
+{
+    desc => '2o opens 2 new lines below',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/count_open_2o`
+
+Tests that `2o` opens two blank lines in insert mode, and typed text is
+placed on each new line.
+
+Keys: `2o` then type `new` then `Escape`
+
+- **count_open_2o_initial.png**: Three lines of text, cursor at line 1 col 0.
+- **count_open_2o_inserting.png**: In insert mode on first new blank line, showing "new" being typed.
+- **count_open_2o_after_escape.png**: Two new lines inserted (each containing "new"), buffer now has 5 lines. Cursor on the second inserted line.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('2o');
+        $ctx->delay(50);
+        $ctx->type('new');
+        $ctx->delay(100);
+        $ctx->snapshot('inserting');
+        $ctx->delay(50);
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('after_escape');
+    },
+}
+__DATA__
+line one
+line two
+line three

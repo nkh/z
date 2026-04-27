@@ -1,0 +1,43 @@
+{
+    desc => q{u undoes a line delete (dd)},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/undo_line_delete`
+
+Tests that **u** restores a line deleted by **dd**.
+This is a round-trip test: start and end states look the same.
+
+**Keys:** `dd`, `u`
+
+**initial.png**
+- Buffer has 3 lines: "line one", "line two", "line three"
+- Cursor on line 1
+
+**after_dd.png**
+- Buffer has 2 lines: "line two", "line three"
+- Line 1 ("line one") was deleted
+- Cursor on the new line 1
+- Intermediate snapshot showing the changed state
+
+**after_undo.png**
+- Buffer restored to 3 lines (identical to initial)
+- Cursor back on line 1
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('dd');
+        $ctx->delay(100);
+        $ctx->snapshot('after_dd');
+        $ctx->delay(100);
+        $ctx->keys('u');
+        $ctx->delay(100);
+        $ctx->snapshot('after_undo');
+    },
+}
+__DATA__
+line one
+line two
+line three

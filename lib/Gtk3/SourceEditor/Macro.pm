@@ -47,12 +47,21 @@ sub load {
         opendir my $dh, $dir or die "Macro::load: cannot open dir '$dir': $!\n";
         while (my $f = readdir $dh) {
             next if $f =~ /^\./;    # skip hidden files
-            next if -d "$dir/$f";  # skip subdirs
-            push @entries, "$dir/$f";
+            my $full = "$dir/$f";
+            if (-d $full) {
+                # Recurse into subdirectories
+                push @entries, $full;
+            } else {
+                push @entries, $full;
+            }
         }
         closedir $dh;
         for my $f (sort @entries) {
-            $class->load(file => $f);
+            if (-d $f) {
+                $class->load(dir => $f);
+            } else {
+                $class->load(file => $f);
+            }
         }
     }
 
@@ -149,7 +158,24 @@ sub save {
 
 sub _load_file {
     my ($path) = @_;
-    my $result = do $path;
+
+    # Support __DATA__ section: if present, inject $CODE variable
+    # before the Perl code so macros can reference buffer content.
+    open my $fh, '<', $path or die "Macro::load: cannot read '$path': $!\n";
+    local $/;
+    my $content = <$fh>;
+    close $fh;
+
+    if ($content =~ /^(.*)__DATA__\n(.*)$/s) {
+        my $perl_part = $1;
+        my $data_part = $2;
+        # Remove trailing newline from data to avoid blank line
+        chomp $data_part;
+        # Inject $CODE as a heredoc at the top of the Perl part
+        $content = "my \$CODE = <<'END_CODE';\n${data_part}\nEND_CODE\n" . $perl_part;
+    }
+
+    my $result = eval $content;
     if ($@) {
         die "Macro::load: syntax error in '$path': $@\n";
     }
@@ -183,7 +209,7 @@ sub _name_from_file {
     my ($path) = @_;
     my $name = $path;
     $name =~ s{.*/}{};              # basename
-    $name =~ s{\.(pl|pm|macro)$}{};  # strip known extensions
+    $name =~ s{\.(pl|pm|macro|md)$}{};  # strip known extensions
     return $name;
 }
 

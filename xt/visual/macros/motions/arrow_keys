@@ -1,0 +1,46 @@
+{
+    desc => q{Arrow key navigation},
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/arrow_keys`
+
+Tests basic arrow key navigation: Down, Right, Up, Left.
+
+Keys: `Down` → `Down` → `Right` → `Right` → `Up` → `Left`
+
+- **arrow_keys_initial.png**: Cursor at line 1, col 0 on `H` of "Hello"
+- **arrow_keys_after_down.png**: Cursor at line 2, col 0 on `f` of "foo" (moved down twice)
+- **arrow_keys_after_right.png**: Cursor at line 2, col 2 on first `o` of "foo" (moved right twice)
+- **arrow_keys_after_up.png**: Cursor at line 1, col 2 on first `l` of "Hello" (moved up)
+- **arrow_keys_after_left.png**: Cursor at line 1, col 1 on `e` of "Hello" (moved left)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->key('Down');
+        $ctx->key('Down');
+        $ctx->delay(100);
+        $ctx->snapshot('after_down');
+        $ctx->delay(100);
+        $ctx->key('Right');
+        $ctx->key('Right');
+        $ctx->delay(100);
+        $ctx->snapshot('after_right');
+        $ctx->delay(100);
+        $ctx->key('Up');
+        $ctx->delay(100);
+        $ctx->snapshot('after_up');
+        $ctx->delay(100);
+        $ctx->key('Left');
+        $ctx->delay(100);
+        $ctx->snapshot('after_left');
+    },
+}
+__DATA__
+Hello world
+foo bar baz
+one two three
+alpha beta
+gamma delta

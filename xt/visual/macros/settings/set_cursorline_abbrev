@@ -1,0 +1,30 @@
+{
+    desc => ':set cursorl is abbreviation for :set cursorline',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/set_cursorline_abbrev`
+
+Tests that `:set cursorl` is accepted as an abbreviation for
+`:set cursorline` and enables the cursor line highlight.
+
+Ex: `:set cursorl`
+
+- **set_cursorline_abbrev_initial.png**: No cursor line highlight.
+- **set_cursorline_abbrev_after_set.png**: Current line highlighted with cursorline background color.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->ex('set cursorl');
+        $ctx->delay(200);
+        $ctx->snapshot('after_set');
+    },
+}
+__DATA__
+line one
+line two
+line three
+line four
+line five

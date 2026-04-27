@@ -1,0 +1,32 @@
+{
+    desc => q{/ with regex metacharacters matches patterns},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/search_regex`
+
+**/pattern** supports regex metacharacters. `h.llo` uses `.` to match any single character, matching "hello", "hxllo", and "hlllo".
+
+**Keys:** `/h.llo\n`
+
+**initial.png**
+- Cursor at line 1, col 0
+- Three lines with similar but different text
+
+**after_regex_search.png**
+- Cursor on first match "hello" on line 1, col 0
+- All three lines highlighted: "hello", "hxllo", "hlllo" (each matches `h.llo`)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('/h.llo\n');
+        $ctx->delay(300);
+        $ctx->snapshot('after_regex_search');
+    },
+}
+__DATA__
+hello world
+hxllo world
+hlllo world

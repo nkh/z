@@ -1,0 +1,36 @@
+{
+    desc => q{; repeats the last f/F/t/T find motion},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/find_repeat_semicolon`
+
+**;** repeats the last character find motion (f, F, t, or T). After `fo` finds the first 'o', `;` finds the next 'o'.
+
+**Keys:** `fo;`
+
+**initial.png**
+- Cursor at line 1, col 0 (on 'h' of "hello world")
+
+**after_fo.png**
+- Cursor on first 'o' at col 4 in "hello"
+
+**after_semicolon.png**
+- Cursor on second 'o' at col 7 in "world"
+- `;` repeated the `fo` motion
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('fo');
+        $ctx->delay(100);
+        $ctx->snapshot('after_fo');
+        $ctx->delay(100);
+        $ctx->keys(';');
+        $ctx->delay(100);
+        $ctx->snapshot('after_semicolon');
+    },
+}
+__DATA__
+hello world

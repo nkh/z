@@ -1,0 +1,30 @@
+{
+    desc => q{t{char} moves cursor to column before target character},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/till_char_t`
+
+**t{char}** moves the cursor forward to the column just before the target character. Unlike `f{char}`, the cursor stops one character short.
+
+**Keys:** `tw`
+
+**initial.png**
+- Cursor at line 1, col 0 (on 'h' of "hello world")
+
+**after_tw.png**
+- Cursor at col 5 (space before 'w' in "world")
+- `t` stopped one character before 'w', landing on the space
+- Text unchanged
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('tw');
+        $ctx->delay(100);
+        $ctx->snapshot('after_tw');
+    },
+}
+__DATA__
+hello world

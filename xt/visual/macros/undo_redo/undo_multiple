@@ -1,0 +1,56 @@
+{
+    desc => q{multiple sequential undo operations restore original buffer},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/undo_multiple`
+
+Tests multiple sequential **u** commands to undo a series of different
+operations (character deletes and line delete). Three changes are made,
+then three undo steps restore the original state.
+
+**Keys:** `x`, `x`, `j`, `dd`, `u`, `u`, `u`
+
+**initial.png**
+- Buffer has 4 lines: "aaa", "bbb", "ccc", "ddd"
+- Cursor on line 1
+
+**after_changes.png**
+- Two chars deleted from line 1 ("a" -> ""), then line 2 ("bbb") deleted
+- Buffer: "", "ccc", "ddd"
+- Cursor on line 1 (now empty)
+- Intermediate snapshot after all changes
+
+**after_partial_undo.png**
+- After first two `u` commands: "a" restored on line 1, "bbb" line restored
+- Buffer: "a", "bbb", "ccc", "ddd"
+- Intermediate snapshot showing partial restoration
+
+**after_all_undo.png**
+- Buffer restored to original 4 lines (identical to initial)
+- All changes fully undone
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('xx');
+        $ctx->delay(50);
+        $ctx->keys('jdd');
+        $ctx->delay(100);
+        $ctx->snapshot('after_changes');
+        $ctx->delay(100);
+        $ctx->keys('uu');
+        $ctx->delay(100);
+        $ctx->snapshot('after_partial_undo');
+        $ctx->delay(100);
+        $ctx->keys('u');
+        $ctx->delay(100);
+        $ctx->snapshot('after_all_undo');
+    },
+}
+__DATA__
+aaa
+bbb
+ccc
+ddd

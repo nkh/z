@@ -1,0 +1,35 @@
+{
+    desc => q{J joins current line with the next line},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/join_lines_J`
+
+Tests that the **J** command joins the current line with the line below,
+adding a space between them and placing the cursor at the join point.
+
+**Keys:** `J`
+
+**initial.png**
+- Buffer has 3 lines: "hello", "world", "foo"
+- Cursor on line 1 at column 0
+
+**after_join.png**
+- Buffer has 2 lines: "hello world" and "foo"
+- Cursor on the space between "hello" and "world"
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('J');
+        $ctx->delay(100);
+        $ctx->snapshot('after_join');
+    },
+}
+__DATA__
+This is a longer line of text for testing.
+The quick brown fox jumps over the lazy dog.
+Another line here to fill the buffer.
+And yet another line for scrolling context.
+Final line of the test buffer content.

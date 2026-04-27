@@ -1,0 +1,54 @@
+{
+    desc => q{Setting a mark overwrites the previous value at that mark},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/mark_overwrite`
+
+Setting the same mark twice replaces the old position with the new one. **ma** on line 1, then **ma** on line 4 — jumping back with `` `a `` goes to line 4.
+
+**Keys:** `ma` then `jjj` then `ma` then `` `a ``
+
+**initial.png**
+- Cursor at line 1, col 0
+
+**after_first_mark.png**
+- Mark 'a' set at line 1, col 0
+
+**after_move_down.png**
+- Cursor at line 4, col 0
+
+**after_overwrite_mark.png**
+- Mark 'a' overwritten at line 4, col 0
+
+**after_jump_overwritten.png**
+- Cursor at line 4, col 0 (the overwritten position, not line 1)
+- Old mark position (line 1) discarded
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('ma');
+        $ctx->delay(100);
+        $ctx->snapshot('after_first_mark');
+        $ctx->delay(100);
+        $ctx->keys('jjj');
+        $ctx->delay(100);
+        $ctx->snapshot('after_move_down');
+        $ctx->delay(100);
+        $ctx->keys('ma');
+        $ctx->delay(100);
+        $ctx->snapshot('after_overwrite_mark');
+        $ctx->delay(100);
+        $ctx->keys('`a');
+        $ctx->delay(100);
+        $ctx->snapshot('after_jump_overwritten');
+    },
+}
+__DATA__
+line one
+line two
+line three
+line four
+line five

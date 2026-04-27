@@ -1,0 +1,31 @@
+{
+    desc => 'da( deletes text including parentheses',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/text_object_da_paren`
+
+Tests the `da(` text object which deletes text **including** the
+parentheses themselves.
+
+**initial.png** — Cursor on 'h' inside the parentheses at line 1 col 5.
+
+Keys: `da(`
+
+**after_da_paren.png** — The entire `(hello world)` including both
+parentheses is removed. Line 1 now reads `func;`.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->editor->set_language('perl');
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('llll');
+        $ctx->delay(50);
+        $ctx->keys('da(');
+        $ctx->delay(100);
+        $ctx->snapshot('after_da_paren');
+    },
+}
+__DATA__
+func(hello world);

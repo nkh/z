@@ -1,0 +1,37 @@
+{
+    desc => q{Virtual column preserved across j/k on short lines},
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/virtual_column_jk`
+
+Tests that j/k preserve the virtual (desired) column even when passing over shorter lines. The cursor clamps to the line length but remembers the original column.
+
+Keys: `$` → `j` → `j`
+
+- **virtual_column_jk_initial.png**: Cursor at line 1, col 0 on `a`
+- **virtual_column_jk_at_eol.png**: Cursor at line 1, col 25 on `z` (end of long line)
+- **virtual_column_jk_on_short.png**: Cursor at line 2, col 1 on `b` (clamped to end of short line "ab")
+- **virtual_column_jk_restored.png**: Cursor at line 3, col 25 on `z` (virtual column restored on long line)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('$');
+        $ctx->delay(100);
+        $ctx->snapshot('at_eol');
+        $ctx->delay(100);
+        $ctx->keys('j');
+        $ctx->delay(100);
+        $ctx->snapshot('on_short');
+        $ctx->delay(100);
+        $ctx->keys('j');
+        $ctx->delay(100);
+        $ctx->snapshot('restored');
+    },
+}
+__DATA__
+abcdefghijklmnopqrstuvwxyz
+ab
+abcdefghijklmnopqrstuvwxyz

@@ -1,0 +1,29 @@
+{
+    desc => ':set number shows line numbers in the gutter',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/set_number`
+
+Tests that `:set number` displays line numbers in the left gutter margin.
+
+Ex: `:set number`
+
+- **set_number_initial.png**: No line numbers; plain text view.
+- **set_number_after_set.png**: Line numbers (1-5) visible in the left gutter.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->ex('set number');
+        $ctx->delay(200);
+        $ctx->snapshot('after_set');
+    },
+}
+__DATA__
+line one
+line two
+line three
+line four
+line five

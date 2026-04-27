@@ -1,0 +1,55 @@
+{
+    desc => q{`a jumps to the exact mark position (line and column)},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/mark_jump_backtick`
+
+**ma** sets mark 'a' at the current position. **\`a** jumps back to the exact line and column where the mark was set.
+
+**Keys:** `4l` then `ma` then `jjj` then `` `a ``
+
+**initial.png**
+- Cursor at line 1, col 0
+
+**after_move_right.png**
+- Cursor at line 1, col 4 (on ' ' space in "line one")
+
+**after_set_mark.png**
+- Mark 'a' set at line 1, col 4
+- Cursor still at line 1, col 4
+
+**after_move_down.png**
+- Cursor at line 4, col 4 (moved down 3 lines with `jjj`)
+
+**after_backtick_a.png**
+- Cursor back at line 1, col 4 (exact mark position)
+- `` `a `` restores both line and column
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('4l');
+        $ctx->delay(100);
+        $ctx->snapshot('after_move_right');
+        $ctx->delay(100);
+        $ctx->keys('ma');
+        $ctx->delay(100);
+        $ctx->snapshot('after_set_mark');
+        $ctx->delay(100);
+        $ctx->keys('jjj');
+        $ctx->delay(100);
+        $ctx->snapshot('after_move_down');
+        $ctx->delay(100);
+        $ctx->keys('`a');
+        $ctx->delay(100);
+        $ctx->snapshot('after_backtick_a');
+    },
+}
+__DATA__
+line one
+line two
+line three
+line four
+line five

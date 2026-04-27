@@ -12,11 +12,7 @@
 #     --code 'sub hello { print "world\n" }' \
 #     --size 800x400
 
-my $CODE = <<'END_CODE';
-sub hello {
-    print "world\n";
-}
-END_CODE
+
 
 {
     desc => 'Example macro (not a test)',
@@ -76,4 +72,8 @@ END_DESC
 
         $ctx->echo("Example macro finished");
     },
+}
+__DATA__
+sub hello {
+    print "world\n";
 }

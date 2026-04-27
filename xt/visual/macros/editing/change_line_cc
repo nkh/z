@@ -1,0 +1,41 @@
+{
+    desc => q{cc changes entire line},
+    description => <<'END_DESC',
+Action: `cc` clears the entire line content and enters insert mode
+
+Macro: `xt/visual/macros/change_line_cc`
+
+**initial.png** (before):
+- Line 1: `line one`
+- Line 2: `line two`
+- Line 3: `line three`
+- Cursor at line 1, col 0
+
+Keys: `jcc`, type `new text`, `Escape`
+
+**after_cc.png** (after):
+- Line 1: `line one` (unchanged)
+- Line 2: `new text` (was `line two`)
+- Line 3: `line three` (unchanged)
+- Cursor at line 2, col 6 (after `new text`)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('jcc');
+        $ctx->delay(50);
+        $ctx->type('new text');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('after_cc');
+    },
+}
+__DATA__
+This is a longer line of text for testing changes.
+The quick brown fox jumps over the lazy dog.
+Another line here to fill the buffer.
+And yet another line for scrolling context.
+Final line of the test buffer content.

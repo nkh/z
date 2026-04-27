@@ -1,0 +1,27 @@
+{
+    desc => 'invalid ex command shows an error message',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/ex_command_error`
+
+Tests that an invalid/unknown ex command displays an error message.
+
+**initial.png** — Normal mode, buffer contains `some text here`.
+
+Keys: `:nonexistent<Enter>`
+
+**after_error.png** — An error message is displayed (e.g. "Not an editor command")
+while the buffer content remains unchanged.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->ex('nonexistent');
+        $ctx->delay(100);
+        $ctx->snapshot('after_error');
+    },
+}
+__DATA__
+some text here

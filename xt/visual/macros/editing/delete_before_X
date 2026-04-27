@@ -1,0 +1,38 @@
+{
+    desc => q{X deletes character before cursor},
+    description => <<'END_DESC',
+Action: `X` deletes the character before (to the left of) the cursor
+
+Macro: `xt/visual/macros/delete_before_X`
+
+**initial.png** (before):
+- Line 1: `Hello World`
+- Cursor at line 1, col 0
+
+Keys: `5lX`
+
+**after_X.png** (after):
+- Line 1: `Hell World` (`o` at col 4 deleted)
+- Cursor at line 1, col 4 (on the space)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('5l');
+        $ctx->delay(100);
+        $ctx->snapshot('cursor_before_X');
+        $ctx->delay(100);
+        $ctx->keys('X');
+        $ctx->delay(100);
+        $ctx->snapshot('after_X');
+    },
+}
+__DATA__
+This is a longer line of text for testing deletion.
+The quick brown fox jumps over the lazy dog.
+Another line here to fill the buffer.
+And yet another line for scrolling context.
+Final line of the test buffer content.

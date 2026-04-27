@@ -1,0 +1,30 @@
+{
+    desc => q{di( deletes text inside parentheses},
+    description => <<'END_DESC',
+Action: `di( deletes text inside parentheses`
+
+Macro: `xt/visual/macros/text_object_di_paren`
+
+**initial.png** (before):
+- Line 1: `func(hello world);`
+- Cursor at line 1, col 0
+
+Keys: `lllldi(`
+
+**after_delete.png** (after):
+- Line 1: `func();`
+- Cursor position after text object operation
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('lllldi(');
+        $ctx->delay(100);
+        $ctx->snapshot('after_delete');
+    },
+}
+__DATA__
+func(hello world);

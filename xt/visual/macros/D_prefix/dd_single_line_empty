@@ -1,0 +1,30 @@
+{
+    desc => q{dd on single line leaves empty buffer},
+    description => <<'END_DESC',
+Action: `dd` on a buffer with a single line leaves it empty
+
+Macro: `xt/visual/macros/dd_single_line_empty`
+
+**initial.png** (before):
+- Line 1: `only line here`
+- Cursor at line 1, col 0
+
+Keys: `dd`
+
+**after_dd_empty.png** (after):
+- Buffer is empty (single blank line remains)
+- No visible text content
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('dd');
+        $ctx->delay(100);
+        $ctx->snapshot('after_dd_empty');
+    },
+}
+__DATA__
+only line here

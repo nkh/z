@@ -1,0 +1,35 @@
+{
+    desc => q{% on a non-bracket character does nothing},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/percent_not_on_bracket`
+
+**%** finds the matching bracket only when the cursor is on a bracket character (`()[]{}`). When the cursor is not on a bracket, **%** does nothing.
+
+**Keys:** `%`
+
+**initial.png**
+- Cursor at line 1, col 0 (on 'n' of "no brackets here")
+- Text contains no bracket characters
+
+**after_percent.png**
+- Cursor still at line 1, col 0
+- No movement — not on a bracket character
+- Buffer unchanged
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('%');
+        $ctx->delay(100);
+        $ctx->snapshot('after_percent');
+    },
+}
+__DATA__
+This is a longer line of text for testing.
+The quick brown fox jumps over the lazy dog.
+Another line here to fill the buffer.
+And yet another line for scrolling context.
+Final line of the test buffer content.

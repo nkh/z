@@ -1,0 +1,43 @@
+{
+    desc => q{, reverses the last f/F/t/T find motion},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/find_reverse_comma`
+
+**,** reverses the last character find motion. After `fo;` moves to the second 'o', `,` goes back to the first 'o'.
+
+**Keys:** `fo;,`
+
+**initial.png**
+- Cursor at line 1, col 0 (on 'h' of "hello world")
+
+**after_fo.png**
+- Cursor on first 'o' at col 4 in "hello"
+
+**after_fo_semicolon.png**
+- Cursor on second 'o' at col 7 in "world"
+
+**after_comma.png**
+- Cursor back on first 'o' at col 4 in "hello"
+- `,` reversed the `fo` motion, going backward to previous 'o'
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('fo');
+        $ctx->delay(100);
+        $ctx->snapshot('after_fo');
+        $ctx->delay(100);
+        $ctx->keys(';');
+        $ctx->delay(100);
+        $ctx->snapshot('after_fo_semicolon');
+        $ctx->delay(100);
+        $ctx->keys(',');
+        $ctx->delay(100);
+        $ctx->snapshot('after_comma');
+    },
+}
+__DATA__
+hello world

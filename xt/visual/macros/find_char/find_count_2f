@@ -1,0 +1,31 @@
+{
+    desc => q{2f{char} finds the second occurrence of character forward},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/find_count_2f`
+
+**2f{char}** with a count prefix finds the nth occurrence of the character forward. `2fa` skips the first 'a' and lands on the second 'a'.
+
+**Keys:** `2fa`
+
+**initial.png**
+- Cursor at line 1, col 0 (on first 'a' of "abracadabra")
+- Text: `abracadabra`
+
+**after_2fa.png**
+- Cursor on the second 'a' at col 3 (a**b**r**a**cadabra)
+- Skipped first 'a' at col 0, landed on second 'a' at col 3
+- Text unchanged
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('2fa');
+        $ctx->delay(100);
+        $ctx->snapshot('after_2fa');
+    },
+}
+__DATA__
+abracadabra

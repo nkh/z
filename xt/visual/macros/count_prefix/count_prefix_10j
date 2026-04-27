@@ -1,0 +1,39 @@
+{
+    desc => q{Count prefix 10j moves cursor down 10 lines},
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/count_prefix_10j`
+
+Tests that a numeric count prefix (`10j`) moves the cursor down exactly 10 lines from the starting position.
+
+Keys: `10j`
+
+- **count_prefix_10j_initial.png**: Cursor at line 1, col 0 on `l` of "line 01"
+- **count_prefix_10j_after_10j.png**: Cursor at line 11, col 0 on `l` of "line 11" (moved down 10 lines)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('10j');
+        $ctx->delay(200);
+        $ctx->snapshot('after_10j');
+    },
+}
+__DATA__
+Line 1: The quick brown fox jumps over the lazy dog.
+Line 2: The quick brown fox jumps over the lazy dog.
+Line 3: The quick brown fox jumps over the lazy dog.
+Line 4: The quick brown fox jumps over the lazy dog.
+Line 5: The quick brown fox jumps over the lazy dog.
+Line 6: The quick brown fox jumps over the lazy dog.
+Line 7: The quick brown fox jumps over the lazy dog.
+Line 8: The quick brown fox jumps over the lazy dog.
+Line 9: The quick brown fox jumps over the lazy dog.
+Line 10: The quick brown fox jumps over the lazy dog.
+Line 11: The quick brown fox jumps over the lazy dog.
+Line 12: The quick brown fox jumps over the lazy dog.
+Line 13: The quick brown fox jumps over the lazy dog.
+Line 14: The quick brown fox jumps over the lazy dog.
+Line 15: The quick brown fox jumps over the lazy dog.

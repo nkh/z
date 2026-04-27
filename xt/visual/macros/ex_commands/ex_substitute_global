@@ -1,0 +1,30 @@
+{
+    desc => ':%s/pat/repl/g substitutes all occurrences in entire file',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/ex_substitute_global`
+
+Tests the `:%s/old/new/g` ex command which replaces **all** occurrences
+of a pattern across the entire file.
+
+**initial.png** — Buffer shows 2 lines. "hello" appears 3 times total
+(2 on line 1, 1 on line 2).
+
+Keys: `:%s/hello/HI/g<Enter>`
+
+**after_global_substitute.png** — Every "hello" replaced with "HI".
+Line 1: `HI world HI`. Line 2: `foo bar HI baz`.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->ex('%s/hello/HI/g');
+        $ctx->delay(200);
+        $ctx->snapshot('after_global_substitute');
+    },
+}
+__DATA__
+hello world hello
+foo bar hello baz

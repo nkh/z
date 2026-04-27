@@ -1,0 +1,36 @@
+{
+    desc => q{O opens a new line above and enters insert mode},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/insert_open_O`
+
+Tests that the **O** command opens a new blank line above the current line
+and enters insert mode with the cursor on the new line.
+
+**Keys:** `j`, `O`, type `inserted line`, `Escape`
+
+**initial.png**
+- Buffer has 2 lines: "line one" and "line two"
+- Cursor on line 2 (after pressing `j`)
+
+**after_open_above.png**
+- Buffer has 3 lines: "line one", "inserted line", "line two"
+- Cursor on line 2 (the new inserted line)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->keys('j');
+        $ctx->delay(50);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->key('O');
+        $ctx->type('inserted line');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('after_open_above');
+    },
+}
+__DATA__
+line one
+line two

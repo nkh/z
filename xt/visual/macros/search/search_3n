@@ -1,0 +1,37 @@
+{
+    desc => q{3n repeats the search 3 times},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/search_3n`
+
+**3n** repeats the last search 3 times in one command, equivalent to pressing `n` three times. From the first "foo", it advances to the fourth "foo".
+
+**Keys:** `/foo\n` then `3n`
+
+**initial.png**
+- Cursor at line 1, col 0
+- Four "foo" occurrences on the line
+
+**after_search.png**
+- Cursor on first "foo" at col 0
+
+**after_3n.png**
+- Cursor on fourth "foo" at col 24
+- Advanced 3 matches: 2nd (col 8) → 3rd (col 16) → 4th (col 24)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('/foo\n');
+        $ctx->delay(300);
+        $ctx->snapshot('after_search');
+        $ctx->delay(100);
+        $ctx->keys('3n');
+        $ctx->delay(300);
+        $ctx->snapshot('after_3n');
+    },
+}
+__DATA__
+foo bar foo baz foo qux foo

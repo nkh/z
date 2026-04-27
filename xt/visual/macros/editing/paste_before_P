@@ -1,0 +1,33 @@
+{
+    desc => 'P pastes yanked text before cursor',
+    description => <<'END_DESC',
+Macro: `xt/visual/macros/paste_before_P`
+
+Tests `yy` followed by `P` which yanks the current line then pastes it
+**above** the current line.
+
+**initial.png** — Two lines of text. Cursor at line 1 col 0.
+
+Keys: `j` to move to line 2, then `yyP`
+
+**on_line2.png** — Cursor moved to line 2 (`second line`).
+
+**after_P.png** — Line 2 (`second line`) is duplicated **above** itself.
+Buffer now has 3 lines: `first line`, `second line`, `second line`.
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->keys('j');
+        $ctx->delay(50);
+        $ctx->snapshot('on_line2');
+        $ctx->delay(100);
+        $ctx->keys('yyP');
+        $ctx->delay(100);
+        $ctx->snapshot('after_P');
+    },
+}
+__DATA__
+first line
+second line

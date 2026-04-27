@@ -1,0 +1,35 @@
+{
+    desc => q{Backspace in replace mode restores overwritten character},
+    description => <<'END_DESC',
+Action: In replace mode, backspace restores the previously overwritten character and moves the cursor back
+
+Macro: `xt/visual/macros/replace_mode_backspace`
+
+**initial.png** (before):
+- Line 1: `hello world`
+- Cursor at line 1, col 0 (normal mode)
+
+Keys: `R`, type `XY`, `Backspace`, `Escape`
+
+**after_backspace.png** (after):
+- Line 1: `Xello world` (`h` replaced with `X`, `Y` undone by backspace restoring `e`)
+- Cursor at line 1, col 1 (after `X`)
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('R');
+        $ctx->delay(50);
+        $ctx->type('XY');
+        $ctx->delay(50);
+        $ctx->keys('\b');
+        $ctx->key('Escape');
+        $ctx->delay(100);
+        $ctx->snapshot('after_backspace');
+    },
+}
+__DATA__
+hello world

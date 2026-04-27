@@ -1,0 +1,38 @@
+{
+    desc => q{# searches backward for the word under cursor},
+    description => <<'END_DESC',
+## Macro: `xt/visual/macros/search_word_hash`
+
+**#** searches backward for the whole word under the cursor. With cursor on the last "foo", it finds the previous occurrence.
+
+**Keys:** `$hh#`
+
+**initial.png**
+- Cursor at line 1, col 0 (on 'f' of first "foo")
+- Line: `foo bar foo baz foo`
+
+**after_move_to_last.png**
+- Cursor on last "foo" at col 16 (moved with `$hh`)
+
+**after_hash.png**
+- Cursor on second "foo" at col 8 (backward search from last "foo")
+- All "foo" occurrences highlighted
+- Search direction set to backward
+END_DESC
+    run => sub {
+        my ($ctx) = @_;
+        $ctx->buffer->set_text($CODE);
+        $ctx->delay(100);
+        $ctx->snapshot('initial');
+        $ctx->delay(100);
+        $ctx->keys('$hh');
+        $ctx->delay(100);
+        $ctx->snapshot('after_move_to_last');
+        $ctx->delay(100);
+        $ctx->keys('#');
+        $ctx->delay(300);
+        $ctx->snapshot('after_hash');
+    },
+}
+__DATA__
+foo bar foo baz foo
