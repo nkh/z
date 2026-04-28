@@ -113,6 +113,7 @@ my $verbose       = 0;
 my $generate_diff = 0;
 my $debug         = 0;
 my $size          = undef;
+my $child_pid;    # set by run_child, used by SIGINT handler
 
 GetOptions(
     'init'            => sub { $mode = 'init' },
@@ -355,19 +356,39 @@ sub build_cmd {
 
 sub run_child {
     my @cmd = @_;
-    if ($verbose) {
-        return system(@cmd);
-    }
+
+    # Save and redirect stdout/stderr before fork so child inherits redirects
     my $devnull = File::Spec->devnull;
-    open(my $saved_out, '>&', \*STDOUT) or die "dup stdout: $!";
-    open(STDOUT, '>', $devnull)         or die "redirect stdout: $!";
-    # Keep STDERR visible when --debug is active so timing info shows
-    if (!$debug) {
-        open(my $saved_err, '>&', \*STDERR) or die "dup stderr: $!";
-        open(STDERR, '>', $devnull)      or die "redirect stderr: $!";
+    my ($saved_out, $saved_err);
+
+    if (!$verbose) {
+        open($saved_out, '>&', \*STDOUT) or die "dup stdout: $!";
+        open(STDOUT, '>', $devnull)         or die "redirect stdout: $!";
+        if (!$debug) {
+            open($saved_err, '>&', \*STDERR) or die "dup stderr: $!";
+            open(STDERR, '>', $devnull)      or die "redirect stderr: $!";
+        }
     }
-    my $rc = system(@cmd);
-    open(STDOUT, '>&', $saved_out) or die "restore stdout: $!";
+
+    $child_pid = fork();
+    if (!defined $child_pid) {
+        die "fork: $!";
+    } elsif ($child_pid == 0) {
+        # Child: exec source-editor (already has redirected stdout/stderr)
+        exec(@cmd);
+        die "exec failed: $!";
+    }
+
+    # Parent: wait for child
+    waitpid($child_pid, 0);
+    my $rc = $?;
+    $child_pid = 0;
+
+    # Restore stdout/stderr
+    if (!$verbose) {
+        open(STDOUT, '>&', $saved_out) or die "restore stdout: $!";
+        open(STDERR, '>&', $saved_err) or die "restore stderr: $!" if $saved_err;
+    }
     return $rc;
 }
 
@@ -449,7 +470,11 @@ my $skipped     = 0;
 my $interrupted = 0;
 my @failures;
 
-$SIG{INT} = sub { $interrupted = 1 };
+$SIG{INT} = sub {
+    $interrupted = 1;
+    kill('TERM', $child_pid)   if $child_pid;
+    kill('TERM', -$child_pid)  if $child_pid;  # process group
+};
 
 sub has_all_goldens {
     my ($name, $subdir) = @_;
