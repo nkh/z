@@ -5,13 +5,18 @@ Action: `D` deletes from the cursor to the end of the line
 
 **initial.png** (before):
 - Line 1: `This is a first line of text in the buffer.`
-- Cursor at line 1, col 0
+- Cursor at line 1, col 0 (on `T`)
 
-Keys: `6lD`
+Keys: `6l` (move to col 6, `s`)
+
+**cursor_before_D.png** (cursor on `s`):
+- Cursor at line 1, col 6 (on `s`)
+
+Keys: `D`
 
 **after_D.png** (after):
-- Line 1: `This ` (from col 6 onward deleted)
-- Cursor at line 1, col 5 (last character)
+- Line 1: `This i` (from `s` at col 6 onward deleted)
+- Cursor at line 1, col 5 (last character `i`)
 END_DESC
     run => sub {
         my ($ctx) = @_;

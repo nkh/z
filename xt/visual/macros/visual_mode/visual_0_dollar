@@ -4,7 +4,8 @@
 Action: v select, 0 to line start, $ to line end
 
 -1_initial.png (initial state):
-- Cursor at line 1, col 5 (on 'w')
+- Line 1: `hello world this is a test`
+- Cursor at line 1, col 5 (on ` `)
 
 Sub-commands: keys('5lv0$')
 

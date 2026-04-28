@@ -10,10 +10,10 @@ Macro: `xt/visual/macros/bracket_match_brace`
 - Line 4: `}`
 - Cursor at line 1, col 0
 
-Keys: `9l` (move to `{`)
+Keys: `8l` (move to `{`)
 
 **on_brace.png** (cursor on `{`):
-- Cursor at line 1, col 9 (on `{`)
+- Cursor at line 1, col 8 (on `{`)
 
 Keys: `%`
 
@@ -29,7 +29,7 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('9l');
+        $ctx->keys('8l');
         $ctx->delay(100);
         $ctx->snapshot('on_brace');
         $ctx->delay(100);

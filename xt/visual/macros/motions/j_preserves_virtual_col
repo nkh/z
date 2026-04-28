@@ -8,7 +8,7 @@ Tests that `j` preserves the desired column when moving from a long line to a sh
 Keys: `$` → `j`
 
 - **j_preserves_virtual_col_initial.png**: Cursor at line 1, col 0 on `a`
-- **j_preserves_virtual_col_at_eol.png**: Cursor at line 1, col 29 on `e` (end of long line)
+- **j_preserves_virtual_col_at_eol.png**: Cursor at line 1, col 28 on `e` (end of long line)
 - **j_preserves_virtual_col_on_short.png**: Cursor at line 2, col 1 on `y` (clamped to end of short line "xy")
 END_DESC
     run => sub {
