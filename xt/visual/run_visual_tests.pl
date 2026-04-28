@@ -79,6 +79,7 @@
 #   --verbose            Show GTK warnings from child processes
 #   --generate-diff      Generate diff images on failure (default: off)
 #   --debug              Pass --debug to source-editor
+#   --size WxH           Window size (default: let window manager decide)
 #
 # ARGUMENTS
 # ========
@@ -111,6 +112,7 @@ my $delay         = 500;
 my $verbose       = 0;
 my $generate_diff = 0;
 my $debug         = 0;
+my $size          = undef;
 
 GetOptions(
     'init'            => sub { $mode = 'init' },
@@ -124,6 +126,7 @@ GetOptions(
     'verbose|v'       => \$verbose,
     'generate-diff'   => \$generate_diff,
     'debug'           => \$debug,
+    'size=s'          => \$size,
 ) or die "Usage: $0 [options] <dir_or_file> [dir_or_file ...]\n";
 
 # --- Remaining arguments: macro directories and/or individual files ---
@@ -330,8 +333,12 @@ sub build_cmd {
         '--macro-run',    $name,
         '--snapshot-dir', $snap_dir,
         '--snapshot-delay', $delay,
-        '--size',         '800x400',
     );
+
+    # Pass --size only if explicitly given
+    if (defined $size) {
+        push @cmd, '--size', $size;
+    }
 
     # Pass vim_mode if the macro requests non-default
     if (defined $meta->{vim_mode} && !$meta->{vim_mode}) {

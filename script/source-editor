@@ -29,7 +29,7 @@
 #   --snapshot-dir DIR           Directory for macro snapshots (default: .)
 #   --snapshot-delay MS          Delay before macro runs (default: 500)
 #   --language ID                Force syntax highlighting language
-#   --size WxH                   Window size (default: 800x600)
+#   --size WxH                   Window size (default: let window manager decide)
 #   --code TEXT                  Set buffer text directly
 #   --debug                      Print millisecond timing to stderr
 #   --vim-mode 0|1               Enable vim mode (default: 1)
@@ -81,7 +81,7 @@ my $macro_run               = undef;
 my $snapshot_dir            = '.';
 my $snapshot_delay          = 500;
 my $language                = undef;
-my $size                    = '800x600';
+my $size                    = undef;  # let WM decide by default
 my $code                    = undef;
 my $vim_mode                = undef;
 
@@ -130,7 +130,7 @@ Macro/snapshot options:
   --snapshot-dir DIR           Snapshot output directory (default: .)
   --snapshot-delay MS          Delay before macro runs (default: 500)
   --language ID                Force syntax highlighting language
-  --size WxH                   Window size (default: 800x600)
+  --size WxH                   Window size (default: let window manager decide)
   --code TEXT                  Set buffer text directly
   --vim-mode 0|1               Enable vim mode (default: 1)
   --debug                      Print timing to stderr
@@ -150,9 +150,9 @@ _dbg("GTK init done");
 # Positional argument: file to open
 $filename = $ARGV[0] if @ARGV;
 
-# --- Parse window size ---
-my ($win_w, $win_h) = (800, 600);
-if ($size =~ /^(\d+)x(\d+)$/) {
+# --- Parse window size (optional: let WM decide if not given) ---
+my ($win_w, $win_h) = (undef, undef);
+if (defined $size && $size =~ /^(\d+)x(\d+)$/) {
     ($win_w, $win_h) = ($1, $2);
 }
 
@@ -209,7 +209,7 @@ if (defined $code) {
 # --- Build window ---
 my $window = Gtk3::Window->new('toplevel');
 $window->set_title($filename || "New File");
-$window->set_default_size($win_w, $win_h);
+$window->set_default_size($win_w, $win_h) if defined $win_w && defined $win_h;
 $window->signal_connect(delete_event => sub { Gtk3->main_quit; return FALSE });
 $window->add($editor->get_widget);
 _dbg("widget added to window");
