@@ -3,17 +3,14 @@
     description => <<'END_DESC',
 Action: `dw` on the last word of a line deletes it without trailing whitespace
 
-Macro: `xt/visual/macros/dw_last_word`
-
 **initial.png** (before):
-- Line 1: `hello world test`
+- Line 1: `This is a longer line of text for testing.`
 - Cursor at line 1, col 0
 
 Keys: `wwdw`
 
 **after_dw_last.png** (after):
-- Line 1: `hello world ` (`test` deleted, trailing space preserved)
-- Cursor at end of line
+- `dw` deletes the word under the cursor
 END_DESC
     run => sub {
         my ($ctx) = @_;

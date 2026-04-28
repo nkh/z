@@ -3,17 +3,15 @@
     description => <<'END_DESC',
 Action: `5x` deletes 5 characters starting from under the cursor
 
-Macro: `xt/visual/macros/count_delete_5x`
-
 **initial.png** (before):
-- Line 1: `ABCDEFGHIJ`
-- Cursor at line 1, col 0 (on `A`)
+- Line 1: `This is a longer line of text for testing.`
+- Cursor at line 1, col 0 (on `T`)
 
 Keys: `5x`
 
 **after_5x.png** (after):
-- Line 1: `FGHIJ` (`ABCDE` deleted)
-- Cursor at line 1, col 0 (on `F`)
+- Line 1: `is a longer line of text for testing.` (`This ` deleted)
+- Cursor at line 1, col 0 (on `i`)
 END_DESC
     run => sub {
         my ($ctx) = @_;

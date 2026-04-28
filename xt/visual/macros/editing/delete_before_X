@@ -3,17 +3,14 @@
     description => <<'END_DESC',
 Action: `X` deletes the character before (to the left of) the cursor
 
-Macro: `xt/visual/macros/delete_before_X`
-
 **initial.png** (before):
-- Line 1: `Hello World`
+- Line 1: `This is a longer line of text for testing deletion.`
 - Cursor at line 1, col 0
 
 Keys: `5lX`
 
 **after_X.png** (after):
-- Line 1: `Hell World` (`o` at col 4 deleted)
-- Cursor at line 1, col 4 (on the space)
+- Character before cursor deleted
 END_DESC
     run => sub {
         my ($ctx) = @_;

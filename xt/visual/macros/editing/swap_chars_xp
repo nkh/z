@@ -1,8 +1,6 @@
 {
     desc => q{xp swaps the character under cursor with the next character},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/swap_chars_xp`
-
 Tests the common **xp** idiom for transposing two characters:
 **x** deletes the character under the cursor (storing it), then
 **p** pastes it after the current cursor position, effectively swapping
@@ -11,12 +9,11 @@ two adjacent characters.
 **Keys:** `l`, `xp`
 
 **initial.png**
-- Buffer contains "abcdef"
-- Cursor on 'a' at column 0
+- Line 1: `This is a longer line of text for testing.`
+- Cursor on `T` at column 0
 
 **after_swap.png**
-- Buffer contains "acbdef" ('b' and 'c' swapped)
-- Cursor on 'c' at column 2
+- `l` moves to `h`, then `xp` swaps `h` with `i`
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -3,17 +3,14 @@
     description => <<'END_DESC',
 Action: `3X` deletes 3 characters before the cursor
 
-Macro: `xt/visual/macros/delete_3X`
-
 **initial.png** (before):
-- Line 1: `ABCDEFGHIJ`
+- Line 1: `This is a longer line of text for testing deletion.`
 - Cursor at line 1, col 0
 
 Keys: `7l3X`
 
 **after_3X.png** (after):
-- Line 1: `ABCDHIJ` (`EFG` at cols 4-6 deleted)
-- Cursor at line 1, col 4 (on `H`)
+- 3 characters before cursor position deleted
 END_DESC
     run => sub {
         my ($ctx) = @_;

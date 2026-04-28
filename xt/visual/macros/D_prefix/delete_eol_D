@@ -3,16 +3,14 @@
     description => <<'END_DESC',
 Action: `D` deletes from the cursor to the end of the line
 
-Macro: `xt/visual/macros/delete_eol_D`
-
 **initial.png** (before):
-- Line 1: `Hello World Test`
+- Line 1: `This is a first line of text in the buffer.`
 - Cursor at line 1, col 0
 
 Keys: `6lD`
 
 **after_D.png** (after):
-- Line 1: `Hello ` (`World Test` deleted from col 6 onward)
+- Line 1: `This ` (from col 6 onward deleted)
 - Cursor at line 1, col 5 (last character)
 END_DESC
     run => sub {

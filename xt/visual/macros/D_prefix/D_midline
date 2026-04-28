@@ -3,20 +3,16 @@
     description => <<'END_DESC',
 Action: `D` deletes from cursor to end of line
 
-Macro: `xt/visual/macros/D_midline`
-
 **initial.png** (before):
-- Line 1: `hello world`
-- Line 2: `foo bar baz`
+- Line 1: `This is a first line of text in the buffer.`
+- Line 2: `Here is a second line with more content.`
 - Cursor at line 1, col 0
 
 Keys: `6lD`
 
 **after_action.png** (after):
-- Line 1: `hello ` (trailing space preserved, `world` deleted)
-- Line 2: `foo bar baz` (unchanged)
-- Cursor at line 1, col 6 (end of remaining content)
-
+- Line 1: `This ` (from col 6 onward deleted)
+- Line 2: `Here is a second line with more content.` (unchanged)
 END_DESC
     run => sub {
         my ($ctx) = @_;

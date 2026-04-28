@@ -3,17 +3,15 @@
     description => <<'END_DESC',
 Action: `dw` deletes the word under the cursor (including trailing space)
 
-Macro: `xt/visual/macros/delete_word_dw`
-
 **initial.png** (before):
-- Line 1: `hello world test`
-- Cursor at line 1, col 0 (start of `hello`)
+- Line 1: `This is a longer line of text for testing.`
+- Cursor at line 1, col 0 (start of `This`)
 
 Keys: `dw`
 
 **after_dw.png** (after):
-- Line 1: `world test` (`hello ` deleted)
-- Cursor at line 1, col 0 (start of `world`)
+- Line 1: `is a longer line of text for testing.` (`This ` deleted)
+- Cursor at line 1, col 0 (start of `is`)
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -3,17 +3,14 @@
     description => <<'END_DESC',
 Action: `cw` deletes the word under the cursor and enters insert mode
 
-Macro: `xt/visual/macros/change_word_cw`
-
 **initial.png** (before):
-- Line 1: `hello world test`
-- Cursor at line 1, col 0 (start of `hello`)
+- Line 1: `This is a longer line of text for testing changes.`
+- Cursor at line 1, col 0 (start of `This`)
 
 Keys: `cw`, type `REPLACED`, `Escape`
 
 **after_cw.png** (after):
-- Line 1: `REPLACED world test` (`hello` replaced with `REPLACED`)
-- Cursor at line 1, col 8 (after `REPLACED`)
+- Line 1: `REPLACED is a longer line of text for testing changes.` (`This` replaced with `REPLACED`)
 END_DESC
     run => sub {
         my ($ctx) = @_;

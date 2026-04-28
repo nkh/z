@@ -3,16 +3,14 @@
     description => <<'END_DESC',
 Action: `s` deletes the character under the cursor and enters insert mode
 
-Macro: `xt/visual/macros/substitute_char_s`
-
 **initial.png** (before):
-- Line 1: `hello world`
-- Cursor at line 1, col 0 (on `h`)
+- Line 1: `This is a longer line of text for testing.`
+- Cursor at line 1, col 0 (on `T`)
 
 Keys: `sX`, `Escape`
 
 **after_substitute.png** (after):
-- Line 1: `Xello world` (`h` replaced with `X`)
+- Line 1: `Xhis is a longer line of text for testing.` (`T` replaced with `X`)
 - Cursor at line 1, col 1 (after `X`)
 END_DESC
     run => sub {
