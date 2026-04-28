@@ -17,73 +17,53 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}
-__DATA__
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
+}__DATA__
+# Gtk3::SourceEditor
 
-package Sample::Module;
-use strict;
-use warnings;
+A **Vim-style** source code editor widget built on
+*Gtk3::SourceView*.
 
-our $VERSION = '1.00';
+## Features
 
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
+- Vim-style keybindings (normal, insert, visual modes)
+- Syntax highlighting for 20+ languages
+- Light and dark themes
+- Undo/redo support
+- Line numbers gutter
 
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
+## Installation
 
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
+```bash
+cpanm Gtk3::SourceEditor
+```
 
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
+### From source
 
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
+```bash
+perl Makefile.PL
+make
+make test
+make install
+```
 
-1;
+## Quick Start
 
-__END__
+```perl
+use Gtk3 -init;
+use Gtk3::SourceEditor;
 
-=head1 NAME
+my $editor = Gtk3::SourceEditor->new();
+$editor->set_language('perl');
+$editor->set_theme('dark');
+$editor->set_text('# hello world');
+```
 
-Sample::Module - A sample module for testing
+## Configuration
 
-=head1 SYNOPSIS
+| Setting     | Default   | Description              |
+|-------------|-----------|--------------------------|
+| `vim_mode`  | `1`       | Enable vim keybindings   |
+| `theme`     | `light`   | Color theme to use       |
+| `tab_width` | `4`       | Tab stop width in spaces |
 
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+See also: [Gtk3](https://metacpan.org/pod/Gtk3)

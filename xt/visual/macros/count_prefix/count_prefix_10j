@@ -20,20 +20,19 @@ END_DESC
         $ctx->delay(200);
         $ctx->snapshot('after_10j');
     },
-}
-__DATA__
-Line 1: The quick brown fox jumps over the lazy dog.
-Line 2: The quick brown fox jumps over the lazy dog.
-Line 3: The quick brown fox jumps over the lazy dog.
-Line 4: The quick brown fox jumps over the lazy dog.
-Line 5: The quick brown fox jumps over the lazy dog.
-Line 6: The quick brown fox jumps over the lazy dog.
-Line 7: The quick brown fox jumps over the lazy dog.
-Line 8: The quick brown fox jumps over the lazy dog.
-Line 9: The quick brown fox jumps over the lazy dog.
-Line 10: The quick brown fox jumps over the lazy dog.
-Line 11: The quick brown fox jumps over the lazy dog.
-Line 12: The quick brown fox jumps over the lazy dog.
-Line 13: The quick brown fox jumps over the lazy dog.
-Line 14: The quick brown fox jumps over the lazy dog.
-Line 15: The quick brown fox jumps over the lazy dog.
+}__DATA__
+line 01
+line 02
+line 03
+line 04
+line 05
+line 06
+line 07
+line 08
+line 09
+line 10
+line 11
+line 12
+line 13
+line 14
+line 15

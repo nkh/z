@@ -16,73 +16,58 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}
-__DATA__
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
+}__DATA__
+#!/usr/bin/env python3
+"""Source editor utilities module."""
 
-package Sample::Module;
-use strict;
-use warnings;
+from typing import List, Optional, Dict, Any
+import json
+import os
 
-our $VERSION = '1.00';
 
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
+def load_config(path: str) -> Dict[str, Any]:
+    """Load configuration from a JSON file."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Config not found: {path}")
+    with open(path, 'r') as f:
+        return json.load(f)
 
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
 
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
+class SyntaxHighlighter:
+    """Base class for syntax highlighting."""
 
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
+    def __init__(self, language: str = "text"):
+        self.language = language
+        self._patterns: List[str] = []
 
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
+    def add_pattern(self, pattern: str) -> None:
+        self._patterns.append(pattern)
 
-1;
+    def highlight(self, code: str) -> str:
+        """Apply highlighting rules to source code."""
+        result = code
+        for pattern in self._patterns:
+            # Apply each pattern in sequence
+            result = self._apply(result, pattern)
+        return result
 
-__END__
+    def _apply(self, text: str, pattern: str) -> str:
+        """Apply a single highlighting pattern."""
+        return text  # overridden in subclasses
 
-=head1 NAME
 
-Sample::Module - A sample module for testing
+def main() -> int:
+    """Entry point for the utility."""
+    config = load_config("config.json")
+    highlighter = SyntaxHighlighter(language="python")
 
-=head1 SYNOPSIS
+    if not config.get("enabled", False):
+        print("Syntax highlighting is disabled")
+        return 0
 
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
+    print(f"Language: {highlighter.language}")
+    return 0
 
-=head1 DESCRIPTION
 
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+if __name__ == "__main__":
+    raise SystemExit(main())

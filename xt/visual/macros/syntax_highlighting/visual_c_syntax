@@ -17,73 +17,50 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}
-__DATA__
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
+}__DATA__
+#include <stdio.h>
+#include <stdlib.h>
 
-package Sample::Module;
-use strict;
-use warnings;
+#define MAX_SIZE 100
 
-our $VERSION = '1.00';
+/* Global configuration */
+int verbose = 1;
+double threshold = 0.5;
 
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
+// Structure definition
+typedef struct {
+    int id;
+    char name[64];
+    double value;
+} Record;
 
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
+// Function declarations
+int process_record(Record *r);
+void print_summary(Record *records, int count);
+int validate(const char *input);
+
+int main(int argc, char *argv[]) {
+    printf("Starting program...\n");
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
+        return 1;
     }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
+    for (int i = 0; i < argc; i++) {
+        printf("  arg[%d] = %s\n", i, argv[i]);
     }
-    return join("\n", @lines);
+    return 0;
 }
 
-1;
+int process_record(Record *r) {
+    if (r == NULL) return -1;
+    r->value *= threshold;
+    return 0;
+}
 
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+void print_summary(Record *records, int count) {
+    int total = 0;
+    for (int i = 0; i < count && i < MAX_SIZE; i++) {
+        total += (int)records[i].value;
+    }
+    printf("Total: %d (from %d records)\n", total, count);
+}

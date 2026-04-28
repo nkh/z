@@ -26,10 +26,6 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('after_percent');
     },
-}
-__DATA__
-This is a longer line of text for testing.
-The quick brown fox jumps over the lazy dog.
-Another line here to fill the buffer.
-And yet another line for scrolling context.
-Final line of the test buffer content.
+}__DATA__
+no brackets here
+just plain text

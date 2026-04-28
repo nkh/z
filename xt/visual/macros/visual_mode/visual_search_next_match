@@ -9,7 +9,7 @@ Action: /sub then n moves to next match
 Sub-commands: keys('/sub\nn')
 
 -2_after.png (after action):
-- Cursor on the second occurrence of "sub" (first sub is "package" on line 7)
+- Cursor on the second occurrence of "sub" (first match is "sub new" on line 11)
 - Search highlights still active
 END_DESC
     run => sub {

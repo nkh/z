@@ -16,73 +16,59 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}
-__DATA__
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
-
-package Sample::Module;
-use strict;
-use warnings;
-
-our $VERSION = '1.00';
-
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
+}__DATA__
+/* Editor base styles */
+.editor {
+    font-family: monospace;
+    font-size: 14px;
+    color: #d4d4d4;
+    background: #1e1e1e;
+    padding: 4px 8px;
+    border: 1px solid #3c3c3c;
 }
 
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
+/* Gutter styling */
+.gutter {
+    background: #1e1e1e;
+    color: #858585;
+    border-right: 1px solid #3c3c3c;
+    padding: 0 6px;
+    min-width: 40px;
+    text-align: right;
+    user-select: none;
 }
 
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
+/* Selection highlight */
+.editor::selection {
+    background: #264f78;
 }
 
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
+/* Scrollbar styling */
+.editor::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
 }
 
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
+.editor::-webkit-scrollbar-thumb {
+    background: #424242;
+    border: 3px solid #1e1e1e;
+    border-radius: 7px;
 }
 
-1;
+/* Cursor line highlight */
+.cursor-line {
+    background: rgba(255, 255, 255, 0.04);
+}
 
-__END__
+/* Search match highlight */
+.search-match {
+    background: #515c6a;
+    border: 1px solid #515c6a;
+}
 
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+/* Syntax colors */
+.keyword    { color: #569cd6; }
+.string     { color: #ce9178; }
+.comment    { color: #6a9955; }
+.number     { color: #b5cea8; }
+.type       { color: #4ec9b0; }

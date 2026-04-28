@@ -16,73 +16,38 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}
-__DATA__
-# This is a standard test file used for visual regression testing.
-# It provides enough lines to test scrolling, navigation, and display.
-# The content is intentionally simple to avoid distracting from the
-# visual elements being tested (cursor position, selections, themes).
+}__DATA__
+-- Create the users table
+CREATE TABLE users (
+    id       SERIAL PRIMARY KEY,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    email    VARCHAR(256) NOT NULL,
+    role     VARCHAR(32) DEFAULT 'viewer',
+    created  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    active   BOOLEAN DEFAULT TRUE
+);
 
-package Sample::Module;
-use strict;
-use warnings;
+-- Insert sample data
+INSERT INTO users (username, email, role) VALUES
+    ('admin', 'admin@example.com', 'admin'),
+    ('editor', 'editor@example.com', 'editor'),
+    ('viewer', 'viewer@example.com', 'viewer');
 
-our $VERSION = '1.00';
+-- Create index for fast lookups
+CREATE INDEX idx_users_username ON users (username);
+CREATE INDEX idx_users_email ON users (email);
 
-sub new {
-    my ($class, %opts) = @_;
-    my $self = bless { %opts }, $class;
-    return $self;
-}
+-- Query with join
+SELECT u.username, u.email, u.role, COUNT(o.id) AS order_count
+FROM users u
+LEFT JOIN orders o ON o.user_id = u.id
+WHERE u.active = TRUE
+  AND u.created > '2024-01-01'
+GROUP BY u.id, u.username, u.email, u.role
+HAVING COUNT(o.id) > 0
+ORDER BY order_count DESC
+LIMIT 50;
 
-sub process {
-    my ($self, $data) = @_;
-    return undef unless defined $data;
-    my @results;
-    for my $item (@$data) {
-        push @results, $self->_transform($item);
-    }
-    return \@results;
-}
-
-sub _transform {
-    my ($self, $item) = @_;
-    return uc($item) if defined $item;
-    return '';
-}
-
-sub validate {
-    my ($self, $input) = @_;
-    die "Invalid input" unless $input && length($input) > 0;
-    return 1;
-}
-
-sub format_output {
-    my ($self, $data) = @_;
-    my @lines;
-    for my $entry (@$data) {
-        push @lines, sprintf("  - %s", $entry // 'undef');
-    }
-    return join("\n", @lines);
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-Sample::Module - A sample module for testing
-
-=head1 SYNOPSIS
-
-    use Sample::Module;
-    my $obj = Sample::Module->new(key => 'value');
-    my $result = $obj->process(\@data);
-
-=head1 DESCRIPTION
-
-This module exists solely to provide realistic-looking Perl code
-for visual regression tests. It is not intended for production use.
-
-=cut
+-- Update statistics
+UPDATE users SET role = 'superadmin'
+WHERE username = 'admin' AND active = TRUE;
