@@ -16,7 +16,8 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}__DATA__
+}
+__DATA__
 <!DOCTYPE html>
 <html lang="en">
 <head>

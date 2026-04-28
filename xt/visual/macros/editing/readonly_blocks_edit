@@ -27,5 +27,6 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('after_blocked_edit');
     },
-}__DATA__
+}
+__DATA__
 do not modify me

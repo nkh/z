@@ -16,7 +16,8 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}__DATA__
+}
+__DATA__
 {
     "name": "Gtk3::SourceEditor",
     "version": "0.01",

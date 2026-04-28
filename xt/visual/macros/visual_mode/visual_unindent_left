@@ -21,7 +21,8 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('after');
     },
-}__DATA__
+}
+__DATA__
     indented line one
     indented line two
 not indented line three

@@ -21,7 +21,8 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('after');
     },
-}__DATA__
+}
+__DATA__
 line one
 line two
 line three

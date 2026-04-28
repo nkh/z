@@ -24,7 +24,8 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}__DATA__
+}
+__DATA__
 # -*- coding: utf-8 -*-
 use utf8;
 my $accent = "\xe9\xe8\xea\xeb";      # Latin-1: e-acute, e-grave, e-circ, e-diaeresis

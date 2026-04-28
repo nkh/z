@@ -20,7 +20,8 @@ END_DESC
         $ctx->delay(200);
         $ctx->snapshot('after_10j');
     },
-}__DATA__
+}
+__DATA__
 line 01
 line 02
 line 03

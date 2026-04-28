@@ -26,7 +26,8 @@ END_DESC
         $ctx->delay(200);
         $ctx->snapshot('after');
     },
-}__DATA__
+}
+__DATA__
 abcd
 efgh
 ijkl

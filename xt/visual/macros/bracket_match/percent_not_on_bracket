@@ -26,6 +26,7 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('after_percent');
     },
-}__DATA__
+}
+__DATA__
 no brackets here
 just plain text

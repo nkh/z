@@ -16,7 +16,8 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot();
     },
-}__DATA__
+}
+__DATA__
 -- Create the users table
 CREATE TABLE users (
     id       SERIAL PRIMARY KEY,

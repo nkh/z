@@ -26,7 +26,8 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('after_join');
     },
-}__DATA__
+}
+__DATA__
 hello
 world
 foo

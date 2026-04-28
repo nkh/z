@@ -23,7 +23,8 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('after');
     },
-}__DATA__
+}
+__DATA__
 #!/usr/bin/perl
 use strict;
 use warnings;
