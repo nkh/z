@@ -1,7 +1,7 @@
 {
-    desc => ':ls lists open buffers with index, name, and flags',
+    desc => q{:ls lists open buffers with index, name, and flags},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/multi_buffer_ls`
+## Macro: `xt/visual/macros/multi_buffer/multi_buffer_ls`
 
 Tests that `:ls` displays the buffer list in the mode label area, showing
 buffer indices, filenames, and markers (`%` for current, `+` for modified).

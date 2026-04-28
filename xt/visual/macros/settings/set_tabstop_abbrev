@@ -1,9 +1,7 @@
-my $CODE = "\tindented line one\n\tindented line two\n\tnormal line three\n";
-
 {
-    desc => ':set ts=8 abbreviation sets tabstop width',
+    desc => q{:set ts=8 abbreviation sets tabstop width},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_tabstop_abbrev`
+## Macro: `xt/visual/macros/settings/set_tabstop_abbrev`
 
 Tests that `:set ts=8` is accepted as an abbreviation for `:set tabstop=8`
 and changes the visual display width of tab characters to 8 columns.
@@ -24,3 +22,7 @@ END_DESC
         $ctx->snapshot('after_set');
     },
 }
+__DATA__
+	indented line one
+	indented line two
+	normal line three

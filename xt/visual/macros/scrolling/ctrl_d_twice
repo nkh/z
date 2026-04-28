@@ -1,9 +1,7 @@
-my $CODE = join("\n", map { "scroll line $_" } 1..40);
-
 {
-    desc => 'Two consecutive Ctrl-d scrolls two half-pages',
+    desc => q{Two consecutive Ctrl-d scrolls two half-pages},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/ctrl_d_twice`
+## Macro: `xt/visual/macros/scrolling/ctrl_d_twice`
 
 Tests that two consecutive `Ctrl-d` keystrokes scroll the viewport down by
 approximately one full page (two half-pages). The buffer has 40 numbered
@@ -30,3 +28,44 @@ END_DESC
         $ctx->snapshot('after_second');
     },
 }
+__DATA__
+scroll line 1
+scroll line 2
+scroll line 3
+scroll line 4
+scroll line 5
+scroll line 6
+scroll line 7
+scroll line 8
+scroll line 9
+scroll line 10
+scroll line 11
+scroll line 12
+scroll line 13
+scroll line 14
+scroll line 15
+scroll line 16
+scroll line 17
+scroll line 18
+scroll line 19
+scroll line 20
+scroll line 21
+scroll line 22
+scroll line 23
+scroll line 24
+scroll line 25
+scroll line 26
+scroll line 27
+scroll line 28
+scroll line 29
+scroll line 30
+scroll line 31
+scroll line 32
+scroll line 33
+scroll line 34
+scroll line 35
+scroll line 36
+scroll line 37
+scroll line 38
+scroll line 39
+scroll line 40

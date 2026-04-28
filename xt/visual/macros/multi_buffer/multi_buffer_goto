@@ -1,7 +1,7 @@
 {
-    desc => ':b<N> jumps directly to a buffer by index number',
+    desc => q{:b<N> jumps directly to a buffer by index number},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/multi_buffer_goto`
+## Macro: `xt/visual/macros/multi_buffer/multi_buffer_goto`
 
 Tests that `:b<N>` (buffer goto) switches directly to the buffer at the
 given index number without cycling through intermediate buffers.

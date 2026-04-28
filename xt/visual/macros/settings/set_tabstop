@@ -1,9 +1,7 @@
-my $CODE = "\tindented line one\n\tindented line two\n\tnormal line three\n";
-
 {
-    desc => ':set tabstop=8 changes the visual tab width',
+    desc => q{:set tabstop=8 changes the visual tab width},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_tabstop`
+## Macro: `xt/visual/macros/settings/set_tabstop`
 
 Tests that `:set tabstop=8` changes the visual display width of tab
 characters to 8 columns. The content starts with a small tabstop so the
@@ -30,3 +28,7 @@ END_DESC
         $ctx->snapshot('tabstop_8');
     },
 }
+__DATA__
+	indented line one
+	indented line two
+	normal line three

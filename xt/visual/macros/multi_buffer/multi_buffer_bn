@@ -1,7 +1,7 @@
 {
-    desc => ':bn switches to next buffer in the buffer list',
+    desc => q{:bn switches to next buffer in the buffer list},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/multi_buffer_bn`
+## Macro: `xt/visual/macros/multi_buffer/multi_buffer_bn`
 
 Tests that `:bn` (buffer next) cycles forward through the buffer registry,
 wrapping from the last buffer back to the first.
