@@ -443,10 +443,13 @@ my $label = $mode eq 'init'         ? 'initializing golden images'
 $label .= " (target: $target)" if $target;
 print "visual tests: $label\n---\n";
 
-my $passed  = 0;
-my $failed  = 0;
-my $skipped = 0;
+my $passed      = 0;
+my $failed      = 0;
+my $skipped     = 0;
+my $interrupted = 0;
 my @failures;
+
+$SIG{INT} = sub { $interrupted = 1 };
 
 sub has_all_goldens {
     my ($name, $subdir) = @_;
@@ -462,6 +465,7 @@ sub _ensure_dir {
 
 TEST:
 for my $name (@test_names) {
+    last TEST if $interrupted;
     next TEST if $target && $name ne $target;
 
     my $meta = Gtk3::SourceEditor::Macro->meta($name);
@@ -617,6 +621,12 @@ for my $name (@test_names) {
 
 # --- Summary ---
 print "---\n";
+if ($interrupted) {
+    printf "visual tests: INTERRUPTED (%d passed, %d failed", $passed, $failed;
+    printf ", %d skipped", $skipped if $skipped;
+    print ")\n";
+    exit 2;
+}
 printf "visual tests: %d passed, %d failed", $passed, $failed;
 printf ", %d skipped", $skipped if $skipped;
 print "\n";
