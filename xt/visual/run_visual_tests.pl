@@ -403,13 +403,29 @@ sub write_description {
     my $desc_file = "$dir/$name.md";
     open my $fh, '>', $desc_file or do { warn "Cannot write $desc_file: $!"; return };
 
+    # Compute macro file path relative to the description file's directory
+    my $macro_link = '';
+    my $info = Gtk3::SourceEditor::Macro->info($name);
+    if ($info && $info->{file}) {
+        $macro_link = File::Spec->abs2rel($info->{file}, $dir);
+    }
+
     my $desc = $meta->{desc} // $name;
     print $fh "# $name\n\n";
     print $fh "$desc\n\n";
 
+    # Auto-generate the macro file link (relative to golden/ dir)
+    if ($macro_link) {
+        print $fh "Macro: `$macro_link`\n\n";
+    }
+
+    # Strip any hand-written Macro: lines from description content
     if ($meta->{description}) {
-        print $fh $meta->{description};
-        print $fh "\n" unless $meta->{description} =~ /\n$/;
+        my $body = $meta->{description};
+        $body =~ s/^##?\s*Macro:.*\n?//gm;
+        $body =~ s/^\n+//;
+        print $fh $body;
+        print $fh "\n" unless $body =~ /\n$/;
     }
     close $fh;
 }
