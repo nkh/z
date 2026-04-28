@@ -431,12 +431,14 @@ sub write_description {
 }
 
 # ==========================================================================
-# Determine output type and collect snapshot labels
+# Determine output type and collect snapshot files
 #
-#   single:  <name>.png
-#   labeled: <name>_1.png, <name>_2.png, ... <name>_N.png
+#   single:  <name>-N.png          (no label)
+#   labeled: <name>-N_label.png
 #
-# Returns (type, [labels]) where type is 'single' or 'labeled'.
+# Returns (type, [labels]) where type is 'single' or 'labeled',
+# and labels is an arrayref of hashrefs: { label => $label, file => $filename }.
+# For 'single' type, labels is [].
 # Uses subdirectory-aware paths.
 # ==========================================================================
 
@@ -447,20 +449,32 @@ sub collect_output_snapshots {
 
     my $base = $subdir ? "$dir/$subdir" : $dir;
 
-    # Single (unlabeled) output
-    if (-f "$base/${name}.png" && -s _) {
-        return ('single', []);
-    }
-
-    # Labeled snapshots: collect all <name>_<label>.png files
-    my @labels;
-    for my $f (sort glob "$base/${name}_*.png") {
+    # Labeled snapshots: collect all <name>-N_<label>.png files
+    my @labeled;
+    for my $f (sort glob "$base/${name}-*.png") {
         next unless -s $f;
-        if ($f =~ /\b${name}_(\w+)\.png$/) {
-            push @labels, $1;
+        if ($f =~ /\b(\Q$name\E)-(\d+)_(\w+)\.png$/) {
+            push @labeled, { label => $3, file => basename($f) };
         }
     }
-    return (@labels ? ('labeled', \@labels) : (undef, []));
+    return ('labeled', \@labeled) if @labeled;
+
+    # Unlabeled (counter-only) snapshots: <name>-N.png
+    my @single;
+    for my $f (sort glob "$base/${name}-*.png") {
+        next unless -s $f;
+        if ($f =~ /\b(\Q$name\E)-\d+\.png$/) {
+            push @single, basename($f);
+        }
+    }
+    return ('single', \@single) if @single;
+
+    # Backwards compat: old-style <name>.png
+    if (-f "$base/${name}.png" && -s _) {
+        return ('single', ["${name}.png"]);
+    }
+
+    return (undef, []);
 }
 
 # Backwards-compatible alias
@@ -550,18 +564,20 @@ for my $name (@test_names) {
                 push @failures, { name => $name, error => "no labeled output" };
                 next TEST;
             }
-            for my $lbl (@$out_labels) {
-                copy("$out_base/${name}_${lbl}.png", "$gld_base/${name}_${lbl}.png");
+            for my $snap (@$out_labels) {
+                my $file = $snap->{file};
+                copy("$out_base/$file", "$gld_base/$file");
             }
             print "OK (golden saved, " . scalar(@$out_labels) . " snapshots)";
         } else {
-            my $out = "$out_base/${name}.png";
+            my $out_file = $out_labels->[0] // "${name}.png";
+            my $out = "$out_base/$out_file";
             unless (-f $out && -s $out) {
                 print "FAIL (no output)\n"; $failed++;
                 push @failures, { name => $name, error => "no output" };
                 next TEST;
             }
-            copy($out, "$gld_base/${name}.png");
+            copy($out, "$gld_base/$out_file");
             print "OK (golden saved)";
         }
         write_description($name, $meta, $subdir);
@@ -583,19 +599,21 @@ for my $name (@test_names) {
 
         my $all_match = 1;
         my @diffs;
-        for my $lbl (sort @$out_labels) {
-            my $out_f = "$out_base/${name}_${lbl}.png";
-            my $gld_f = "$gld_base/${name}_${lbl}.png";
+        for my $snap (@$out_labels) {
+            my $file = $snap->{file};
+            my $out_f = "$out_base/$file";
+            my $gld_f = "$gld_base/$file";
             next unless -f $out_f && -s $out_f;
             next unless -f $gld_f && -s $gld_f;
 
             my $r = compare_images($gld_f, $out_f);
             unless ($r->{match}) {
                 $all_match = 0;
-                push @diffs, { label => $lbl, diff_pct => $r->{diff_pct} };
+                push @diffs, { file => $file, label => $snap->{label}, diff_pct => $r->{diff_pct} };
                 if ($generate_diff) {
                     _ensure_dir($dif_base);
-                    my $dp = "$dif_base/${name}_${lbl}_diff.png";
+                    my $dp = "$dif_base/$file";
+                    $dp =~ s/\.png$/_diff.png/;
                     generate_diff_image($gld_f, $out_f, $dp);
                 }
             }
@@ -609,7 +627,8 @@ for my $name (@test_names) {
             if ($generate_diff) {
                 for my $d (@diffs) {
                     my $rel = $subdir ? "$subdir/" : '';
-                    print "\n    diff: xt/visual/diffs/${rel}${name}_" . $d->{label} . "_diff.png";
+                    my $df = $d->{file}; $df =~ s/\.png$/_diff.png/;
+                    print "\n    diff: xt/visual/diffs/${rel}${df}";
                 }
             }
             print "\n";
@@ -621,14 +640,15 @@ for my $name (@test_names) {
             };
         } else {
             my $detail = join(', ', map {
-                sprintf("%s: %.2f%%", $_, 0)
-            } sort @$out_labels);
+                sprintf("%s: %.2f%%", $_->{label}, 0)
+            } @$out_labels);
             print "OK ($detail)\n";
             $passed++;
         }
     } else {
-        my $out = "$out_base/${name}.png";
-        my $gld = "$gld_base/${name}.png";
+        my $out_file = $out_labels->[0] // "${name}.png";
+        my $out = "$out_base/$out_file";
+        my $gld = "$gld_base/$out_file";
 
         unless (-f $out && -s $out) {
             print "SKIP (no output)\n"; $skipped++; next TEST;
@@ -644,10 +664,11 @@ for my $name (@test_names) {
             print "FAIL ($d)";
             if ($generate_diff) {
                 _ensure_dir($dif_base);
-                my $dp = "$dif_base/${name}_diff.png";
+                my $df = $out_file; $df =~ s/\.png$/_diff.png/;
+                my $dp = "$dif_base/$df";
                 generate_diff_image($gld, $out, $dp);
                 my $rel = $subdir ? "$subdir/" : '';
-                print "\n    diff: xt/visual/diffs/${rel}${name}_diff.png";
+                print "\n    diff: xt/visual/diffs/${rel}${df}";
             }
             print "\n";
             $failed++;

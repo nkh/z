@@ -3,12 +3,12 @@
     description => <<'END_DESC',
 Action: V enters visual line mode, j/k extends
 
-_1.png (initial state):
+-1_initial.png (initial state):
 - Cursor at line 1
 
 Sub-commands: keys('Vjj')
 
-_2.png (after action):
+-2_after.png (after action):
 - 3 lines selected
 - Mode label: "-- VISUAL LINE --"
 - Full line widths highlighted
@@ -16,11 +16,11 @@ END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->keys('Vjj');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after');
     },
 }
 __DATA__

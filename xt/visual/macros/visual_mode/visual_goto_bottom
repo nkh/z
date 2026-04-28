@@ -3,12 +3,12 @@
     description => <<'END_DESC',
 Action: G jumps to last line
 
-_1.png (initial state):
+-1_initial.png (initial state):
 - Default theme, cursor at line 1
 
 Sub-commands: keys('G')
 
-_2.png (after action):
+-2_after.png (after action):
 - Viewport scrolled to show bottom of buffer
 - Cursor on last line
 - Position label in status bar shows last line position
@@ -17,11 +17,11 @@ END_DESC
         my ($ctx) = @_;        $ctx->editor->set_language('perl');
         $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->keys('G');
         $ctx->delay(300);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after');
     },
 }
 __DATA__

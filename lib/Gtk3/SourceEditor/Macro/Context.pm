@@ -196,12 +196,17 @@ sub delay {
 # ==========================================================================
 # Snapshot
 #
-# Save a PNG of the editor widget.
+# Save a PNG of the editor widget.  An internal counter is auto-incremented
+# on every call and prepended to the filename so that snapshots sort in
+# chronological order.
 #
-#   snapshot()        -> <dir>/<macro_name>.png
-#   snapshot('1')     -> <dir>/<macro_name>_1.png
-#   snapshot('end')   -> <dir>/<macro_name>_end.png
-#   snapshot(undef)   -> <dir>/<macro_name>_step1.png (auto-increment)
+#   snapshot('initial')  -> <dir>/<macro_name>-1_initial.png
+#   snapshot('after')    -> <dir>/<macro_name>-2_after.png
+#   set_snapshot_counter(5)
+#   snapshot('final')    -> <dir>/<macro_name>-5_final.png
+#
+# Use set_snapshot_counter(N) to reset or change the counter (e.g. for
+# branching test paths where you want control over the numbering).
 # ==========================================================================
 
 sub snapshot {
@@ -209,12 +214,14 @@ sub snapshot {
     my $dir  = $self->{snapshot_dir};
     my $name = $self->{macro_name};
 
+    $self->{snapshot_seq}++;
+    my $seq = $self->{snapshot_seq};
+
     my $path;
     if (defined $label && length $label) {
-        $path = "$dir/${name}_$label.png";
+        $path = "$dir/${name}-${seq}_$label.png";
     } else {
-        $self->{snapshot_seq}++;
-        $path = "$dir/${name}.png";
+        $path = "$dir/${name}-${seq}.png";
     }
 
     # Ensure directory exists
@@ -227,6 +234,11 @@ sub snapshot {
         return;
     }
     return $path;
+}
+
+sub set_snapshot_counter {
+    my ($self, $n) = @_;
+    $self->{snapshot_seq} = $n // 0;
 }
 
 # ==========================================================================

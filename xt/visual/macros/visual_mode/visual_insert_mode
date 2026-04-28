@@ -3,13 +3,13 @@
     description => <<'END_DESC',
 Action: i enters insert mode
 
-_1.png (initial state):
+-1_initial.png (initial state):
 - Default theme, Normal mode
 - Mode label shows "-- NORMAL --"
 
 Sub-commands: keys('i')
 
-_2.png (after action):
+-2_after.png (after action):
 - Mode label shows "-- INSERT --"
 - Cursor shape may change
 - No text content change (no characters typed yet)
@@ -18,11 +18,11 @@ END_DESC
         my ($ctx) = @_;        $ctx->editor->set_language('perl');
         $ctx->buffer->set_text($CODE);
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->delay(100);
         $ctx->keys('i');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after');
     },
 }
 __DATA__

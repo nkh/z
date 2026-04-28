@@ -32,13 +32,13 @@ END_DESC
         # --- Step 1: Initial state ---
         $ctx->echo("Example macro started");
         $ctx->delay(100);
-        $ctx->snapshot('1');
+        $ctx->snapshot('initial');
         $ctx->echo("  Snapshot 1 saved: initial state");
 
         # --- Step 2: Delete the first line (dd) ---
         $ctx->keys('dd');
         $ctx->delay(100);
-        $ctx->snapshot('2');
+        $ctx->snapshot('after_dd');
         $ctx->echo("  Snapshot 2 saved: after dd");
 
         # --- Step 3: Enter insert mode, type text, exit ---
@@ -46,7 +46,7 @@ END_DESC
         $ctx->type('# restored');
         $ctx->key('Escape');
         $ctx->delay(100);
-        $ctx->snapshot('3');
+        $ctx->snapshot('after_insert');
         $ctx->echo("  Snapshot 3 saved: after insert");
 
         # --- Step 4: Undo ---
@@ -54,13 +54,13 @@ END_DESC
         $ctx->delay(100);
         $ctx->keys('u');
         $ctx->delay(100);
-        $ctx->snapshot('4');
+        $ctx->snapshot('after_undo');
         $ctx->echo("  Snapshot 4 saved: after undo x2");
 
         # --- Step 5: Search ---
         $ctx->keys('/sub\n');
         $ctx->delay(300);
-        $ctx->snapshot('5');
+        $ctx->snapshot('after_search');
         $ctx->echo("  Snapshot 5 saved: after /sub search");
 
         # --- State query example ---
