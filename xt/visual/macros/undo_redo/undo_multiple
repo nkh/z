@@ -14,18 +14,18 @@ then three undo steps restore the original state.
 - Cursor on line 1
 
 **after_changes.png**
-- Two chars deleted from line 1 ("a" -> ""), then line 2 ("bbb") deleted
-- Buffer: "", "ccc", "ddd"
-- Cursor on line 1 (now empty)
+- Two chars deleted from line 1 ("aaa" -> "a"), then line 2 ("bbb") deleted
+- Buffer: "a", "ccc", "ddd"
+- Cursor on line 1
 - Intermediate snapshot after all changes
 
 **after_partial_undo.png**
-- After first two `u` commands: "a" restored on line 1, "bbb" line restored
-- Buffer: "a", "bbb", "ccc", "ddd"
+- After two `u` commands: changes partially undone
+- Buffer state depends on undo granularity
 - Intermediate snapshot showing partial restoration
 
 **after_all_undo.png**
-- Buffer restored to original 4 lines (identical to initial)
+- Buffer restored to original 4 lines: "aaa", "bbb", "ccc", "ddd"
 - All changes fully undone
 END_DESC
     run => sub {

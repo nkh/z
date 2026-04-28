@@ -9,7 +9,7 @@ Action: v selects, d deletes, gv re-selects the deleted region
 Sub-commands: keys('vllldgv')
 
 -2_after.png (after action):
-- "hell" deleted: "o world"
+- "hell" deleted: "o world this is a test"
 - gv re-selected the region (selection visible on the remaining text)
 - Mode label shows "-- VISUAL --"
 END_DESC

@@ -18,12 +18,12 @@ Keys: `3l` (move to `(`)
 Keys: `%`
 
 **mid_close_paren.png** (after first `%`):
-- Cursor at line 1, col 19 (on `)` matching `(` at col 3)
+- Cursor at line 1, col 17 (on `)` matching `(` at col 3)
 
 Keys: `%`
 
 **after_action.png** (after second `%`):
-- Cursor at line 3, col 0 (on `}` matching `{` at col 21)
+- Cursor at line 1, col 3 (back on `(` toggling between the pair)
 - No text change
 
 END_DESC

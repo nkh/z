@@ -6,18 +6,18 @@ Action: `%` jumps between matching square brackets
 Macro: `xt/visual/macros/bracket_match_square`
 
 **initial.png** (before):
-- Line 1: `my @items = (1, 2, 3);`
+- Line 1: `my @items = [1, 2, 3];`
 - Cursor at line 1, col 0
 
-Keys: `3l` (move to `[`)
+Keys: `12l` (move to `[`)
 
 **on_bracket.png** (cursor on `[`):
-- Cursor at line 1, col 3 (on `[`)
+- Cursor at line 1, col 12 (on `[`)
 
 Keys: `%`
 
 **after_action.png** (after `%`):
-- Cursor at line 1, col 10 (on `]` matching `[` at col 3)
+- Cursor at line 1, col 20 (on `]` matching `[` at col 12)
 - No text change
 
 END_DESC
@@ -28,7 +28,7 @@ END_DESC
         $ctx->delay(100);
         $ctx->snapshot('initial');
         $ctx->delay(100);
-        $ctx->keys('3l');
+        $ctx->keys('12l');
         $ctx->delay(100);
         $ctx->snapshot('on_bracket');
         $ctx->delay(100);
@@ -38,5 +38,5 @@ END_DESC
     },
 }
 __DATA__
-my @items = (1, 2, 3);
+my @items = [1, 2, 3];
 

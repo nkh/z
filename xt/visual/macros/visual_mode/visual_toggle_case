@@ -9,8 +9,8 @@ Action: v selects chars, ~ toggles case
 Sub-commands: keys('v4l~')
 
 -2_after.png (after action):
-- "HELLO" (first 5 chars uppercased)
-- Line 1: "HELLO world"
+- First 5 chars uppercased: `HELLO world this is a test`
+- Line 1: `HELLO world this is a test`
 - Cursor at end of toggled region
 END_DESC
     run => sub {

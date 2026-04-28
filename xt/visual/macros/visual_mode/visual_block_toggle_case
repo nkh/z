@@ -11,7 +11,6 @@ Sub-commands: keys('Control-vjjll~')
 -2_after.png (after action):
 - First 3 chars of first 3 lines uppercased
 - Lines: "ABCd", "EFGh", "IJKl"
-- Line 4 unchanged
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

@@ -9,8 +9,8 @@ Action: v selects chars, U uppercases selection
 Sub-commands: keys('veeU')
 
 -2_after.png (after action):
-- "HELLO WORLD" (first 2 words uppercased)
-- Line 1: "HELLO WORLD"
+- First 2 words uppercased: `HELLO WORLD this is a test`
+- Line 1: `HELLO WORLD this is a test`
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

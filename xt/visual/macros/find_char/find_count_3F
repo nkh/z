@@ -12,10 +12,8 @@
 - Text: `abracadabra`
 
 **after_3Fa.png**
-- Cursor on the third 'a' from the right at col 7 (abrac**a**dabra)
-- Counting backward from col 10: col 10 (1st), col 7 (2nd... wait, let me recount)
-- From position 10: 'a'@10 (skip, current), 'a'@7 (1st back), 'a'@5 (2nd back), 'a'@3 (3rd back)
-- Cursor on 'a' at col 3
+- Cursor on 'a' at col 3 (third 'a' from end)
+- From position 10: skip 'a'@10, then 'a'@7 (1st back), 'a'@5 (2nd back), 'a'@3 (3rd back)
 - Text unchanged
 END_DESC
     run => sub {
