@@ -149,7 +149,10 @@ editor:
 | `line-numbers` | Line number gutter | `show_line_numbers` gutter |
 
 Syntax highlighting uses the `def:*` namespace and language-specific namespaces
-(e.g. `perl:keyword`, `python:string`, `xml:tag`).
+(e.g. `perl:keyword`, `python:string`, `xml:tag`). For a full guide to
+language-specific style names, discovering available styles, overriding colors
+per language, and creating new language definitions, see [Language Coloring and
+Syntax Highlighting](language-coloring.md).
 
 ## The `load()` Pipeline
 

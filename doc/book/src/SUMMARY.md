@@ -23,6 +23,7 @@
 - [Ex Commands Reference](ex-commands.md)
 - [Configuration](configuration.md)
 - [Theming](theming.md)
+- [Language Coloring and Syntax Highlighting](language-coloring.md)
 - [Plugin System](plugins.md)
 - [Macro System](macros.md)
 - [Testing](testing.md)
