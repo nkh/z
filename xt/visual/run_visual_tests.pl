@@ -76,8 +76,7 @@
 #   --target NAME        Run only the named test
 #   --threshold N        Max diff ratio 0.0-1.0 (default: 0.01)
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
-#   --verbose            Show GTK warnings from child processes
-#   --generate-diff      Generate diff images on failure (default: off)
+#   --verbose            Show GTK warnings + comparison diagnostics
 #   --debug              Pass --debug to source-editor
 #   --size WxH           Window size (default: let window manager decide)
 #
@@ -98,9 +97,9 @@ use lib "$RealBin/../../lib";
 use Getopt::Long qw(:config no_ignore_case bundling);
 use File::Basename qw(dirname basename);
 use File::Path qw(make_path);
-use File::Compare qw(compare);
 use File::Copy qw(copy);
 use File::Spec ();
+use Digest::MD5 qw(md5_hex);
 use Gtk3 '-init';
 use Gtk3::SourceEditor::Macro;
 
@@ -110,7 +109,6 @@ my $target        = '';
 my $threshold     = 0.01;
 my $delay         = 500;
 my $verbose       = 0;
-my $generate_diff = 0;
 my $debug         = 0;
 my $size          = undef;
 my $child_pid;    # set by run_child, used by SIGINT handler
@@ -125,7 +123,6 @@ GetOptions(
     'threshold=f'     => \$threshold,
     'snapshot-delay=i'=> \$delay,
     'verbose|v'       => \$verbose,
-    'generate-diff'   => \$generate_diff,
     'debug'           => \$debug,
     'size=s'          => \$size,
 ) or die "Usage: $0 [options] <dir_or_file> [dir_or_file ...]\n";
@@ -284,20 +281,38 @@ sub generate_diff_image {
     $diff->savev($diff_path, 'png', [], []) if $diff;
 }
 
+sub _file_md5 {
+    my ($path) = @_;
+    open my $fh, '<:raw', $path or return '';
+    my $digest = Digest::MD5->new->addfile($fh)->hexdigest;
+    close $fh;
+    return $digest;
+}
+
 sub compare_images {
     my ($file_a, $file_b) = @_;
-    return { match => 1, diff_pct => 0 } if compare($file_a, $file_b) == 0;
 
+    # Fast path: MD5 comparison (much faster than byte-for-byte or pixel)
+    my $md5_a = _file_md5($file_a);
+    my $md5_b = _file_md5($file_b);
+    if ($md5_a eq $md5_b && $md5_a ne '') {
+        return { match => 1, diff_pct => 0, md5_a => $md5_a, md5_b => $md5_b };
+    }
+
+    # MD5 mismatch: load as pixbuf for pixel comparison
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
     my $pix_b = Gtk3::Gdk::Pixbuf->new_from_file($file_b);
     unless ($pix_a && $pix_b) {
-        return { match => 0, error => 'cannot load images' };
+        return { match => 0, error => 'cannot load images',
+                 md5_a => $md5_a, md5_b => $md5_b };
     }
 
     my $w = $pix_a->get_width;
     my $h = $pix_a->get_height;
-    return { match => 0, error => 'size mismatch' }
-        if $w != $pix_b->get_width || $h != $pix_b->get_height;
+    if ($w != $pix_b->get_width || $h != $pix_b->get_height) {
+        return { match => 0, error => 'size mismatch',
+                 md5_a => $md5_a, md5_b => $md5_b };
+    }
 
     my $total = $w * $h;
     my $diff_pixels = 0;
@@ -326,7 +341,8 @@ sub compare_images {
 
     my $diff_pct = $total > 0 ? $diff_pixels / $total : 0;
     return { match => $diff_pct <= $threshold, diff_pct => $diff_pct,
-             pixels_diff => $diff_pixels, max_diff => $max_diff };
+             pixels_diff => $diff_pixels, max_diff => $max_diff,
+             md5_a => $md5_a, md5_b => $md5_b };
 }
 
 # ==========================================================================
@@ -531,6 +547,17 @@ sub _ensure_dir {
     make_path($dir) unless -d $dir;
 }
 
+sub _clean_stale_output {
+    my ($name, $base) = @_;
+    for my $f (glob "$base/${name}-*.png") {
+        unlink $f or warn "Cannot remove stale output $f: $!";
+    }
+    # Also clean old-style single file
+    if (-f "$base/${name}.png") {
+        unlink "$base/${name}.png" or warn "Cannot remove stale output $base/${name}.png: $!";
+    }
+}
+
 TEST:
 for my $name (@test_names) {
     last TEST if $interrupted;
@@ -554,6 +581,11 @@ for my $name (@test_names) {
     }
 
     # --- Run source-editor with macro ---
+    # Clean stale output from previous runs so only fresh snapshots are compared.
+    # Without this, if the macro fails to regenerate output (e.g. child dies
+    # but exits 0), stale files from a prior --init remain and match golden.
+    _clean_stale_output($name, $out_base);
+
     my @cmd = build_cmd($name, $meta, $subdir);
     my $rc = run_child(@cmd);
 
@@ -612,31 +644,40 @@ for my $name (@test_names) {
 
         my $all_match = 1;
         my @diffs;
+        my @results;   # per-snapshot results for display
         my $compared = 0;
         for my $snap (@$out_labels) {
             my $file = $snap->{file};
             my $out_f = "$out_base/$file";
             my $gld_f = "$gld_base/$file";
             unless (-f $out_f && -s $out_f) {
+                push @results, { label => $snap->{label}, error => 'output missing' };
                 warn "  [DEBUG] output missing: $out_f\n" if $verbose;
                 next;
             }
             unless (-f $gld_f && -s $gld_f) {
+                push @results, { label => $snap->{label}, error => 'golden missing' };
                 warn "  [DEBUG] golden missing: $gld_f\n" if $verbose;
                 next;
             }
             $compared++;
 
             my $r = compare_images($gld_f, $out_f);
+            push @results, { label => $snap->{label}, %$r };
+            if ($verbose) {
+                printf "  [DEBUG] compare: %s vs %s\n", $gld_f, $out_f;
+                printf "  [DEBUG]   md5: golden=%s output=%s\n",
+                    $r->{md5_a} // '-', $r->{md5_b} // '-';
+                printf "  [DEBUG]   diff_pct=%.6f match=%s\n",
+                    $r->{diff_pct} // 0, $r->{match} ? 'yes' : 'no';
+            }
             unless ($r->{match}) {
                 $all_match = 0;
                 push @diffs, { file => $file, label => $snap->{label}, diff_pct => $r->{diff_pct} };
-                if ($generate_diff) {
-                    _ensure_dir($dif_base);
-                    my $dp = "$dif_base/$file";
-                    $dp =~ s/\.png$/_diff.png/;
-                    generate_diff_image($gld_f, $out_f, $dp);
-                }
+                _ensure_dir($dif_base);
+                my $dp = "$dif_base/$file";
+                $dp =~ s/\.png$/_diff.png/;
+                generate_diff_image($gld_f, $out_f, $dp);
             }
         }
 
@@ -654,12 +695,10 @@ for my $name (@test_names) {
                 sprintf("%s: %.2f%%", $_->{label}, ($_->{diff_pct} // 0) * 100)
             } @diffs);
             print "FAIL ($detail)";
-            if ($generate_diff) {
-                for my $d (@diffs) {
-                    my $rel = $subdir ? "$subdir/" : '';
-                    my $df = $d->{file}; $df =~ s/\.png$/_diff.png/;
-                    print "\n    diff: xt/visual/diffs/${rel}${df}";
-                }
+            for my $d (@diffs) {
+                my $rel = $subdir ? "$subdir/" : '';
+                my $df = $d->{file}; $df =~ s/\.png$/_diff.png/;
+                print "\n    diff: xt/visual/diffs/${rel}${df}";
             }
             print "\n";
             $failed++;
@@ -669,9 +708,10 @@ for my $name (@test_names) {
                 diff_pct2 => $diffs[1] ? $diffs[1]{diff_pct} : undef,
             };
         } else {
+            # Show actual diff_pct from comparison, not hardcoded 0
             my $detail = join(', ', map {
-                sprintf("%s: %.2f%%", $_->{label}, 0)
-            } @$out_labels);
+                sprintf("%s: %.2f%%", $_->{label}, ($_->{diff_pct} // 0) * 100)
+            } @results);
             print "OK ($detail)\n";
             $passed++;
         }
@@ -687,19 +727,26 @@ for my $name (@test_names) {
             print "SKIP (no golden)\n"; $skipped++; next TEST;
         }
 
+        if ($verbose) {
+            printf "  [DEBUG] compare: %s vs %s\n", $gld, $out;
+        }
         my $r = compare_images($gld, $out);
+        if ($verbose) {
+            printf "  [DEBUG]   md5: golden=%s output=%s\n",
+                $r->{md5_a} // '-', $r->{md5_b} // '-';
+            printf "  [DEBUG]   diff_pct=%.6f match=%s\n",
+                $r->{diff_pct} // 0, $r->{match} ? 'yes' : 'no';
+        }
 
         if (!$r->{match}) {
             my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
             print "FAIL ($d)";
-            if ($generate_diff) {
-                _ensure_dir($dif_base);
-                my $df = $out_file; $df =~ s/\.png$/_diff.png/;
-                my $dp = "$dif_base/$df";
-                generate_diff_image($gld, $out, $dp);
-                my $rel = $subdir ? "$subdir/" : '';
-                print "\n    diff: xt/visual/diffs/${rel}${df}";
-            }
+            _ensure_dir($dif_base);
+            my $df = $out_file; $df =~ s/\.png$/_diff.png/;
+            my $dp = "$dif_base/$df";
+            generate_diff_image($gld, $out, $dp);
+            my $rel = $subdir ? "$subdir/" : '';
+            print "\n    diff: xt/visual/diffs/${rel}${df}";
             print "\n";
             $failed++;
             push @failures, { name => $name, diff_pct => $r->{diff_pct} };
