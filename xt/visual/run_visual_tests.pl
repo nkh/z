@@ -74,7 +74,7 @@
 #   --test               Compare against golden (default)
 #   --list               List test names
 #   --target NAME        Run only the named test
-#   --threshold N        Max diff ratio 0.0-1.0 (default: 0.01)
+#   --threshold N        Max diff ratio 0.0-1.0 (default: 0)
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings + comparison diagnostics
 #   --debug              Pass --debug to source-editor
@@ -106,7 +106,7 @@ use Gtk3::SourceEditor::Macro;
 # --- Parse options ---
 my $mode          = 'test';
 my $target        = '';
-my $threshold     = 0.01;
+my $threshold     = 0;
 my $delay         = 500;
 my $verbose       = 0;
 my $debug         = 0;
