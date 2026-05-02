@@ -151,15 +151,26 @@ make_path($golden_dir, $output_dir, $diffs_dir);
 # Track macro base directories for golden mirroring.
 # ==========================================================================
 
-my @macro_bases;   # Track directory roots for subpath computation
+my @macro_bases;       # Track directory roots for subpath computation
+my %macro_base_seen;   # dedup helper
 
 for my $p (@paths) {
     # Convert to absolute path so they survive chdir in child process
     $p = File::Spec->rel2abs($p);
     if (-d $p) {
-        push @macro_bases, $p;
+        push @macro_bases, $p unless $macro_base_seen{$p}++;
         Gtk3::SourceEditor::Macro->load(dir => $p);
     } elsif (-f $p) {
+        # Walk up the directory tree to add potential macro bases,
+        # so _macro_subdir() can compute the correct subdirectory
+        # even when only individual files are passed (e.g. via glob).
+        my $dir = dirname($p);
+        my $depth = 0;
+        while ($dir && $dir ne '.' && $dir ne dirname($dir) && $depth < 10) {
+            push @macro_bases, $dir unless $macro_base_seen{$dir}++;
+            $dir = dirname($dir);
+            $depth++;
+        }
         Gtk3::SourceEditor::Macro->load(file => $p);
     } else {
         warn "Warning: '$p' is not a file or directory, skipping\n";
@@ -203,14 +214,16 @@ sub _macro_subdir {
     my $file = $info->{file};
     for my $base (@macro_bases) {
         my $rel = File::Spec->abs2rel($file, $base);
-        # If the file is directly under base (no subdir), rel has no /
-        if ($rel !~ m{/}) {
-            return '';
+        # Skip if relative path goes up (file is not under this base)
+        next if $rel =~ m{^\.\.[\\/]};
+        if ($rel =~ m{/}) {
+            my $dir = dirname($rel);
+            return '' if $dir eq '.';
+            return $dir;
         }
-        # Return the directory portion of the relative path
-        my $dir = dirname($rel);
-        return '' if $dir eq '.';
-        return $dir;
+        # File is directly under this base (no subdir from this base's
+        # perspective).  Continue trying other (potentially broader) bases
+        # that may give the correct subdirectory.
     }
     return '';
 }
