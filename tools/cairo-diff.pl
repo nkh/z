@@ -8,16 +8,19 @@
 #
 # USAGE
 # =====
-#   # Save diff to file (no window):
+#   # Show diff image in GTK window (default):
+#   perl tools/cairo-diff.pl a.png b.png
+#
+#   # Save diff to file and show in window:
 #   perl tools/cairo-diff.pl --save=diff.png a.png b.png
 #
-#   # Interactive blink comparison:
+#   # Interactive blink comparison (toggles A/B):
 #   perl tools/cairo-diff.pl --blink a.png b.png
 #
 #   # Custom blink interval (default 500ms):
 #   perl tools/cairo-diff.pl --blink --interval=200 a.png b.png
 #
-#   # Both save and blink:
+#   # Blink and save:
 #   perl tools/cairo-diff.pl --blink --save=diff.png a.png b.png
 # ==========================================================================
 
@@ -117,7 +120,7 @@ sub build_ui {
     my ($W, $H, $state) = @_;
 
     my $win = Gtk3::Window->new('toplevel');
-    $win->set_title('Cairo Diff (blink/save)');
+    $win->set_title($state->{blink} ? 'Cairo Diff (blink)' : 'Cairo Diff');
     $win->set_default_size($W, $H);
     $win->signal_connect(destroy => sub { Gtk3->main_quit });
 
@@ -166,12 +169,6 @@ sub run {
     if ($opt->{save}) {
         $diff->write_to_png($opt->{save});
         print "Diff saved to $opt->{save}\n";
-    }
-
-    # If no blink mode and save was given, exit without opening a window
-    unless ($opt->{blink}) {
-        print "Done.\n";
-        return;
     }
 
     my %state = (
