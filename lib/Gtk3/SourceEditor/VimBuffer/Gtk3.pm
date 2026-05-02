@@ -424,25 +424,25 @@ sub indent_lines {
     # Work from bottom to top so line numbers stay valid
     for my $ln ( reverse $line .. $end ) {
         my $start = $buf->get_iter_at_line($ln);
-        my $first = $start->copy;
-        $first->forward_chars($width);
 
         if ( $direction > 0 ) {
             $buf->insert( $start, $spaces );
         }
         else {
-            my $end_char = $start->copy;
-            $end_char->forward_chars($width);
-            # Only delete if there are enough leading spaces
-            my $check = $start->copy;
-            $check->forward_char;
-            while ( $check <= $end_char
-                && $start->get_char =~ /^ $/ )
-            {
-                my $del_end = $start->copy;
-                $del_end->forward_char;
-                $buf->delete( $start, $del_end );
+            # Count leading spaces up to $width, then delete in a single
+            # operation.  Avoids GTK iterator invalidation from using stale
+            # iterators inside a delete loop.
+            my $to_remove = 0;
+            my $scan = $start->copy;
+            while ($to_remove < $width) {
+                last if $scan->ends_line || $scan->get_char ne ' ';
+                $to_remove++;
+                $scan->forward_char;
             }
+            next unless $to_remove > 0;
+            my $del_end = $start->copy;
+            $del_end->forward_chars($to_remove);
+            $buf->delete( $start, $del_end );
         }
     }
 

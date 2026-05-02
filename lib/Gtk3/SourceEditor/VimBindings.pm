@@ -1410,7 +1410,6 @@ sub _init_mode_setter {
     my $vb = $ctx->{vb};
     my $ml = $ctx->{mode_label};
     my $ce = $ctx->{cmd_entry};
-    my $ro = $ctx->{is_readonly};
     my $vm = $ctx->{vim_mode};
 
     # --- Status message auto-clear mechanism ---
@@ -1439,7 +1438,7 @@ sub _init_mode_setter {
             visual_line  => "-- VISUAL LINE --",
             visual_block => "-- VISUAL BLOCK --",
         );
-        my $label = $ro ? "-- READ ONLY --" : ($mode_labels{$mode} // "-- " . uc($mode) . " --");
+        my $label = $ctx->{is_readonly} ? "-- READ ONLY --" : ($mode_labels{$mode} // "-- " . uc($mode) . " --");
         $ml->set_text($label);
     };
 
@@ -1472,7 +1471,7 @@ sub _init_mode_setter {
             }
             $ctx->{_showing_status} = 0;
         }
-        if ($ro && ($mode eq 'insert' || $mode eq 'replace')) {
+        if ($ctx->{is_readonly} && ($mode eq 'insert' || $mode eq 'replace')) {
             $ml->set_text("-- READ ONLY --");
             return;
         }
@@ -1502,7 +1501,7 @@ sub _init_mode_setter {
         }
 
         # Set textview editable for insert and replace modes
-        if ($ctx->{gtk_view} && !$ro) {
+        if ($ctx->{gtk_view} && !$ctx->{is_readonly}) {
             eval { $ctx->{gtk_view}->set_editable($mode eq 'insert' || $mode eq 'replace'); };
         }
 
@@ -1562,7 +1561,7 @@ sub _init_mode_setter {
             $ce->set_position(-1);
         } else {
             $ce->hide() if $ce;
-            my $label = $ro ? "-- READ ONLY --" : ($mode_labels{$mode} // "-- " . uc($mode) . " --");
+            my $label = $ctx->{is_readonly} ? "-- READ ONLY --" : ($mode_labels{$mode} // "-- " . uc($mode) . " --");
             $ml->set_text($label);
             eval { $ctx->{gtk_view}->grab_focus(); } if $ctx->{gtk_view};
         }
