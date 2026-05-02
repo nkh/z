@@ -233,6 +233,15 @@ sub _macro_subdir {
 # Image comparison and diff generation (Cairo/GdkPixbuf)
 # ==========================================================================
 
+sub _raw_data {
+    # Cairo::ImageSurface->get_data may return a scalar ref or a plain
+    # string depending on the binding version.  GdkPixbuf->get_pixels
+    # always returns a plain string.  This helper normalises both to a
+    # plain string suitable for substr() / ord() / unpack().
+    my $d = shift;
+    return ref($d) ? $$d : $d;
+}
+
 sub generate_diff_image {
     my ($file_a, $file_b, $diff_path) = @_;
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
@@ -255,7 +264,7 @@ sub generate_diff_image {
     undef $cr;
 
     # Read the diff data from the Cairo surface
-    my $diff_data   = $diff_surface->get_data;
+    my $diff_data   = _raw_data($diff_surface->get_data);
     my $diff_stride = $diff_surface->get_stride;
 
     # Build output: copy golden pixbuf, then blend magenta where diffs exist
@@ -275,17 +284,17 @@ sub generate_diff_image {
             my $d_off = $d_row + $x * 4;
             # Cairo ARGB32 bytes 0-2 are the 3 color channels (order depends
             # on endianness but we only care if ANY channel is non-zero)
-            next unless ord(substr($$diff_data, $d_off,     1))
-                      || ord(substr($$diff_data, $d_off + 1, 1))
-                      || ord(substr($$diff_data, $d_off + 2, 1));
+            next unless ord(substr($diff_data, $d_off,     1))
+                      || ord(substr($diff_data, $d_off + 1, 1))
+                      || ord(substr($diff_data, $d_off + 2, 1));
 
             my $o = $o_row + $x * $n_ch;
-            my $r = ord(substr($$out_data, $o,     1));
-            my $g = ord(substr($$out_data, $o + 1, 1));
-            my $b = ord(substr($$out_data, $o + 2, 1));
-            substr($$out_data, $o,     1) = chr(int($r * $inv + $mr));
-            substr($$out_data, $o + 1, 1) = chr(int($g * $inv));
-            substr($$out_data, $o + 2, 1) = chr(int($b * $inv + $mr));
+            my $r = ord(substr($out_data, $o,     1));
+            my $g = ord(substr($out_data, $o + 1, 1));
+            my $b = ord(substr($out_data, $o + 2, 1));
+            substr($out_data, $o,     1) = chr(int($r * $inv + $mr));
+            substr($out_data, $o + 1, 1) = chr(int($g * $inv));
+            substr($out_data, $o + 2, 1) = chr(int($b * $inv + $mr));
         }
     }
 
@@ -338,13 +347,13 @@ sub compare_images {
     # Count differing pixels from the Cairo surface raw data.
     # A zero-diff pixel has all three color channels as 0.
     # unpack the row (C-level) then short-circuit || check each pixel.
-    my $data   = $diff_surface->get_data;
+    my $data   = _raw_data($diff_surface->get_data);
     my $stride = $diff_surface->get_stride;
     my $row_bytes = $w * 4;
     my $diff_pixels = 0;
 
     for my $y (0 .. $h - 1) {
-        my @ch = unpack('C*', substr($$data, $y * $stride, $row_bytes));
+        my @ch = unpack('C*', substr($data, $y * $stride, $row_bytes));
         for (my $i = 0; $i < @ch; $i += 4) {
             $diff_pixels++ if $ch[$i] || $ch[$i+1] || $ch[$i+2];
         }
