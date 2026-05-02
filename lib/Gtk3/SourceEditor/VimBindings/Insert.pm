@@ -111,11 +111,18 @@ sub register {
     # Replace character under cursor (in replace mode)
     # $char is the GDK key name (e.g. 'a', 'asterisk', 'numbersign').
     # Convert to the actual character for multi-char GDK names.
+    # Falls back to the unicode codepoint from the original key event
+    # for non-ASCII characters (accented letters, CJK, etc.) where
+    # keyval_name() returns names that key_name_to_char() cannot resolve.
     $ACTIONS->{do_replace_char} = sub {
         my ($ctx, $count, $char) = @_;
         return unless defined $char && length($char);
-        $char = key_name_to_char($char) // $char;
-        return unless length($char) == 1;
+        $char = key_name_to_char($char);
+        if (!defined $char || !length($char)) {
+            my $uc = $ctx->{_key_unicode};
+            $char = chr($uc) if defined $uc && $uc > 0 && $uc < 0x10000;
+        }
+        return unless defined $char && length($char) == 1;
         $ctx->{vb}->replace_char($char);
         # buf->insert() inside replace_char already advances the cursor
         # past the inserted character, so no explicit move is needed.

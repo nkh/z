@@ -519,7 +519,7 @@ sub add_vim_bindings {
             return $handled;
         }
         if ($m eq 'insert') {
-            my $handled = handle_insert_mode($ctx, $k);
+            my $handled = handle_insert_mode($ctx, $k, $unicode);
             $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
         }
@@ -531,6 +531,9 @@ sub add_vim_bindings {
             return $handled;
         }
         if ($m eq 'replace') {
+            # Store unicode for do_replace_char action (same non-ASCII issue
+            # as insert mode -- see handle_insert_mode comment).
+            local $ctx->{_key_unicode} = $unicode;
             my $handled = handle_replace_mode($ctx, $k);
             $w->signal_stop_emission_by_name('key-press-event') if $handled;
             return $handled;
@@ -959,7 +962,7 @@ sub handle_normal_mode {
 }
 
 sub handle_insert_mode {
-    my ($ctx, $k) = @_;
+    my ($ctx, $k, $unicode) = @_;
     # Insert mode handles ALL keys itself -- nothing is passed through to GTK.
     # This gives full control over cursor movement, text insertion, and
     # editing operations without relying on GtkTextView's key bindings.
@@ -980,6 +983,17 @@ sub handle_insert_mode {
     my $char = key_name_to_char($k);
     if (defined $char && length($char)) {
         $ctx->{vb}->insert_text($char);
+        return TRUE;
+    }
+
+    # Fallback: use the Unicode codepoint from the original key event.
+    # This catches non-ASCII characters (accented letters, CJK, etc.)
+    # where keyval_name() may return a name that key_name_to_char() cannot
+    # round-trip back to a character (e.g., 'eacute' for é).
+    # $unicode is only available when called from the key-press-event
+    # handler; when called from simulate_keys it is undef.
+    if (defined $unicode && $unicode > 0 && $unicode < 0x10000) {
+        $ctx->{vb}->insert_text(chr($unicode));
         return TRUE;
     }
 
