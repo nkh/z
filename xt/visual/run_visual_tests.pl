@@ -553,6 +553,16 @@ for my $name (@test_names) {
         next TEST;
     }
 
+    # --- Clean stale output snapshots for this test ---
+    # After --init, the output directory contains the same files as golden.
+    # If a subsequent test-mode run doesn't regenerate output (macro error,
+    # wrong snapshot dir, etc.), the stale output would match golden and
+    # produce a false pass.  Remove old snapshots to ensure we only
+    # compare freshly generated files.
+    my $clean_base = $subdir ? "$output_dir/$subdir" : $output_dir;
+    unlink glob "$clean_base/${name}-*.png";
+    unlink "$clean_base/${name}.png" if -f "$clean_base/${name}.png";
+
     # --- Run source-editor with macro ---
     my @cmd = build_cmd($name, $meta, $subdir);
     my $rc = run_child(@cmd);
