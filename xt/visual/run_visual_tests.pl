@@ -553,16 +553,6 @@ for my $name (@test_names) {
         next TEST;
     }
 
-    # --- Clean stale output snapshots for this test ---
-    # After --init, the output directory contains the same files as golden.
-    # If a subsequent test-mode run doesn't regenerate output (macro error,
-    # wrong snapshot dir, etc.), the stale output would match golden and
-    # produce a false pass.  Remove old snapshots to ensure we only
-    # compare freshly generated files.
-    my $clean_base = $subdir ? "$output_dir/$subdir" : $output_dir;
-    unlink glob "$clean_base/${name}-*.png";
-    unlink "$clean_base/${name}.png" if -f "$clean_base/${name}.png";
-
     # --- Run source-editor with macro ---
     my @cmd = build_cmd($name, $meta, $subdir);
     my $rc = run_child(@cmd);
@@ -622,12 +612,20 @@ for my $name (@test_names) {
 
         my $all_match = 1;
         my @diffs;
+        my $compared = 0;
         for my $snap (@$out_labels) {
             my $file = $snap->{file};
             my $out_f = "$out_base/$file";
             my $gld_f = "$gld_base/$file";
-            next unless -f $out_f && -s $out_f;
-            next unless -f $gld_f && -s $gld_f;
+            unless (-f $out_f && -s $out_f) {
+                warn "  [DEBUG] output missing: $out_f\n" if $verbose;
+                next;
+            }
+            unless (-f $gld_f && -s $gld_f) {
+                warn "  [DEBUG] golden missing: $gld_f\n" if $verbose;
+                next;
+            }
+            $compared++;
 
             my $r = compare_images($gld_f, $out_f);
             unless ($r->{match}) {
@@ -642,7 +640,16 @@ for my $name (@test_names) {
             }
         }
 
-        if (!$all_match) {
+        if ($compared == 0) {
+            my $out_count = scalar @$out_labels;
+            my $gld_count = scalar @$gld_labels;
+            printf "FAIL (0/%d compared: %d output, %d golden, out_base=%s, gld_base=%s)\n",
+                $out_count, $out_count, $gld_count,
+                $out_base // '-', $gld_base // '-';
+            $failed++;
+            push @failures, { name => $name, error => 'no comparisons' };
+        }
+        elsif (!$all_match) {
             my $detail = join(', ', map {
                 sprintf("%s: %.2f%%", $_->{label}, ($_->{diff_pct} // 0) * 100)
             } @diffs);
