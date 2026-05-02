@@ -312,15 +312,22 @@ sub _file_md5 {
 sub compare_images {
     my ($file_a, $file_b) = @_;
 
-    # Fast path: MD5 comparison (much faster than byte-for-byte or pixel)
+    # MD5 comparison: if files are identical, it is an immediate match.
     my $md5_a = _file_md5($file_a);
     my $md5_b = _file_md5($file_b);
     if ($md5_a eq $md5_b && $md5_a ne '') {
         return { match => 1, diff_pct => 0, md5_a => $md5_a, md5_b => $md5_b };
     }
 
-    # MD5 mismatch: compute per-pixel difference using Cairo
-    # OPERATOR_DIFFERENCE (C-level, much faster than Perl pixel loops)
+    # MD5 mismatch.  When threshold is 0 (default) any difference is a
+    # failure -- no need for expensive pixel counting.  The diff image
+    # (if needed) is generated separately by generate_diff_image() using
+    # Cairo's C-level compositing operators.
+    if ($threshold == 0) {
+        return { match => 0, md5_a => $md5_a, md5_b => $md5_b };
+    }
+
+    # Non-zero threshold: compute exact diff percentage via Cairo + pixel scan.
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
     my $pix_b = Gtk3::Gdk::Pixbuf->new_from_file($file_b);
     unless ($pix_a && $pix_b) {
@@ -344,9 +351,6 @@ sub compare_images {
     $cr->paint;
     undef $cr;
 
-    # Count differing pixels from the Cairo surface raw data.
-    # A zero-diff pixel has all three color channels as 0.
-    # unpack the row (C-level) then short-circuit || check each pixel.
     my $data   = _raw_data($diff_surface->get_data);
     my $stride = $diff_surface->get_stride;
     my $row_bytes = $w * 4;
@@ -712,7 +716,9 @@ for my $name (@test_names) {
         }
         elsif (!$all_match) {
             my $detail = join(', ', map {
-                sprintf("%s: %.2f%%", $_->{label}, ($_->{diff_pct} // 0) * 100)
+                defined $_->{diff_pct}
+                    ? sprintf("%s: %.2f%%", $_->{label}, $_->{diff_pct} * 100)
+                    : $_->{label}
             } @diffs);
             print "FAIL ($detail)";
             for my $d (@diffs) {
@@ -774,8 +780,11 @@ for my $name (@test_names) {
         }
 
         if (!$r->{match}) {
-            my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
-            print "FAIL ($d)";
+            if (defined $r->{diff_pct}) {
+                printf "FAIL (%.2f%%)", $r->{diff_pct} * 100;
+            } else {
+                print "FAIL";
+            }
             _ensure_dir($dif_base);
             my $df = $out_file; $df =~ s/\.png$/_diff.png/;
             my $dp = "$dif_base/$df";
@@ -786,8 +795,11 @@ for my $name (@test_names) {
             $failed++;
             push @failures, { name => $name, diff_pct => $r->{diff_pct} };
         } else {
-            my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
-            print "OK ($d)";
+            if (defined $r->{diff_pct}) {
+                printf "OK (%.2f%%)", $r->{diff_pct} * 100;
+            } else {
+                print "OK (0.00%)";
+            }
             if ($force_diff) {
                 _ensure_dir($dif_base);
                 my $df = $out_file; $df =~ s/\.png$/_diff.png/;
@@ -815,9 +827,10 @@ print "\n";
 
 if (@failures) {
     for my $f (@failures) {
-        my $d1 = sprintf("%.2f%%", ($f->{diff_pct} // 0) * 100);
+        my $d1 = defined $f->{diff_pct}
+            ? sprintf("%.2f%%", $f->{diff_pct} * 100) : 'md5';
         my $d2 = defined $f->{diff_pct2} ? sprintf(", _2: %.2f%%", $f->{diff_pct2} * 100) : '';
-        printf "  FAIL: %-50s _1: %s%s\n", $f->{name}, $d1, $d2;
+        printf "  FAIL: %-50s %s%s\n", $f->{name}, $d1, $d2;
     }
 }
 
