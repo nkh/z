@@ -1,16 +1,22 @@
 {
     desc => q{Visual yank then paste},
     description => <<'END_DESC',
-Action: v selects text, y yanks, then p pastes
+# visual_yank_paste, Visual yank then paste
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_yank_paste`
 
-Sub-commands: keys('vell yp')
+## initial.png
 
--2_after.png (after action):
-- "hello" pasted after the selection
-- Content: "hellohello world this is a test"
+- Cursor: 1, 0
+- Line 1  : hello world this is a test
+- Line 2  : second line of text here
+- Line 3  : third line for more context
+
+## after.png
+
+- Keys    : vell`Space` yp
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

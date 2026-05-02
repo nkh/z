@@ -1,22 +1,22 @@
 {
     desc => q{dd deletes current line},
     description => <<'END_DESC',
-Action: `dd` deletes the current line entirely
+# d_prefix_dd, dd deletes current line
 
-Macro: `xt/visual/macros/d_prefix_dd`
+Macro: `xt/visual/macros/D_prefix/d_prefix_dd`
 
-**initial.png** (before):
-- Line 1: `line one`
-- Line 2: `line two`
-- Line 3: `line three`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `jdd`
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
 
-**after_dd.png** (after):
-- Line 1: `line one`
-- Line 2: `line three`
-- Cursor at line 2, col 0 (was `line two`, now deleted)
+## after_dd.png
+
+- Keys    : jdd
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

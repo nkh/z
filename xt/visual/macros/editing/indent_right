@@ -1,16 +1,22 @@
 {
     desc => '>> indents current line right',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/indent_right`
+# indent_right, >> indents current line right
 
-Tests the `>>` operator which indents the current line by one shift width.
+Macro: `xt/visual/macros/editing/indent_right`
 
-**initial.png** — Three lines with no indentation. Cursor at line 1 col 0.
+## initial.png
 
-Keys: `>>`
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
 
-**after_indent_right.png** — Line 1 is indented (shifted right by tab width).
-Lines 2 and 3 remain unchanged.
+## after_indent_right.png
+
+- Keys    : >>
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

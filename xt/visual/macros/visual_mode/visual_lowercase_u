@@ -1,17 +1,20 @@
 {
     desc => q{Visual lowercase u},
     description => <<'END_DESC',
-Action: v selects chars, u lowercases selection
+# visual_lowercase_u, Visual lowercase u
 
--1_initial.png (initial state):
-- Line 1: `Hello World this is a test`
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_lowercase_u`
 
-Sub-commands: keys('veeu')
+## initial.png
 
--2_after.png (after action):
-- First 2 words lowercased: `hello world this is a test`
-- Line 1: `hello world this is a test`
+- Cursor: 1, 0
+- Line 1  : Hello World this is a test
+
+## after.png
+
+- Keys    : veeu
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

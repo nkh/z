@@ -1,23 +1,28 @@
 {
     desc => q{D from middle of line},
     description => <<'END_DESC',
-Action: `D` deletes from cursor to end of line
+# D_midline, D from middle of line
 
-**initial.png** (before):
-- Line 1: `This is a first line of text in the buffer.`
-- Line 2: `Here is a second line with more content.`
-- Cursor at line 1, col 0 (on `T`)
+Macro: `xt/visual/macros/D_prefix/D_midline`
 
-Keys: `6l` (move to col 6, `s`)
+## initial.png
 
-**cursor_before_D.png** (cursor on `s`):
-- Cursor at line 1, col 6 (on `s`)
+- Cursor: 1, 0
+- Line 1  : This is a first line of text in the buffer.
+- Line 2  : Here is a second line with more content.
+- Line 3  : Third line with some additional words here.
+- Line 4  : Fourth line to provide scrolling context.
+- Line 5  : Fifth line at the bottom of the buffer.
 
-Keys: `D`
+## cursor_before_D.png
 
-**after_action.png** (after):
-- Line 1: `This i` (from `s` at col 6 onward deleted)
-- Line 2: `Here is a second line with more content.` (unchanged)
+- Keys    : 6l
+
+## after_action.png
+
+- Keys    : D
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

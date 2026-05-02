@@ -1,17 +1,20 @@
 {
     desc => 'da( deletes text including parentheses',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_da_paren`
+# text_object_da_paren, da( deletes text including parentheses
 
-Tests the `da(` text object which deletes text **including** the
-parentheses themselves.
+Macro: `xt/visual/macros/text_objects/text_object_da_paren`
 
-**initial.png** — Cursor on 'h' inside the parentheses at line 1 col 5.
+## initial.png
 
-Keys: `da(`
+- Cursor: 1, 0
+- Line 1  : func(hello world);
 
-**after_da_paren.png** — The entire `(hello world)` including both
-parentheses is removed. Line 1 now reads `func;`.
+## after_da_paren.png
+
+- Keys    : llll da(
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,15 +1,34 @@
 {
     desc => ':set filetype=perl enables Perl syntax highlighting',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_filetype_perl`
+# set_filetype_perl, :set filetype=perl enables Perl syntax highlighting
 
-Tests that `:set filetype=perl` enables Perl syntax highlighting, coloring
-keywords (`package`, `use`, `sub`, `my`, `return`), strings, and comments.
+Macro: `xt/visual/macros/settings/set_filetype_perl`
 
-Ex: `:set filetype=perl`
+## initial.png
 
-- **set_filetype_perl_initial.png**: Plain text, no syntax highlighting.
-- **set_filetype_perl_after_set.png**: Perl syntax highlighting active; keywords, strings, and comments are colored distinctly.
+- Cursor: 1, 0
+- Line 1  : package MyApp;
+- Line 2  : use strict;
+- Line 3  : use warnings;
+- Line 4  : 
+- Line 5  : sub new {
+- Line 6  :     my $class = shift;
+- Line 7  :     return bless {}, $class;
+- Line 8  : }
+- Line 9  : 
+- Line 10  : sub run {
+- Line 11  :     my $self = shift;
+- Line 12  :     print "running\n";
+- Line 13  : }
+- Line 14  : 
+- Line 15  : 1;
+
+## after_set.png
+
+- Keys    : :set`Space` filetype=perl
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

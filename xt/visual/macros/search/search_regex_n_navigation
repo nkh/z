@@ -1,25 +1,28 @@
 {
     desc => q{n navigates through regex matches in order},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_regex_n_navigation`
+# search_regex_n_navigation, n navigates through regex matches in order
 
-**/m.** matches any two-character sequence starting with 'm'. Pressing **n** navigates through each match in order.
+Macro: `xt/visual/macros/search/search_regex_n_navigation`
 
-**Keys:** `/m.\n` then `n` then `n`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Line: `move max moon`
+- Cursor: 1, 0
+- Line 1  : move max moon
 
-**after_regex_search.png**
-- Cursor on first match "mo" at col 0
-- All matches highlighted: "mo", "ma", "mo"
+## after_regex_search.png
 
-**after_first_n.png**
-- Cursor on second match "ma" at col 5
+- Keys    : /m. `Enter`
 
-**after_second_n.png**
-- Cursor on third match "mo" at col 9
+## after_first_n.png
+
+- Keys    : n
+
+## after_second_n.png
+
+- Keys    : n
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

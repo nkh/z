@@ -1,20 +1,20 @@
 {
     desc => q{Empty / + Return with no previous search shows error},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_empty_return`
+# search_empty_return, Empty / + Return with no previous search shows error
 
-Pressing **/** followed immediately by **Return** with no previous search history shows an error about an empty pattern.
+Macro: `xt/visual/macros/search/search_empty_return`
 
-**Keys:** `/\n`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Normal mode, no prior search
+- Cursor: 1, 0
+- Line 1  : foo bar baz
 
-**after_empty_return.png**
-- Error message displayed (e.g., "Error: Empty search pattern")
-- Cursor still at line 1, col 0
-- Buffer unchanged
+## after_empty_return.png
+
+- Keys    : / `Enter`
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

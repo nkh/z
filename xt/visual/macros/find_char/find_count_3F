@@ -1,20 +1,20 @@
 {
     desc => q{3F{char} finds the third occurrence of character backward},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/find_count_3F`
+# find_count_3F, 3F{char
 
-**3F{char}** with a count prefix finds the nth occurrence of the character backward. `$3Fa` starts from the end and finds the third 'a' going backward.
+Macro: `xt/visual/macros/find_char/find_count_3F`
 
-**Keys:** `$3Fa`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 10 (on 'a' at end of "abracadabra")
-- Text: `abracadabra`
+- Cursor: 1, 0
+- Line 1  : abracadabra
 
-**after_3Fa.png**
-- Cursor on 'a' at col 3 (third 'a' from end)
-- From position 10: skip 'a'@10, then 'a'@7 (1st back), 'a'@5 (2nd back), 'a'@3 (3rd back)
-- Text unchanged
+## after_3Fa.png
+
+- Keys    : $3Fa
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,24 +1,22 @@
 {
     desc => q{Ctrl-w deletes word backward in insert mode},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/ctrl_w_insert`
+# ctrl_w_insert, Ctrl-w deletes word backward in insert mode
 
-Tests that **Ctrl-w** in insert mode deletes the word before the cursor
-(including trailing whitespace), similar to how backspace works on words.
+Macro: `xt/visual/macros/modes/ctrl_w_insert`
 
-**Keys:** `A`, type ` beautiful world`, `Control-w`, `Escape`
+## initial.png
 
-**initial.png**
-- Buffer contains "hello"
-- Cursor at column 0
+- Cursor: 1, 0
+- Line 1  : hello
 
-**after_typing.png**
-- Line reads "hello beautiful world" after typing
-- Intermediate snapshot showing text before deletion
+## after_typing.png
 
-**after_ctrl_w.png**
-- Line reads "hello beautiful" (word "world" deleted by Ctrl-w)
-- Cursor at end of "beautiful "
+
+## after_ctrl_w.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

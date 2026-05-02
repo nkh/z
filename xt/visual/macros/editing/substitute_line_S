@@ -1,23 +1,22 @@
 {
     desc => q{S substitutes entire line},
     description => <<'END_DESC',
-Action: `S` clears the entire line content and enters insert mode
+# substitute_line_S, S substitutes entire line
 
-Macro: `xt/visual/macros/substitute_line_S`
+Macro: `xt/visual/macros/editing/substitute_line_S`
 
-**initial.png** (before):
-- Line 1: `line one`
-- Line 2: `line two`
-- Line 3: `line three`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `jS`, type `new content`, `Escape`
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
 
-**after_S.png** (after):
-- Line 1: `line one` (unchanged)
-- Line 2: `new content` (was `line two`)
-- Line 3: `line three` (unchanged)
-- Cursor at line 2, col 10 (after `new content`)
+## after_S.png
+
+- Keys    : jS
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

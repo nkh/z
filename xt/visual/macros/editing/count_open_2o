@@ -1,16 +1,25 @@
 {
     desc => '2o opens 2 new lines below',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/count_open_2o`
+# count_open_2o, 2o opens 2 new lines below
 
-Tests that `2o` opens two blank lines in insert mode, and typed text is
-placed on each new line.
+Macro: `xt/visual/macros/editing/count_open_2o`
 
-Keys: `2o` then type `new` then `Escape`
+## initial.png
 
-- **count_open_2o_initial.png**: Three lines of text, cursor at line 1 col 0.
-- **count_open_2o_inserting.png**: In insert mode on first new blank line, showing "new" being typed.
-- **count_open_2o_after_escape.png**: Two new lines inserted (each containing "new"), buffer now has 5 lines. Cursor on the second inserted line.
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+
+## inserting.png
+
+- Keys    : 2o
+
+## after_escape.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

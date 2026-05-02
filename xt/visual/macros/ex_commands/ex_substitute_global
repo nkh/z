@@ -1,18 +1,21 @@
 {
     desc => ':%s/pat/repl/g substitutes all occurrences in entire file',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/ex_substitute_global`
+# ex_substitute_global, :%s/pat/repl/g substitutes all occurrences in entire file
 
-Tests the `:%s/old/new/g` ex command which replaces **all** occurrences
-of a pattern across the entire file.
+Macro: `xt/visual/macros/ex_commands/ex_substitute_global`
 
-**initial.png** — Buffer shows 2 lines. "hello" appears 3 times total
-(2 on line 1, 1 on line 2).
+## initial.png
 
-Keys: `:%s/hello/HI/g<Enter>`
+- Cursor: 1, 0
+- Line 1  : hello world hello
+- Line 2  : foo bar hello baz
 
-**after_global_substitute.png** — Every "hello" replaced with "HI".
-Line 1: `HI world HI`. Line 2: `foo bar HI baz`.
+## after_global_substitute.png
+
+- Keys    : :%s/hello/HI/g
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

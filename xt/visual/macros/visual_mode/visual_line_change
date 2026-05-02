@@ -1,16 +1,23 @@
 {
     desc => q{Visual line change},
     description => <<'END_DESC',
-Action: V selects lines, c changes (replaces with typed text)
+# visual_line_change, Visual line change
 
--1_initial.png (initial state):
-- Cursor at line 1
+Macro: `xt/visual/macros/visual_mode/visual_line_change`
 
-Sub-commands: keys('Vjc'), type('REPLACED'), key('Escape')
+## initial.png
 
--2_after.png (after action):
-- First 2 lines replaced with "REPLACED"
-- Buffer now has 3 lines (REPLACED + line three + line four)
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+
+## after.png
+
+- Keys    : Vjc
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

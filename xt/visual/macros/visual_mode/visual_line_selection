@@ -1,18 +1,87 @@
 {
     desc => q{Visual line selection},
     description => <<'END_DESC',
-Action: visual line mode (V) selects lines
+# visual_line_selection, Visual line selection
 
--1_initial.png (initial state):
-- Default theme with standard test file
-- Normal mode, no selection
+Macro: `xt/visual/macros/visual_mode/visual_line_selection`
 
-Sub-commands: keys('Vjj')
+## initial.png
 
--2_after.png (after selection):
-- First 3 lines highlighted with selection color
-- Mode label shows "-- VISUAL LINE --"
-- Full lines highlighted including entire line width
+- Cursor: 1, 0
+- Line 1  : # This is a standard test file used for visual regression testing.
+- Line 2  : # It provides enough lines to test scrolling, navigation, and display.
+- Line 3  : # The content is intentionally simple to avoid distracting from the
+- Line 4  : # visual elements being tested (cursor position, selections, themes).
+- Line 5  : 
+- Line 6  : package Sample::Module;
+- Line 7  : use strict;
+- Line 8  : use warnings;
+- Line 9  : 
+- Line 10  : our $VERSION = '1.00';
+- Line 11  : 
+- Line 12  : sub new {
+- Line 13  :     my ($class, %opts) = @_;
+- Line 14  :     my $self = bless { %opts }, $class;
+- Line 15  :     return $self;
+- Line 16  : }
+- Line 17  : 
+- Line 18  : sub process {
+- Line 19  :     my ($self, $data) = @_;
+- Line 20  :     return undef unless defined $data;
+- Line 21  :     my @results;
+- Line 22  :     for my $item (@$data) {
+- Line 23  :         push @results, $self->_transform($item);
+- Line 24  :     }
+- Line 25  :     return \@results;
+- Line 26  : }
+- Line 27  : 
+- Line 28  : sub _transform {
+- Line 29  :     my ($self, $item) = @_;
+- Line 30  :     return uc($item) if defined $item;
+- Line 31  :     return '';
+- Line 32  : }
+- Line 33  : 
+- Line 34  : sub validate {
+- Line 35  :     my ($self, $input) = @_;
+- Line 36  :     die "Invalid input" unless $input && length($input) > 0;
+- Line 37  :     return 1;
+- Line 38  : }
+- Line 39  : 
+- Line 40  : sub format_output {
+- Line 41  :     my ($self, $data) = @_;
+- Line 42  :     my @lines;
+- Line 43  :     for my $entry (@$data) {
+- Line 44  :         push @lines, sprintf("  - %s", $entry // 'undef');
+- Line 45  :     }
+- Line 46  :     return join("\n", @lines);
+- Line 47  : }
+- Line 48  : 
+- Line 49  : 1;
+- Line 50  : 
+- Line 51  : __END__
+- Line 52  : 
+- Line 53  : =head1 NAME
+- Line 54  : 
+- Line 55  : Sample::Module - A sample module for testing
+- Line 56  : 
+- Line 57  : =head1 SYNOPSIS
+- Line 58  : 
+- Line 59  :     use Sample::Module;
+- Line 60  :     my $obj = Sample::Module->new(key => 'value');
+- Line 61  :     my $result = $obj->process(\@data);
+- Line 62  : 
+- Line 63  : =head1 DESCRIPTION
+- Line 64  : 
+- Line 65  : This module exists solely to provide realistic-looking Perl code
+- Line 66  : for visual regression tests. It is not intended for production use.
+- Line 67  : 
+- Line 68  : =cut
+
+## after.png
+
+- Keys    : Vjj
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->editor->set_language('perl');

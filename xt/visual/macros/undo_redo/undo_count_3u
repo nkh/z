@@ -1,24 +1,26 @@
 {
     desc => q{3u undoes 3 changes at once},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/undo_count_3u`
+# undo_count_3u, 3u undoes 3 changes at once
 
-Tests that **3u** undoes 3 separate change operations in a single command.
-Three separate `dd` commands are performed, then `3u` reverts all three at once.
+Macro: `xt/visual/macros/undo_redo/undo_count_3u`
 
-**Keys:** `dd`, `dd`, `dd`, `3u`
+## initial.png
 
-**initial.png**
-- Buffer has 3 lines: "one", "two", "three"
-- Cursor on line 1
+- Cursor: 1, 0
+- Line 1  : one
+- Line 2  : two
+- Line 3  : three
 
-**after_3dd.png**
-- Buffer has 0 lines (all three lines deleted one by one)
-- Intermediate snapshot showing all changes applied
+## after_3dd.png
 
-**after_3u.png**
-- Buffer restored to 3 lines (identical to initial)
-- All three undo steps applied at once via 3u
+- Keys    : dd dd dd
+
+## after_3u.png
+
+- Keys    : 3u
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

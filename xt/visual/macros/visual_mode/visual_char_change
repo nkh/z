@@ -1,16 +1,21 @@
 {
     desc => q{Visual char change},
     description => <<'END_DESC',
-Action: v selects chars, c changes (replaces with typed text)
+# visual_char_change, Visual char change
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_char_change`
 
-Sub-commands: keys('vlllc'), type('XX'), key('Escape')
+## initial.png
 
--2_after.png (after action):
-- First 4 characters replaced with "XX"
-- Replaced text visible at cursor position
+- Cursor: 1, 0
+- Line 1  : hello world this is a test
+- Line 2  : second line here
+
+## after.png
+
+- Keys    : vlllc
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

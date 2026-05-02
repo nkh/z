@@ -1,15 +1,26 @@
 {
     desc => q{j preserves virtual column across short lines},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/j_preserves_virtual_col`
+# j_preserves_virtual_col, j preserves virtual column across short lines
 
-Tests that `j` preserves the desired column when moving from a long line to a shorter line. The cursor clamps to the end of the short line but retains the virtual column for subsequent moves.
+Macro: `xt/visual/macros/motions/j_preserves_virtual_col`
 
-Keys: `$` → `j`
+## initial.png
 
-- **j_preserves_virtual_col_initial.png**: Cursor at line 1, col 0 on `a`
-- **j_preserves_virtual_col_at_eol.png**: Cursor at line 1, col 28 on `e` (end of long line)
-- **j_preserves_virtual_col_on_short.png**: Cursor at line 2, col 1 on `y` (clamped to end of short line "xy")
+- Cursor: 1, 0
+- Line 1  : a very long line of text here
+- Line 2  : xy
+- Line 3  : another very long line of text here
+
+## at_eol.png
+
+- Keys    : $
+
+## on_short.png
+
+- Keys    : j
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

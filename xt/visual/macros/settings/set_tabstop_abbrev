@@ -1,15 +1,22 @@
 {
     desc => q{:set ts=8 abbreviation sets tabstop width},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/settings/set_tabstop_abbrev`
+# set_tabstop_abbrev, :set ts=8 abbreviation sets tabstop width
 
-Tests that `:set ts=8` is accepted as an abbreviation for `:set tabstop=8`
-and changes the visual display width of tab characters to 8 columns.
+Macro: `xt/visual/macros/settings/set_tabstop_abbrev`
 
-Ex: `:set ts=8`
+## initial.png
 
-- **set_tabstop_abbrev_initial.png**: Default tabstop width; tab characters at default width.
-- **set_tabstop_abbrev_after_set.png**: After `:set ts=8`, tabs displayed at 8-column width.
+- Cursor: 1, 0
+- Line 1  : 	indented line one
+- Line 2  : 	indented line two
+- Line 3  : 	normal line three
+
+## after_set.png
+
+- Keys    : :set`Space` ts=8
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,20 +1,21 @@
 {
     desc => q{% on a non-bracket character does nothing},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/percent_not_on_bracket`
+# percent_not_on_bracket, % on a non-bracket character does nothing
 
-**%** finds the matching bracket only when the cursor is on a bracket character (`()[]{}`). When the cursor is not on a bracket, **%** does nothing.
+Macro: `xt/visual/macros/bracket_match/percent_not_on_bracket`
 
-**Keys:** `%`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0 (on 'n' of "no brackets here")
-- Text contains no bracket characters
+- Cursor: 1, 0
+- Line 1  : no brackets here
+- Line 2  : just plain text
 
-**after_percent.png**
-- Cursor still at line 1, col 0
-- No movement — not on a bracket character
-- Buffer unchanged
+## after_percent.png
+
+- Keys    : %
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

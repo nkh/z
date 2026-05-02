@@ -1,13 +1,70 @@
 {
     desc => q{CSS syntax},
     description => <<'END_DESC',
-Syntax highlighting: CSS
+# visual_css_syntax, CSS syntax
 
-Visual checks:
-- Selectors (.editor, .gutter) colored
-- Properties (font-family, color, background) colored
-- Values (monospace, #d4d4d4, 12px) colored
-- Comments (/* */) have comment color
+Macro: `xt/visual/macros/syntax_highlighting/visual_css_syntax`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : /* Editor base styles */
+- Line 2  : .editor {
+- Line 3  :     font-family: monospace;
+- Line 4  :     font-size: 14px;
+- Line 5  :     color: #d4d4d4;
+- Line 6  :     background: #1e1e1e;
+- Line 7  :     padding: 4px 8px;
+- Line 8  :     border: 1px solid #3c3c3c;
+- Line 9  : }
+- Line 10  : 
+- Line 11  : /* Gutter styling */
+- Line 12  : .gutter {
+- Line 13  :     background: #1e1e1e;
+- Line 14  :     color: #858585;
+- Line 15  :     border-right: 1px solid #3c3c3c;
+- Line 16  :     padding: 0 6px;
+- Line 17  :     min-width: 40px;
+- Line 18  :     text-align: right;
+- Line 19  :     user-select: none;
+- Line 20  : }
+- Line 21  : 
+- Line 22  : /* Selection highlight */
+- Line 23  : .editor::selection {
+- Line 24  :     background: #264f78;
+- Line 25  : }
+- Line 26  : 
+- Line 27  : /* Scrollbar styling */
+- Line 28  : .editor::-webkit-scrollbar {
+- Line 29  :     width: 14px;
+- Line 30  :     height: 14px;
+- Line 31  : }
+- Line 32  : 
+- Line 33  : .editor::-webkit-scrollbar-thumb {
+- Line 34  :     background: #424242;
+- Line 35  :     border: 3px solid #1e1e1e;
+- Line 36  :     border-radius: 7px;
+- Line 37  : }
+- Line 38  : 
+- Line 39  : /* Cursor line highlight */
+- Line 40  : .cursor-line {
+- Line 41  :     background: rgba(255, 255, 255, 0.04);
+- Line 42  : }
+- Line 43  : 
+- Line 44  : /* Search match highlight */
+- Line 45  : .search-match {
+- Line 46  :     background: #515c6a;
+- Line 47  :     border: 1px solid #515c6a;
+- Line 48  : }
+- Line 49  : 
+- Line 50  : /* Syntax colors */
+- Line 51  : .keyword    { color: #569cd6; }
+- Line 52  : .string     { color: #ce9178; }
+- Line 53  : .comment    { color: #6a9955; }
+- Line 54  : .number     { color: #b5cea8; }
+- Line 55  : .type       { color: #4ec9b0; }
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

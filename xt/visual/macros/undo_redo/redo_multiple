@@ -1,32 +1,30 @@
 {
     desc => q{Ctrl-r redoes multiple undone operations},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/redo_multiple`
+# redo_multiple, Ctrl-r redoes multiple undone operations
 
-Tests that repeated **Ctrl-r** commands redo multiple undone changes
-in the correct order. Two lines are deleted, both are undone, then both
-are redone.
+Macro: `xt/visual/macros/undo_redo/redo_multiple`
 
-**Keys:** `dd`, `dd`, `u`, `u`, `Control-r`, `Control-r`
+## initial.png
 
-**initial.png**
-- Buffer has 3 lines: "one", "two", "three"
-- Cursor on line 1
+- Cursor: 1, 0
+- Line 1  : one
+- Line 2  : two
+- Line 3  : three
 
-**after_both_dd.png**
-- Buffer has 1 line: "three"
-- First two lines deleted
-- Intermediate snapshot after all deletions
+## after_both_dd.png
 
-**after_both_undo.png**
-- Buffer restored to 3 lines (identical to initial)
-- Both deletions undone
-- Intermediate snapshot after all undos
+- Keys    : dd dd
 
-**after_both_redo.png**
-- Buffer back to 1 line: "three"
-- Both deletions redone
-- Same state as after_both_dd
+## after_both_undo.png
+
+- Keys    : u u
+
+## after_both_redo.png
+
+- Keys    : Control-r Control-r
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

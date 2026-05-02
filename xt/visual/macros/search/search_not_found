@@ -1,20 +1,20 @@
 {
     desc => q{Searching for a non-existent pattern shows an error},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_not_found`
+# search_not_found, Searching for a non-existent pattern shows an error
 
-When **/pattern** does not match anything in the buffer, an error message is displayed and the cursor stays in place.
+Macro: `xt/visual/macros/search/search_not_found`
 
-**Keys:** `/zzznotfound\n`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Text: `foo bar baz`
+- Cursor: 1, 0
+- Line 1  : foo bar baz
 
-**after_not_found.png**
-- Error message displayed (e.g., "Pattern not found: zzznotfound")
-- Cursor still at line 1, col 0
-- Buffer unchanged
+## after_not_found.png
+
+- Keys    : /zzznotfound `Enter`
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

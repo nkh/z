@@ -1,28 +1,36 @@
 {
     desc => q{`a jumps to the exact mark position (line and column)},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/mark_jump_backtick`
+# mark_jump_backtick, `a jumps to the exact mark position (line and column)
 
-**ma** sets mark 'a' at the current position. **\`a** jumps back to the exact line and column where the mark was set.
+Macro: `xt/visual/macros/marks/mark_jump_backtick`
 
-**Keys:** `4l` then `ma` then `jjj` then `` `a ``
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
 
-**after_move_right.png**
-- Cursor at line 1, col 4 (on ' ' space in "line one")
+## after_move_right.png
 
-**after_set_mark.png**
-- Mark 'a' set at line 1, col 4
-- Cursor still at line 1, col 4
+- Keys    : 4l
 
-**after_move_down.png**
-- Cursor at line 4, col 4 (moved down 3 lines with `jjj`)
+## after_set_mark.png
 
-**after_backtick_a.png**
-- Cursor back at line 1, col 4 (exact mark position)
-- `` `a `` restores both line and column
+- Keys    : ma
+
+## after_move_down.png
+
+- Keys    : jjj
+
+## after_backtick_a.png
+
+- Keys    : `a
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

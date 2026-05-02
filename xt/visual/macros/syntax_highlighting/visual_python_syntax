@@ -1,13 +1,69 @@
 {
     desc => q{Python syntax},
     description => <<'END_DESC',
-Syntax highlighting: Python
+# visual_python_syntax, Python syntax
 
-Visual checks:
-- Keywords (import, from, class, def, if, not, for, return) colored
-- Triple-quoted docstrings have string color
-- Type hints (List, Optional) recognized as types
-- f-strings and inline expressions highlighted
+Macro: `xt/visual/macros/syntax_highlighting/visual_python_syntax`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : #!/usr/bin/env python3
+- Line 2  : """Source editor utilities module."""
+- Line 3  : 
+- Line 4  : from typing import List, Optional, Dict, Any
+- Line 5  : import json
+- Line 6  : import os
+- Line 7  : 
+- Line 8  : 
+- Line 9  : def load_config(path: str) -> Dict[str, Any]:
+- Line 10  :     """Load configuration from a JSON file."""
+- Line 11  :     if not os.path.exists(path):
+- Line 12  :         raise FileNotFoundError(f"Config not found: {path}")
+- Line 13  :     with open(path, 'r') as f:
+- Line 14  :         return json.load(f)
+- Line 15  : 
+- Line 16  : 
+- Line 17  : class SyntaxHighlighter:
+- Line 18  :     """Base class for syntax highlighting."""
+- Line 19  : 
+- Line 20  :     def __init__(self, language: str = "text"):
+- Line 21  :         self.language = language
+- Line 22  :         self._patterns: List[str] = []
+- Line 23  : 
+- Line 24  :     def add_pattern(self, pattern: str) -> None:
+- Line 25  :         self._patterns.append(pattern)
+- Line 26  : 
+- Line 27  :     def highlight(self, code: str) -> str:
+- Line 28  :         """Apply highlighting rules to source code."""
+- Line 29  :         result = code
+- Line 30  :         for pattern in self._patterns:
+- Line 31  :             # Apply each pattern in sequence
+- Line 32  :             result = self._apply(result, pattern)
+- Line 33  :         return result
+- Line 34  : 
+- Line 35  :     def _apply(self, text: str, pattern: str) -> str:
+- Line 36  :         """Apply a single highlighting pattern."""
+- Line 37  :         return text  # overridden in subclasses
+- Line 38  : 
+- Line 39  : 
+- Line 40  : def main() -> int:
+- Line 41  :     """Entry point for the utility."""
+- Line 42  :     config = load_config("config.json")
+- Line 43  :     highlighter = SyntaxHighlighter(language="python")
+- Line 44  : 
+- Line 45  :     if not config.get("enabled", False):
+- Line 46  :         print("Syntax highlighting is disabled")
+- Line 47  :         return 0
+- Line 48  : 
+- Line 49  :     print(f"Language: {highlighter.language}")
+- Line 50  :     return 0
+- Line 51  : 
+- Line 52  : 
+- Line 53  : if __name__ == "__main__":
+- Line 54  :     raise SystemExit(main())
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

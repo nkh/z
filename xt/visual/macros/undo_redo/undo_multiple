@@ -1,32 +1,31 @@
 {
     desc => q{multiple sequential undo operations restore original buffer},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/undo_multiple`
+# undo_multiple, multiple sequential undo operations restore original buffer
 
-Tests multiple sequential **u** commands to undo a series of different
-operations (character deletes and line delete). Three changes are made,
-then three undo steps restore the original state.
+Macro: `xt/visual/macros/undo_redo/undo_multiple`
 
-**Keys:** `x`, `x`, `j`, `dd`, `u`, `u`, `u`
+## initial.png
 
-**initial.png**
-- Buffer has 4 lines: "aaa", "bbb", "ccc", "ddd"
-- Cursor on line 1
+- Cursor: 1, 0
+- Line 1  : aaa
+- Line 2  : bbb
+- Line 3  : ccc
+- Line 4  : ddd
 
-**after_changes.png**
-- Two chars deleted from line 1 ("aaa" -> "a"), then line 2 ("bbb") deleted
-- Buffer: "a", "ccc", "ddd"
-- Cursor on line 1
-- Intermediate snapshot after all changes
+## after_changes.png
 
-**after_partial_undo.png**
-- After two `u` commands: changes partially undone
-- Buffer state depends on undo granularity
-- Intermediate snapshot showing partial restoration
+- Keys    : xx jdd
 
-**after_all_undo.png**
-- Buffer restored to original 4 lines: "aaa", "bbb", "ccc", "ddd"
-- All changes fully undone
+## after_partial_undo.png
+
+- Keys    : uu
+
+## after_all_undo.png
+
+- Keys    : u
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

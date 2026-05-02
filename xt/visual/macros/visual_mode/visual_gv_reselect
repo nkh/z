@@ -1,17 +1,22 @@
 {
     desc => q{Visual gv re-select},
     description => <<'END_DESC',
-Action: v selects, d deletes, gv re-selects the deleted region
+# visual_gv_reselect, Visual gv re-select
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_gv_reselect`
 
-Sub-commands: keys('vllldgv')
+## initial.png
 
--2_after.png (after action):
-- "hell" deleted: "o world this is a test"
-- gv re-selected the region (selection visible on the remaining text)
-- Mode label shows "-- VISUAL --"
+- Cursor: 1, 0
+- Line 1  : hello world this is a test
+- Line 2  : second line of text here
+- Line 3  : third line for more context
+
+## after.png
+
+- Keys    : vllldgv
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

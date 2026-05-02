@@ -1,25 +1,23 @@
 {
     desc => q{Line start 0 and first-non-blank ^},
     description => <<'END_DESC',
-Action: `0` moves to absolute start of line, `^` moves to first non-blank
+# basic_navigation_0_caret, Line start 0 and first-non-blank ^
 
-Macro: `xt/visual/macros/basic_navigation_0_caret`
+Macro: `xt/visual/macros/basic_navigation/basic_navigation_0_caret`
 
-**initial.png** (before):
-- Line 1: `  hello world` (two leading spaces)
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `$`
+- Cursor: 1, 0
+- Line 1  :   hello world
+- Line 2  :   foo bar
 
-**mid_dollar.png** (after `$`):
-- Cursor at line 1, col 12 (on `d`, last character of `world`)
-- No text change
+## mid_dollar.png
 
-Keys: `0`
+- Keys    : $
 
-**after_action.png** (after `0`):
-- Cursor at line 1, col 0 (absolute start of line)
-- No text change
+## after_action.png
+
+
 
 END_DESC
     run => sub {

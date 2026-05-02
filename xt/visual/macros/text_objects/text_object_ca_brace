@@ -1,19 +1,23 @@
 {
     desc => 'ca{ change including braces',
     description => <<'END_DESC',
-Action: ca{ changes text including curly braces
+# text_object_ca_brace, ca{ change including braces
 
-Macro: xt/visual/macros/text_object_ca_brace
+Macro: `xt/visual/macros/text_objects/text_object_ca_brace`
 
-**initial.png** (before):
-- Line 1: func({ key => 'value' });
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: lllllllca{ + type REPLACED + Escape
+- Cursor: 1, 0
+- Line 1  : func({ key => 'value' });
 
-**after_change.png** (after):
-- Line 1: func(REPLACED);
-- Braces and content all replaced
+## in_insert_mode.png
+
+- Keys    : lllllllca{
+
+## after_change.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

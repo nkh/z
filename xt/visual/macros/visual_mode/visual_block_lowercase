@@ -1,16 +1,22 @@
 {
     desc => 'Visual block lowercase u converts block to lowercase',
     description => <<'END_DESC',
-Action: Ctrl-V block select, u lowercases all block text
+# visual_block_lowercase, Visual block lowercase u converts block to lowercase
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_block_lowercase`
 
-Sub-commands: keys('Control-vjjl'), key('u')
+## initial.png
 
--2_after.png (after action):
-- First 2 chars of each of first 3 lines lowercased
-- Lines: "abCD", "efGH", "ijKL"
+- Cursor: 1, 0
+- Line 1  : ABCD
+- Line 2  : EFGH
+- Line 3  : IJKL
+
+## after.png
+
+- Keys    : Control-vjjl
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

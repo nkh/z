@@ -1,19 +1,19 @@
 {
     desc => 'da{ delete including braces',
     description => <<'END_DESC',
-Action: da{ deletes text including curly braces
+# text_object_da_brace, da{ delete including braces
 
-Macro: xt/visual/macros/text_object_da_brace
+Macro: `xt/visual/macros/text_objects/text_object_da_brace`
 
-**initial.png** (before):
-- Line 1: func({ key => 'value' });
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: lllllllda{
+- Cursor: 1, 0
+- Line 1  : func({ key => 'value' });
 
-**after_delete.png** (after):
-- Line 1: func();
-- Braces and content all deleted
+## after_delete.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,17 +1,20 @@
 {
     desc => q{da' deletes text including surrounding single quotes},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_da_singlequote`
+# text_object_da_singlequote, da' deletes text including surrounding single quotes
 
-Tests the `da'` text object which deletes text **including** the
-single quote delimiters themselves.
+Macro: `xt/visual/macros/text_objects/text_object_da_singlequote`
 
-**initial.png** — Cursor on 'h' inside the single quotes at line 1 col 10.
+## initial.png
 
-Keys: `da'`
+- Cursor: 1, 0
+- Line 1  : my $x = 'hello world';
 
-**after_da_singlequote.png** — The entire `'hello world'` including both
-single quotes is removed. Line 1 now reads `my $x = ;`.
+## after_da_singlequote.png
+
+- Keys    : llllllllll
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

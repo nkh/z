@@ -1,24 +1,24 @@
 {
     desc => q{:nohlsearch clears search highlights},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/nohlsearch`
+# nohlsearch, :nohlsearch clears search highlights
 
-**:nohlsearch** clears the current search highlights without changing the search pattern or cursor position.
+Macro: `xt/visual/macros/search/nohlsearch`
 
-**Keys:** `/foo\n` then `:nohlsearch\n`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- No search highlights yet
+- Cursor: 1, 0
+- Line 1  : foo bar foo baz foo
 
-**after_search.png**
-- Cursor on first "foo" at col 0
-- All "foo" occurrences highlighted
+## after_search.png
 
-**after_nohlsearch.png**
-- Cursor still at col 0 on "foo"
-- Search highlights cleared
-- Text unchanged, search pattern still available for n/N
+- Keys    : /foo `Enter`
+
+## after_nohlsearch.png
+
+- Keys    : :nohlsearch
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

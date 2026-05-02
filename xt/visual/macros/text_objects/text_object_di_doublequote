@@ -1,17 +1,20 @@
 {
     desc => q{di" deletes text inside double quotes},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_di_doublequote`
+# text_object_di_doublequote, di" deletes text inside double quotes
 
-Tests the `di"` text object which deletes text inside double quotes
-while preserving the quote characters.
+Macro: `xt/visual/macros/text_objects/text_object_di_doublequote`
 
-**initial.png** — Cursor on 'h' inside the double quotes at line 1 col 11.
+## initial.png
 
-Keys: `di"`
+- Cursor: 1, 0
+- Line 1  : my $msg = "hello world";
 
-**after_di_doublequote.png** — Content between the double quotes is deleted.
-Line 1 now reads `my $msg = "";` with the quotes intact.
+## after_di_doublequote.png
+
+- Keys    : lllllllllll di"
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,12 +1,11 @@
 {
     desc => q{Empty buffer},
     description => <<'END_DESC',
-Edge case: completely empty buffer
+# visual_empty_buffer, Empty buffer
 
-Visual checks:
-- Editor shows only the background theme color
-- Line numbers gutter visible (if enabled)
-- No text rendered at all
+Macro: `xt/visual/macros/visual_mode/visual_empty_buffer`
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;
@@ -15,4 +14,3 @@ END_DESC
         $ctx->snapshot();
     },
 }
-__DATA__

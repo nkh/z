@@ -1,16 +1,20 @@
 {
     desc => q{Visual swap ends o},
     description => <<'END_DESC',
-Action: v selects chars, o swaps cursor/anchor, d deletes
+# visual_swap_ends, Visual swap ends o
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_swap_ends`
 
-Sub-commands: keys('v$od')
+## initial.png
 
--2_after.png (after action):
-- All characters except the last deleted (backward selection deleted)
-- Line 1: "d" (only the last char remains)
+- Cursor: 1, 0
+- Line 1  : hello world this is a test
+
+## after.png
+
+- Keys    : v$od
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

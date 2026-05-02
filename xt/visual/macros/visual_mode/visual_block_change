@@ -1,16 +1,23 @@
 {
     desc => 'Visual block change replaces block with typed text',
     description => <<'END_DESC',
-Action: Ctrl-V block select, c changes to typed text
+# visual_block_change, Visual block change replaces block with typed text
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_block_change`
 
-Sub-commands: keys('Control-vjj'), key('c'), type('XX'), key('Escape')
+## initial.png
 
--2_after.png (after action):
-- First 2 chars of each of first 3 lines replaced with "XX"
-- Lines: "XXcd", "XXgh", "XXkl"
+- Cursor: 1, 0
+- Line 1  : abcd
+- Line 2  : efgh
+- Line 3  : ijkl
+- Line 4  : mnop
+
+## after.png
+
+- Keys    : Control-vjj
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

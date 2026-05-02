@@ -1,16 +1,23 @@
 {
     desc => 'Visual block indent with >> indents block lines',
     description => <<'END_DESC',
-Action: Ctrl-V block select, >> indents all selected lines
+# visual_block_indent, Visual block indent with >> indents block lines
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_block_indent`
 
-Sub-commands: keys('Control-vjj'), keys('>>')
+## initial.png
 
--2_after.png (after action):
-- All 3 lines indented by one tab
-- Lines: "    abcd", "    efgh", "    ijkl"
+- Cursor: 1, 0
+- Line 1  : abcd
+- Line 2  : efgh
+- Line 3  : ijkl
+- Line 4  : mnop
+
+## after.png
+
+- Keys    : Control-vjj >>
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

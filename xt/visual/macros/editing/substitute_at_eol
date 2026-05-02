@@ -1,23 +1,24 @@
 {
     desc => q{s at end of line is a no-op},
     description => <<'END_DESC',
-Action: `s` at the end of line (past last character) does nothing
+# substitute_at_eol, s at end of line is a no-op
 
-Macro: `xt/visual/macros/substitute_at_eol`
+Macro: `xt/visual/macros/editing/substitute_at_eol`
 
-**initial.png** (before):
-- Line 1: `hello world`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `$`, `s`
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**cursor_at_eol.png** (intermediate — cursor moved to end of line):
-- Line 1: `hello world` (text unchanged)
-- Cursor positioned at end of line
+## cursor_at_eol.png
 
-**after_s_at_eol.png** (after):
-- Line 1: `hello world` (unchanged — `s` is a no-op at EOL)
-- Still in normal mode
+- Keys    : $
+
+## after_s_at_eol.png
+
+- Keys    : s
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

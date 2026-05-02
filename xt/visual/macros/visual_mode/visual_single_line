@@ -1,12 +1,16 @@
 {
     desc => q{Single line},
     description => <<'END_DESC',
-Edge case: single line of text
+# visual_single_line, Single line
 
-Visual checks:
-- One line of text displayed
-- Cursor on the line
-- Line number "1" in gutter (if enabled)
+Macro: `xt/visual/macros/visual_mode/visual_single_line`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : one line of text
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

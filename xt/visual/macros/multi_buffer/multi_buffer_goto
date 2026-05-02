@@ -1,20 +1,21 @@
 {
     desc => q{:b<N> jumps directly to a buffer by index number},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/multi_buffer/multi_buffer_goto`
+# multi_buffer_goto, :b<N> jumps directly to a buffer by index number
 
-Tests that `:b<N>` (buffer goto) switches directly to the buffer at the
-given index number without cycling through intermediate buffers.
+Macro: `xt/visual/macros/multi_buffer/multi_buffer_goto`
 
-Setup: Open two temporary files via `:e`, navigate to buffer 1, then run
-`:b2`.
+(Multi-buffer test — creates temporary files in run sub)
 
-Ex: `:b2`
+## on_buffer_one.png
 
-- **multi_buffer_goto_on_buffer_one.png**: Editor showing the content of
-  buffer 1 ("First file") with cursor in NORMAL mode.
-- **multi_buffer_goto_on_buffer_two.png**: After `:b2`, the editor displays
-  buffer 2 ("Second file") directly, without cycling.
+- Keys    : :e`Space` $f1 :e`Space` $f2 :bp
+
+## on_buffer_two.png
+
+- Keys    : :b2
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

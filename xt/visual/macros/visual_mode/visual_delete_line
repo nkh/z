@@ -1,17 +1,23 @@
 {
     desc => q{Delete line (dd)},
     description => <<'END_DESC',
-Action: dd deletes the current line
+# visual_delete_line, Delete line (dd)
 
--1_initial.png (initial state):
-- Default theme with Perl code (starts with #!/usr/bin/perl)
+Macro: `xt/visual/macros/visual_mode/visual_delete_line`
 
-Sub-commands: keys('dd')
+## initial.png
 
--2_after.png (after action):
-- First line (#!/usr/bin/perl) is gone
-- Cursor at new line 1
-- Buffer content is one line shorter
+- Cursor: 1, 0
+- Line 1  : #!/usr/bin/perl
+- Line 2  : use strict;
+- Line 3  : use warnings;
+- Line 4  : print "Hello, World!\n";
+
+## after.png
+
+- Keys    : dd
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->editor->set_language('perl');

@@ -1,19 +1,20 @@
 {
     desc => q{3s substitutes 3 characters},
     description => <<'END_DESC',
-Action: `3s` deletes 3 characters and enters insert mode
+# substitute_3s, 3s substitutes 3 characters
 
-Macro: `xt/visual/macros/substitute_3s`
+Macro: `xt/visual/macros/editing/substitute_3s`
 
-**initial.png** (before):
-- Line 1: `hello world`
-- Cursor at line 1, col 0 (on `h`)
+## initial.png
 
-Keys: `3sXX`, `Escape`
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_3s.png** (after):
-- Line 1: `XXlo world` (`hel` replaced with `XX`)
-- Cursor at line 1, col 2 (after `XX`)
+## after_3s.png
+
+- Keys    : 3sXX
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

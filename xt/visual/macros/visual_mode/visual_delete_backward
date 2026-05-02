@@ -1,17 +1,21 @@
 {
     desc => q{Visual delete backward},
     description => <<'END_DESC',
-Action: v select, move left to create backward selection, d deletes
+# visual_delete_backward, Visual delete backward
 
--1_initial.png (initial state):
-- Line 1: `hello world this is a test`
-- Cursor at line 1, col 5 (on ` `)
+Macro: `xt/visual/macros/visual_mode/visual_delete_backward`
 
-Sub-commands: keys('5lvhhd')
+## initial.png
 
--2_after.png (after action):
-- Characters deleted backward from cursor position
-- `lo ` removed from `hello ` (cols 3-5 deleted in visual mode)
+- Cursor: 1, 0
+- Line 1  : hello world this is a test
+- Line 2  : second line of text here
+
+## after.png
+
+- Keys    : 5lvhhd
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

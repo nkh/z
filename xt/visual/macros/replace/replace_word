@@ -1,19 +1,20 @@
 {
     desc => q{r replaces single character},
     description => <<'END_DESC',
-Action: `r` replaces the character under the cursor with the next typed character
+# replace_word, r replaces single character
 
-Macro: `xt/visual/macros/replace_word`
+Macro: `xt/visual/macros/replace/replace_word`
 
-**initial.png** (before):
-- Line 1: `hello world`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `4lrO`
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_replace.png** (after):
-- Line 1: `hellO world` (`o` at col 4 replaced with `O`)
-- Cursor at line 1, col 4 (on `O`)
+## after_replace.png
+
+- Keys    : 4lrO
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

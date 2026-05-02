@@ -1,15 +1,29 @@
 {
     desc => ':set ft= abbreviation sets filetype for syntax highlighting',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_filetype_abbrev`
+# set_filetype_abbrev, :set ft= abbreviation sets filetype for syntax highlighting
 
-Tests that `:set ft=perl` (abbreviation for `:set filetype=perl`) enables
-Perl syntax highlighting on the buffer.
+Macro: `xt/visual/macros/settings/set_filetype_abbrev`
 
-Ex: `:set ft=perl`
+## initial.png
 
-- **set_filetype_abbrev_initial.png**: Plain text, no syntax highlighting.
-- **set_filetype_abbrev_after_set.png**: Perl syntax highlighting active (keywords, subs, etc. colored).
+- Cursor: 1, 0
+- Line 1  : package MyApp;
+- Line 2  : use strict;
+- Line 3  : use warnings;
+- Line 4  : 
+- Line 5  : sub new {
+- Line 6  :     my $class = shift;
+- Line 7  :     return bless {}, $class;
+- Line 8  : }
+- Line 9  : 
+- Line 10  : 1;
+
+## after_set.png
+
+- Keys    : :set`Space` ft=perl
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

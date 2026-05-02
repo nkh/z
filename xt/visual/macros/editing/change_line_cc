@@ -1,20 +1,24 @@
 {
     desc => q{cc changes entire line},
     description => <<'END_DESC',
-Action: `cc` clears the entire line content and enters insert mode
+# change_line_cc, cc changes entire line
 
-**initial.png** (before):
-- Line 1: `This is a longer line of text for testing changes.`
-- Line 2: `The quick brown fox jumps over the lazy dog.`
-- Line 3: `Another line here to fill the buffer.`
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/editing/change_line_cc`
 
-Keys: `jcc`, type `new text`, `Escape`
+## initial.png
 
-**after_cc.png** (after):
-- Line 1: `This is a longer line of text for testing changes.` (unchanged)
-- Line 2: `new text` (was `The quick brown fox...`)
-- Line 3: `Another line here to fill the buffer.` (unchanged)
+- Cursor: 1, 0
+- Line 1  : This is a longer line of text for testing changes.
+- Line 2  : The quick brown fox jumps over the lazy dog.
+- Line 3  : Another line here to fill the buffer.
+- Line 4  : And yet another line for scrolling context.
+- Line 5  : Final line of the test buffer content.
+
+## after_cc.png
+
+- Keys    : jcc
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

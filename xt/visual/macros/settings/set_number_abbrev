@@ -1,15 +1,24 @@
 {
     desc => ':set nu is abbreviation for :set number',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_number_abbrev`
+# set_number_abbrev, :set nu is abbreviation for :set number
 
-Tests that `:set nu` is accepted as an abbreviation for `:set number` and
-displays line numbers in the left gutter.
+Macro: `xt/visual/macros/settings/set_number_abbrev`
 
-Ex: `:set nu`
+## initial.png
 
-- **set_number_abbrev_initial.png**: No line numbers visible.
-- **set_number_abbrev_after_set.png**: Line numbers (1-5) displayed in the left margin.
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
+
+## after_set.png
+
+- Keys    : :set`Space` nu
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

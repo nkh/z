@@ -1,17 +1,22 @@
 {
     desc => '2>> indents 2 lines right',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/indent_2lines`
+# indent_2lines, 2>> indents 2 lines right
 
-Tests the `2>>` operator which indents the current line and the next line
-by one shift width.
+Macro: `xt/visual/macros/editing/indent_2lines`
 
-**initial.png** — Three lines with no indentation. Cursor at line 1 col 0.
+## initial.png
 
-Keys: `2>>`
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
 
-**after_indent_2lines.png** — Lines 1 and 2 are both indented (shifted right).
-Line 3 remains unchanged.
+## after_indent_2lines.png
+
+- Keys    : 2>>
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

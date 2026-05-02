@@ -1,22 +1,24 @@
 {
     desc => q{// repeats the last search},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_empty_pattern`
+# search_empty_pattern, // repeats the last search
 
-After a previous search, **//** (empty pattern with slashes) repeats the last search pattern, equivalent to pressing `n`.
+Macro: `xt/visual/macros/search/search_empty_pattern`
 
-**Keys:** `/bar\n` then `//\n`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Line: `foo bar foo baz foo`
+- Cursor: 1, 0
+- Line 1  : foo bar foo baz foo
 
-**after_first_search.png**
-- Cursor on "bar" at col 4 after `/bar`
+## after_first_search.png
 
-**after_double_slash.png**
-- `//` repeated the last search pattern "bar"
-- Cursor position depends on implementation (may wrap or show "already at last match")
+- Keys    : /bar `Enter`
+
+## after_double_slash.png
+
+- Keys    : / `Enter`
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

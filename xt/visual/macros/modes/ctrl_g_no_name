@@ -1,15 +1,20 @@
 {
     desc => 'Ctrl-G on unnamed buffer shows [No Name]',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/ctrl_g_no_name`
+# ctrl_g_no_name, Ctrl-G on unnamed buffer shows [No Name]
 
-Tests that `Ctrl-g` on an unnamed buffer displays `[No Name]` in the
-file info message along with line count and cursor position.
+Macro: `xt/visual/macros/modes/ctrl_g_no_name`
 
-Keys: `Ctrl-g`
+## initial.png
 
-- **ctrl_g_no_name_initial.png**: Normal mode, cursor at line 1 col 0, no filename set.
-- **ctrl_g_no_name_after_ctrl_g.png**: Mode label shows `[No Name]` with line count and position info.
+- Cursor: 1, 0
+- Line 1  : unnamed buffer content
+
+## after_ctrl_g.png
+
+- Keys    : Control-g
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

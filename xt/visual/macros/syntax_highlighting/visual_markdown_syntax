@@ -1,14 +1,64 @@
 {
     desc => q{Markdown syntax},
     description => <<'END_DESC',
-Syntax highlighting: Markdown
+# visual_markdown_syntax, Markdown syntax
 
-Visual checks:
-- Headings (# ##) colored
-- Bold (**text**) and italic (*text*) markers colored
-- Code blocks (```) have distinct background or color
-- List items (-) colored
-- Links and URLs recognized
+Macro: `xt/visual/macros/syntax_highlighting/visual_markdown_syntax`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : # Gtk3::SourceEditor
+- Line 2  : 
+- Line 3  : A **Vim-style** source code editor widget built on
+- Line 4  : *Gtk3::SourceView*.
+- Line 5  : 
+- Line 6  : ## Features
+- Line 7  : 
+- Line 8  : - Vim-style keybindings (normal, insert, visual modes)
+- Line 9  : - Syntax highlighting for 20+ languages
+- Line 10  : - Light and dark themes
+- Line 11  : - Undo/redo support
+- Line 12  : - Line numbers gutter
+- Line 13  : 
+- Line 14  : ## Installation
+- Line 15  : 
+- Line 16  : \`\`\`bash
+- Line 17  : cpanm Gtk3::SourceEditor
+- Line 18  : \`\`\`
+- Line 19  : 
+- Line 20  : ### From source
+- Line 21  : 
+- Line 22  : \`\`\`bash
+- Line 23  : perl Makefile.PL
+- Line 24  : make
+- Line 25  : make test
+- Line 26  : make install
+- Line 27  : \`\`\`
+- Line 28  : 
+- Line 29  : ## Quick Start
+- Line 30  : 
+- Line 31  : \`\`\`perl
+- Line 32  : use Gtk3 -init;
+- Line 33  : use Gtk3::SourceEditor;
+- Line 34  : 
+- Line 35  : my $editor = Gtk3::SourceEditor->new();
+- Line 36  : $editor->set_language('perl');
+- Line 37  : $editor->set_theme('dark');
+- Line 38  : $editor->set_text('# hello world');
+- Line 39  : \`\`\`
+- Line 40  : 
+- Line 41  : ## Configuration
+- Line 42  : 
+- Line 43  : | Setting     | Default   | Description              |
+- Line 44  : |-------------|-----------|--------------------------|
+- Line 45  : | \`vim_mode\`  | \`1\`       | Enable vim keybindings   |
+- Line 46  : | \`theme\`     | \`light\`   | Color theme to use       |
+- Line 47  : | \`tab_width\` | \`4\`       | Tab stop width in spaces |
+- Line 48  : 
+- Line 49  : See also: [Gtk3](https://metacpan.org/pod/Gtk3)
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

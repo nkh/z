@@ -1,17 +1,24 @@
 {
     desc => q{s substitutes character},
     description => <<'END_DESC',
-Action: `s` deletes the character under the cursor and enters insert mode
+# substitute_char_s, s substitutes character
 
-**initial.png** (before):
-- Line 1: `This is a longer line of text for testing.`
-- Cursor at line 1, col 0 (on `T`)
+Macro: `xt/visual/macros/editing/substitute_char_s`
 
-Keys: `sX`, `Escape`
+## initial.png
 
-**after_substitute.png** (after):
-- Line 1: `Xhis is a longer line of text for testing.` (`T` replaced with `X`)
-- Cursor at line 1, col 1 (after `X`)
+- Cursor: 1, 0
+- Line 1  : This is a longer line of text for testing.
+- Line 2  : The quick brown fox jumps over the lazy dog.
+- Line 3  : Another line here to fill the buffer.
+- Line 4  : And yet another line for scrolling context.
+- Line 5  : Final line of the test buffer content.
+
+## after_substitute.png
+
+- Keys    : sX
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

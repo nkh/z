@@ -1,26 +1,28 @@
 {
     desc => q{'a jumps to the first non-blank character of the marked line},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/mark_jump_quote`
+# mark_jump_quote, 'a jumps to the first non-blank character of the marked line
 
-**ma** sets mark 'a'. **'a** jumps to the first non-blank character of the marked line (column 0 for non-indented lines, or the first non-space column for indented lines).
+Macro: `xt/visual/macros/marks/mark_jump_quote`
 
-**Keys:** `ma` then `j` then `'a`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0 (on first space of indented line)
-- Line 1: `    indented line`
+- Cursor: 1, 0
+- Line 1  :     indented line
+- Line 2  : normal line
 
-**after_set_mark.png**
-- Mark 'a' set at line 1 (wherever cursor was)
-- Cursor at line 1
+## after_set_mark.png
 
-**after_move_down.png**
-- Cursor at line 2, col 0 ("normal line")
+- Keys    : ma
 
-**after_quote_a.png**
-- Cursor at line 1, col 4 (first non-blank character 'i' of "indented")
-- **'a** jumped to the line but snapped to first non-blank column
+## after_move_down.png
+
+- Keys    : j
+
+## after_quote_a.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

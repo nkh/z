@@ -1,21 +1,26 @@
 {
     desc => ':set theme=nonexistent shows an error for unknown theme names',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_theme_error`
+# set_theme_error, :set theme=nonexistent shows an error for unknown theme names
 
-Tests that `:set theme=` with a nonexistent theme name displays an error
-message and does not change the current theme.
+Macro: `xt/visual/macros/settings/set_theme_error`
 
-Starts from the dark theme to ensure the error is visible against a known
-background.
+## initial.png
 
-Ex: `:set theme=nonexistent`
+- Cursor: 1, 0
+- Line 1  : # Theme switch test
+- Line 2  : Hello, World!
+- Line 3  : my $x = 42;
+- Line 4  : print "dark mode\n";
 
-- **set_theme_error_dark_before.png**: Dark theme active, normal editing
-  state before the invalid command.
-- **set_theme_error_message.png**: Error message displayed in the status
-  area indicating the theme name was not recognized; the dark theme
-  remains unchanged.
+## dark_before.png
+
+
+## message.png
+
+- Keys    : :set`Space` theme=nonexistent
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

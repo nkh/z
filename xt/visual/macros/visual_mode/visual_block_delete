@@ -1,17 +1,23 @@
 {
     desc => q{Visual block mode select and delete},
     description => <<'END_DESC',
-Action: Ctrl-V selects block, d deletes columns
+# visual_block_delete, Visual block mode select and delete
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_block_delete`
 
-Sub-commands: keys('Control-vjjld')
+## initial.png
 
--2_after.png (after action):
-- First 2 columns removed from each of first 3 lines
-- Lines become "cd", "gh", "kl"
-- Line 4 unchanged: "mnop"
+- Cursor: 1, 0
+- Line 1  : abcd
+- Line 2  : efgh
+- Line 3  : ijkl
+- Line 4  : mnop
+
+## after.png
+
+- Keys    : Control-vjjld
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

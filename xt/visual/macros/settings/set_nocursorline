@@ -1,15 +1,28 @@
 {
     desc => ':set nocursorline removes cursor line highlight',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_nocursorline`
+# set_nocursorline, :set nocursorline removes cursor line highlight
 
-Tests that `:set nocursorline` removes the cursor line highlight that was
-previously enabled with `:set cursorline`.
+Macro: `xt/visual/macros/settings/set_nocursorline`
 
-Ex: `:set cursorline` then `:set nocursorline`
+## initial.png
 
-- **set_nocursorline_with_highlight.png**: Cursorline enabled; line 1 has a distinct background highlight.
-- **set_nocursorline_after_nocursorline.png**: Cursorline disabled; all lines have the same background again.
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
+
+## with_highlight.png
+
+- Keys    : :set`Space` cursorline
+
+## after_nocursorline.png
+
+- Keys    : :set`Space` nocursorline
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

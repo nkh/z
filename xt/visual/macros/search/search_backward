@@ -1,22 +1,25 @@
 {
     desc => q{?pattern searches backward for a pattern},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_backward`
+# search_backward, ?pattern searches backward for a pattern
 
-**?pattern** searches backward through the buffer for the given pattern. From line 2, `?hello` wraps backward to find "hello" on line 1.
+Macro: `xt/visual/macros/search/search_backward`
 
-**Keys:** `j` then `?hello\n`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Text has "hello" on lines 1 and 2
+- Cursor: 1, 0
+- Line 1  : hello world
+- Line 2  : foo bar hello baz
 
-**after_move_down.png**
-- Cursor at line 2, col 0 (moved down with `j`)
+## after_move_down.png
 
-**after_search_backward.png**
-- Cursor on "hello" on line 1, col 0
-- Search highlights visible on both "hello" occurrences
+- Keys    : j
+
+## after_search_backward.png
+
+- Keys    : ?hello `Enter`
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

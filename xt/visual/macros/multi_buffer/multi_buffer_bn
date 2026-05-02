@@ -1,20 +1,21 @@
 {
     desc => q{:bn switches to next buffer in the buffer list},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/multi_buffer/multi_buffer_bn`
+# multi_buffer_bn, :bn switches to next buffer in the buffer list
 
-Tests that `:bn` (buffer next) cycles forward through the buffer registry,
-wrapping from the last buffer back to the first.
+Macro: `xt/visual/macros/multi_buffer/multi_buffer_bn`
 
-Setup: Open two temporary files via `:e`, so the buffer list contains two
-entries. Navigate to buffer 2, then run `:bn`.
+(Multi-buffer test — creates temporary files in run sub)
 
-Ex: `:bn`
+## on_buffer_two.png
 
-- **multi_buffer_bn_on_buffer_two.png**: Editor showing the content of
-  buffer 2 ("Second file") with cursor in NORMAL mode.
-- **multi_buffer_bn_after_switch.png**: After `:bn`, the editor displays
-  buffer 1 ("First file"), having wrapped from the end of the buffer list.
+- Keys    : :e`Space` $f1 :e`Space` $f2
+
+## after_switch.png
+
+- Keys    : :bn
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

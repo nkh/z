@@ -1,24 +1,24 @@
 {
     desc => q{u undoes visual mode character delete},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/undo_visual_delete`
+# undo_visual_delete, u undoes visual mode character delete
 
-Tests that **u** restores text deleted after a visual selection (**v** + motion + **d**).
+Macro: `xt/visual/macros/undo_redo/undo_visual_delete`
 
-**Keys:** `v`, `lll`, `d`, `u`
+## initial.png
 
-**initial.png**
-- Buffer contains "hello world"
-- Cursor at column 0 on 'h'
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_visual_delete.png**
-- Buffer contains "o world" (first 4 chars "hell" visually selected and deleted)
-- Cursor at column 0 on 'o'
-- Intermediate snapshot showing the deletion
+## after_visual_delete.png
 
-**after_undo.png**
-- Buffer restored to "hello world" (identical to initial)
-- Visual delete fully undone
+- Keys    : v lll d
+
+## after_undo.png
+
+- Keys    : u
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

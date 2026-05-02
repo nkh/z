@@ -1,24 +1,23 @@
 {
     desc => q{Bracket match % parentheses},
     description => <<'END_DESC',
-Action: `%` jumps between matching parentheses
+# bracket_match_paren, Bracket match % parentheses
 
-Macro: `xt/visual/macros/bracket_match_paren`
+Macro: `xt/visual/macros/bracket_match/bracket_match_paren`
 
-**initial.png** (before):
-- Line 1: `my ($x, $y) = foo();`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `3l` (move to `(`)
+- Cursor: 1, 0
+- Line 1  : my ($x, $y) = foo();
 
-**on_paren.png** (cursor on `(`):
-- Cursor at line 1, col 3 (on `(`)
+## on_paren.png
 
-Keys: `%`
+- Keys    : 3l
 
-**after_action.png** (after `%`):
-- Cursor at line 1, col 10 (on `)` matching `(` at col 3)
-- No text change
+## after_action.png
+
+- Keys    : %
+
 
 END_DESC
     run => sub {

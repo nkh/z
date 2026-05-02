@@ -1,16 +1,20 @@
 {
     desc => 'invalid ex command shows an error message',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/ex_command_error`
+# ex_command_error, invalid ex command shows an error message
 
-Tests that an invalid/unknown ex command displays an error message.
+Macro: `xt/visual/macros/ex_commands/ex_command_error`
 
-**initial.png** — Normal mode, buffer contains `some text here`.
+## initial.png
 
-Keys: `:nonexistent<Enter>`
+- Cursor: 1, 0
+- Line 1  : some text here
 
-**after_error.png** — An error message is displayed (e.g. "Not an editor command")
-while the buffer content remains unchanged.
+## after_error.png
+
+- Keys    : :nonexistent
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

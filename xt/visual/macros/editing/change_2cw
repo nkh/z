@@ -1,19 +1,20 @@
 {
     desc => q{2cw changes 2 words},
     description => <<'END_DESC',
-Action: `2cw` deletes 2 words and enters insert mode
+# change_2cw, 2cw changes 2 words
 
-Macro: `xt/visual/macros/change_2cw`
+Macro: `xt/visual/macros/editing/change_2cw`
 
-**initial.png** (before):
-- Line 1: `hello world test`
-- Cursor at line 1, col 0 (start of `hello`)
+## initial.png
 
-Keys: `2cw`, type `REPLACED`, `Escape`
+- Cursor: 1, 0
+- Line 1  : hello world test
 
-**after_2cw.png** (after):
-- Line 1: `REPLACED test` (`hello world` replaced with `REPLACED`)
-- Cursor at line 1, col 8 (after `REPLACED`)
+## after_2cw.png
+
+- Keys    : 2cw
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,17 +1,20 @@
 {
     desc => q{ci' changes text inside single quotes},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_ci_singlequote`
+# text_object_ci_singlequote, ci' changes text inside single quotes
 
-Tests the `ci'` text object which deletes text inside single quotes,
-enters insert mode, then we type replacement text.
+Macro: `xt/visual/macros/text_objects/text_object_ci_singlequote`
 
-**initial.png** — Cursor on 'h' inside the single quotes at line 1 col 10.
+## initial.png
 
-Keys: `ci'` then type `REPLACED` then `<Escape>`
+- Cursor: 1, 0
+- Line 1  : my $x = 'hello world';
 
-**after_ci_singlequote.png** — Content between quotes changed to `REPLACED`.
-Line 1 now reads `my $x = 'REPLACED';`. Quotes are preserved.
+## after_ci_singlequote.png
+
+- Keys    : llllllllll
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,32 +1,29 @@
 {
     desc => q{gi returns to last insert position},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/gi_return`
+# gi_return, gi returns to last insert position
 
-Tests that **gi** enters insert mode at the position where the last
-insert session ended. After inserting text on line 1 and moving to
-line 3, gi returns to the insert point on line 1.
+Macro: `xt/visual/macros/modes/gi_return`
 
-**Keys:** `i`, type `X`, `Escape`, `jj`, `gi`, type `Y`, `Escape`
+## initial.png
 
-**initial.png**
-- Buffer has 3 lines: "aaa", "bbb", "ccc"
-- Cursor on line 1 at column 0
+- Cursor: 1, 0
+- Line 1  : aaa
+- Line 2  : bbb
+- Line 3  : ccc
 
-**after_first_insert.png**
-- Line 1 reads "Xaaa" (X inserted at column 0)
-- Cursor on 'a' at column 1
-- Intermediate snapshot after first insert session
+## after_first_insert.png
 
-**after_move_down.png**
-- Cursor moved to line 3 (after `jj`)
-- Content unchanged from after_first_insert
-- Intermediate snapshot showing cursor moved away
 
-**after_gi_return.png**
-- Line 1 reads "XYaaa" (Y inserted at column 1, where last insert ended)
-- Cursor on 'a' at column 2
-- gi correctly returned to the last insert position
+## after_move_down.png
+
+- Keys    : jj
+
+## after_gi_return.png
+
+- Keys    : gi
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

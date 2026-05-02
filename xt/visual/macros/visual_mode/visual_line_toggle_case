@@ -1,16 +1,22 @@
 {
     desc => q{Visual line toggle case},
     description => <<'END_DESC',
-Action: V selects lines, ~ toggles case of entire selection
+# visual_line_toggle_case, Visual line toggle case
 
--1_initial.png (initial state):
-- Cursor at line 1
+Macro: `xt/visual/macros/visual_mode/visual_line_toggle_case`
 
-Sub-commands: keys('Vj~')
+## initial.png
 
--2_after.png (after action):
-- Lines 1-2 case toggled: "HELLO WORLD", "THIS IS LINE TWO"
-- Line 3 unchanged
+- Cursor: 1, 0
+- Line 1  : Hello World
+- Line 2  : This is line two
+- Line 3  : third line unchanged
+
+## after.png
+
+- Keys    : Vj~
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

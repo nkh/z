@@ -1,20 +1,20 @@
 {
     desc => q{R enters replace mode},
     description => <<'END_DESC',
-Action: `R` enters replace mode; typed characters overwrite existing text
+# replace_mode_R, R enters replace mode
 
-Macro: `xt/visual/macros/replace_mode_R`
+Macro: `xt/visual/macros/replace/replace_mode_R`
 
-**initial.png** (before):
-- Line 1: `hello world`
-- Cursor at line 1, col 0 (normal mode)
+## initial.png
 
-Keys: `R`, type `BYE `, `Escape`
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_replace_mode.png** (after):
-- Line 1: `BYE o world` (`hell` overwritten with `BYE `)
-- Mode label shows `-- NORMAL --`
-- Cursor at line 1, col 4 (after last replaced char)
+## after_replace_mode.png
+
+- Keys    : R
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

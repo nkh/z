@@ -1,16 +1,22 @@
 {
     desc => 'Visual block uppercase U converts block to uppercase',
     description => <<'END_DESC',
-Action: Ctrl-V block select, U uppercases all block text
+# visual_block_uppercase, Visual block uppercase U converts block to uppercase
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_block_uppercase`
 
-Sub-commands: keys('Control-vjjl'), key('U')
+## initial.png
 
--2_after.png (after action):
-- First 2 chars of each of first 3 lines uppercased
-- Lines: "ABcd", "EFgh", "IJkl"
+- Cursor: 1, 0
+- Line 1  : abcd
+- Line 2  : efgh
+- Line 3  : ijkl
+
+## after.png
+
+- Keys    : Control-vjjl
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

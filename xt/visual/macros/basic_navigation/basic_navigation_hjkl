@@ -1,16 +1,32 @@
 {
     desc => q{Basic h/j/k/l cursor movement},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/basic_navigation_hjkl`
+# basic_navigation_hjkl, Basic h/j/k/l cursor movement
 
-Tests the four basic cursor movement keys: `h` (left), `j` (down), `k` (up), `l` (right).
+Macro: `xt/visual/macros/basic_navigation/basic_navigation_hjkl`
 
-Keys: `l` → `l` → `j` → `j` → `h` → `k`
+## initial.png
 
-- **basic_navigation_hjkl_initial.png**: Cursor at line 1, col 0 on `H` of "Hello"
-- **basic_navigation_hjkl_after_ll.png**: Cursor at line 1, col 2 on first `l` of "Hello" (moved right twice)
-- **basic_navigation_hjkl_after_jj.png**: Cursor at line 3, col 2 on `e` of "one" (moved down twice)
-- **basic_navigation_hjkl_after_hk.png**: Cursor at line 2, col 2 on first `o` of "foo" (left then up)
+- Cursor: 1, 0
+- Line 1  : Hello world
+- Line 2  : foo bar baz
+- Line 3  : one two three
+- Line 4  : alpha beta
+- Line 5  : gamma delta
+
+## after_ll.png
+
+- Keys    : ll
+
+## after_jj.png
+
+- Keys    : jj
+
+## after_hk.png
+
+- Keys    : hk
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

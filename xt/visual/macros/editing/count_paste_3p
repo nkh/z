@@ -1,17 +1,26 @@
 {
     desc => '3p pastes 3 copies of yanked text below',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/count_paste_3p`
+# count_paste_3p, 3p pastes 3 copies of yanked text below
 
-Tests `yy` followed by `3p` which yanks the current line then pastes
-3 copies below it.
+Macro: `xt/visual/macros/editing/count_paste_3p`
 
-Keys: `yy` then `3p`
+## initial.png
 
-- **count_paste_3p_initial.png**: Three lines of text, cursor at line 1 col 0.
-- **count_paste_3p_after_yy.png**: Line 1 yanked (intermediate state, looks same as initial).
-- **count_paste_3p_after_3p.png**: Line 1 (`first line`) duplicated 3 times below.
-Buffer now has 6 lines. Cursor on the last pasted line (line 4).
+- Cursor: 1, 0
+- Line 1  : first line
+- Line 2  : second line
+- Line 3  : third line
+
+## after_yy.png
+
+- Keys    : yy
+
+## after_3p.png
+
+- Keys    : 3p
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

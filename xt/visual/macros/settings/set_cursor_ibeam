@@ -1,15 +1,22 @@
 {
     desc => ':set cursor=ibeam changes cursor shape to I-beam',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_cursor_ibeam`
+# set_cursor_ibeam, :set cursor=ibeam changes cursor shape to I-beam
 
-Tests that `:set cursor=ibeam` sets the cursor shape to a thin vertical
-I-beam (text cursor).
+Macro: `xt/visual/macros/settings/set_cursor_ibeam`
 
-Ex: `:set cursor=ibeam`
+## initial.png
 
-- **set_cursor_ibeam_initial.png**: Normal mode, default cursor style.
-- **set_cursor_ibeam_after_set.png**: Cursor shape changed to I-beam (thin vertical line).
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+
+## after_set.png
+
+- Keys    : :set`Space` cursor=ibeam
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,17 +1,19 @@
 {
     desc => q{di' deletes text inside single quotes},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_di_singlequote`
+# text_object_di_singlequote, di' deletes text inside single quotes
 
-Tests the `di'` text object which deletes text inside single quotes
-while preserving the quote characters.
+Macro: `xt/visual/macros/text_objects/text_object_di_singlequote`
 
-**initial.png** — Cursor on 'h' inside the quotes at line 1 col 11.
+## initial.png
 
-Keys: `di'`
+- Cursor: 1, 0
+- Line 1  : my $name = 'hello world';
 
-**after_di_singlequote.png** — Content between the single quotes is deleted.
-Line 1 now reads `my $name = '';` with the quotes intact.
+## after_di_singlequote.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

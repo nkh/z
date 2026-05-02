@@ -1,20 +1,21 @@
 {
     desc => q{:ls lists open buffers with index, name, and flags},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/multi_buffer/multi_buffer_ls`
+# multi_buffer_ls, :ls lists open buffers with index, name, and flags
 
-Tests that `:ls` displays the buffer list in the mode label area, showing
-buffer indices, filenames, and markers (`%` for current, `+` for modified).
+Macro: `xt/visual/macros/multi_buffer/multi_buffer_ls`
 
-Setup: Open two temporary files via `:e`, then run `:ls` to display the
-buffer list.
+(Multi-buffer test — creates temporary files in run sub)
 
-Ex: `:ls`
+## editor_ready.png
 
-- **multi_buffer_ls_editor_ready.png**: Editor with the second buffer
-  loaded, NORMAL mode, before running `:ls`.
-- **multi_buffer_ls_buffer_list.png**: Mode label area shows the buffer
-  list output with index numbers, filenames, and status flags.
+- Keys    : :e`Space` $f1 :e`Space` $f2
+
+## buffer_list.png
+
+- Keys    : :ls
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

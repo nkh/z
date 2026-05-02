@@ -1,15 +1,63 @@
 {
     desc => q{H moves cursor to top of viewport},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/viewport_H`
+# viewport_H, H moves cursor to top of viewport
 
-Tests that `H` jumps the cursor to the top line of the current viewport. The buffer has 40 lines to ensure scrolling occurs.
+Macro: `xt/visual/macros/viewport/viewport_H`
 
-Keys: `G` → `H`
+## initial.png
 
-- **viewport_H_initial.png**: Cursor at line 1, col 0 on "viewport line 01"
-- **viewport_H_at_bottom.png**: Cursor at line 40 (last line) after `G`; viewport scrolled to bottom
-- **viewport_H_after_H.png**: Cursor jumped to the top line of the visible viewport (not line 1 of file, but top of current view)
+- Cursor: 1, 0
+- Line 1  : viewport line 01
+- Line 2  : viewport line 02
+- Line 3  : viewport line 03
+- Line 4  : viewport line 04
+- Line 5  : viewport line 05
+- Line 6  : viewport line 06
+- Line 7  : viewport line 07
+- Line 8  : viewport line 08
+- Line 9  : viewport line 09
+- Line 10  : viewport line 10
+- Line 11  : viewport line 11
+- Line 12  : viewport line 12
+- Line 13  : viewport line 13
+- Line 14  : viewport line 14
+- Line 15  : viewport line 15
+- Line 16  : viewport line 16
+- Line 17  : viewport line 17
+- Line 18  : viewport line 18
+- Line 19  : viewport line 19
+- Line 20  : viewport line 20
+- Line 21  : viewport line 21
+- Line 22  : viewport line 22
+- Line 23  : viewport line 23
+- Line 24  : viewport line 24
+- Line 25  : viewport line 25
+- Line 26  : viewport line 26
+- Line 27  : viewport line 27
+- Line 28  : viewport line 28
+- Line 29  : viewport line 29
+- Line 30  : viewport line 30
+- Line 31  : viewport line 31
+- Line 32  : viewport line 32
+- Line 33  : viewport line 33
+- Line 34  : viewport line 34
+- Line 35  : viewport line 35
+- Line 36  : viewport line 36
+- Line 37  : viewport line 37
+- Line 38  : viewport line 38
+- Line 39  : viewport line 39
+- Line 40  : viewport line 40
+
+## at_bottom.png
+
+- Keys    : G
+
+## after_H.png
+
+- Keys    : H
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

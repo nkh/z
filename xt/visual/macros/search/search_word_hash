@@ -1,23 +1,24 @@
 {
     desc => q{# searches backward for the word under cursor},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_word_hash`
+# search_word_hash, # searches backward for the word under cursor
 
-**#** searches backward for the whole word under the cursor. With cursor on the last "foo", it finds the previous occurrence.
+Macro: `xt/visual/macros/search/search_word_hash`
 
-**Keys:** `$hh#`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0 (on 'f' of first "foo")
-- Line: `foo bar foo baz foo`
+- Cursor: 1, 0
+- Line 1  : foo bar foo baz foo
 
-**after_move_to_last.png**
-- Cursor on last "foo" at col 16 (moved with `$hh`)
+## after_move_to_last.png
 
-**after_hash.png**
-- Cursor on second "foo" at col 8 (backward search from last "foo")
-- All "foo" occurrences highlighted
-- Search direction set to backward
+- Keys    : $hh
+
+## after_hash.png
+
+- Keys    : #
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

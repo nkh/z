@@ -1,13 +1,49 @@
 {
     desc => q{SQL syntax},
     description => <<'END_DESC',
-Syntax highlighting: SQL
+# visual_sql_syntax, SQL syntax
 
-Visual checks:
-- Keywords (CREATE, TABLE, INSERT, SELECT, FROM, WHERE, etc.) colored
-- Data types (SERIAL, VARCHAR, TIMESTAMP, INTEGER) colored
-- String literals have string color
-- Comments (--) have comment color
+Macro: `xt/visual/macros/syntax_highlighting/visual_sql_syntax`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : -- Create the users table
+- Line 2  : CREATE TABLE users (
+- Line 3  :     id       SERIAL PRIMARY KEY,
+- Line 4  :     username VARCHAR(64) NOT NULL UNIQUE,
+- Line 5  :     email    VARCHAR(256) NOT NULL,
+- Line 6  :     role     VARCHAR(32) DEFAULT 'viewer',
+- Line 7  :     created  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+- Line 8  :     active   BOOLEAN DEFAULT TRUE
+- Line 9  : );
+- Line 10  : 
+- Line 11  : -- Insert sample data
+- Line 12  : INSERT INTO users (username, email, role) VALUES
+- Line 13  :     ('admin', 'admin@example.com', 'admin'),
+- Line 14  :     ('editor', 'editor@example.com', 'editor'),
+- Line 15  :     ('viewer', 'viewer@example.com', 'viewer');
+- Line 16  : 
+- Line 17  : -- Create index for fast lookups
+- Line 18  : CREATE INDEX idx_users_username ON users (username);
+- Line 19  : CREATE INDEX idx_users_email ON users (email);
+- Line 20  : 
+- Line 21  : -- Query with join
+- Line 22  : SELECT u.username, u.email, u.role, COUNT(o.id) AS order_count
+- Line 23  : FROM users u
+- Line 24  : LEFT JOIN orders o ON o.user_id = u.id
+- Line 25  : WHERE u.active = TRUE
+- Line 26  :   AND u.created > '2024-01-01'
+- Line 27  : GROUP BY u.id, u.username, u.email, u.role
+- Line 28  : HAVING COUNT(o.id) > 0
+- Line 29  : ORDER BY order_count DESC
+- Line 30  : LIMIT 50;
+- Line 31  : 
+- Line 32  : -- Update statistics
+- Line 33  : UPDATE users SET role = 'superadmin'
+- Line 34  : WHERE username = 'admin' AND active = TRUE;
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,20 +1,26 @@
 {
     desc => ':set theme=light switches from dark to light theme',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_theme_light`
+# set_theme_light, :set theme=light switches from dark to light theme
 
-Tests that `:set theme=light` applies the light color scheme at runtime,
-changing the editor background to a light tone and adjusting all foreground
-and syntax colors for readability on a bright background.
+Macro: `xt/visual/macros/settings/set_theme_light`
 
-Starts from the dark theme so the transition to light is clearly visible.
+## initial.png
 
-Ex: `:set theme=light`
+- Cursor: 1, 0
+- Line 1  : # Theme switch test
+- Line 2  : Hello, World!
+- Line 3  : my $x = 42;
+- Line 4  : print "light mode\n";
 
-- **set_theme_light_dark_initial.png**: Dark theme active with dark
-  background and light text before the switch.
-- **set_theme_light_applied.png**: Light theme active with light/warm
-  background and dark text; syntax colors updated for the light palette.
+## dark_initial.png
+
+
+## applied.png
+
+- Keys    : :set`Space` theme=light
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

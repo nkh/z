@@ -1,20 +1,20 @@
 {
     desc => q{n with no previous search shows error},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_n_no_previous`
+# search_n_no_previous, n with no previous search shows error
 
-Pressing **n** when no search has been performed yet shows an error message.
+Macro: `xt/visual/macros/search/search_n_no_previous`
 
-**Keys:** `n`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Normal mode, no prior search
+- Cursor: 1, 0
+- Line 1  : foo bar baz
 
-**after_n_no_prev.png**
-- Error message displayed (e.g., "Error: No previous search pattern")
-- Cursor still at line 1, col 0
-- Buffer unchanged
+## after_n_no_prev.png
+
+- Keys    : n
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

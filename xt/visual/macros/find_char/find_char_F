@@ -1,19 +1,20 @@
 {
     desc => q{F{char} moves cursor backward to previous occurrence of character},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/find_char_F`
+# find_char_F, F{char
 
-**F{char}** moves the cursor backward to the previous occurrence of the specified character on the current line.
+Macro: `xt/visual/macros/find_char/find_char_F`
 
-**Keys:** `$Fo`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 10 (on 'd' of "world", end of line)
-- Text: `hello world`
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_Fo.png**
-- Cursor moved backward to the 'o' in "world" at col 7
-- Text unchanged
+## after_Fo.png
+
+- Keys    : $Fo
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

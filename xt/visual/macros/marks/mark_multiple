@@ -1,32 +1,40 @@
 {
     desc => q{Multiple marks (a, b) coexist and can be jumped between},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/mark_multiple`
+# mark_multiple, Multiple marks (a, b) coexist and can be jumped between
 
-Multiple marks can be set and jumped between independently. **ma** and **mb** store separate positions; `` `a `` and `` `b `` jump to their respective locations.
+Macro: `xt/visual/macros/marks/mark_multiple`
 
-**Keys:** `ma` then `jj` then `mb` then `j` then `` `a `` then `` `b ``
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
 
-**after_mark_a.png**
-- Mark 'a' set at line 1, col 0
-- Cursor still at line 1
+## after_mark_a.png
 
-**after_mark_b.png**
-- Moved down 2 lines to line 3, col 0
-- Mark 'b' set at line 3, col 0
+- Keys    : ma
 
-**after_move_down.png**
-- Cursor at line 4, col 0
+## after_mark_b.png
 
-**after_jump_a.png**
-- Cursor back at line 1, col 0 (mark 'a' location)
+- Keys    : jj mb
 
-**after_jump_b.png**
-- Cursor at line 3, col 0 (mark 'b' location)
-- Both marks preserved independently
+## after_move_down.png
+
+- Keys    : j
+
+## after_jump_a.png
+
+- Keys    : `a
+
+## after_jump_b.png
+
+- Keys    : `b
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

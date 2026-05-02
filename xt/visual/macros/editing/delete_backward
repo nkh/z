@@ -1,17 +1,30 @@
 {
     desc => q{Backspace key in normal mode},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/delete_backward`
+# delete_backward, Backspace key in normal mode
 
-Tests that the Backspace key in normal mode moves the cursor left (behaves like `h`). At column 0, Backspace should be a no-op.
+Macro: `xt/visual/macros/editing/delete_backward`
 
-Keys: `l` → `l` → `Backspace` → `Backspace` → `Backspace`
+## initial.png
 
-- **delete_backward_initial.png**: Cursor at line 1, col 0 on `H` of "Hello"
-- **delete_backward_after_ll.png**: Cursor at line 1, col 2 on first `l` of "Hello"
-- **delete_backward_after_first_bs.png**: Cursor at line 1, col 1 on `e` of "Hello" (moved left by Backspace)
-- **delete_backward_after_second_bs.png**: Cursor at line 1, col 0 on `H` of "Hello" (moved left again)
-- **delete_backward_at_col0.png**: Cursor still at line 1, col 0 (Backspace is a no-op at column 0)
+- Cursor: 1, 0
+- Line 1  : Hello world
+- Line 2  : foo bar
+
+## after_ll.png
+
+- Keys    : ll
+
+## after_first_bs.png
+
+
+## after_second_bs.png
+
+
+## at_col0.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

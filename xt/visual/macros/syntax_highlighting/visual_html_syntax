@@ -1,13 +1,52 @@
 {
     desc => q{HTML syntax},
     description => <<'END_DESC',
-Syntax highlighting: HTML
+# visual_html_syntax, HTML syntax
 
-Visual checks:
-- Tags (<html>, <head>, <body>, <h1>, etc.) colored
-- Attributes (charset, title, lang) colored
-- Attribute values in quotes have string color
-- Text content outside tags in default text color
+Macro: `xt/visual/macros/syntax_highlighting/visual_html_syntax`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : <!DOCTYPE html>
+- Line 2  : <html lang="en">
+- Line 3  : <head>
+- Line 4  :     <meta charset="UTF-8">
+- Line 5  :     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+- Line 6  :     <title>Source Editor</title>
+- Line 7  :     <link rel="stylesheet" href="style.css">
+- Line 8  : </head>
+- Line 9  : <body>
+- Line 10  :     <header>
+- Line 11  :         <h1>Gtk3 Source Editor</h1>
+- Line 12  :         <nav>
+- Line 13  :             <a href="#features">Features</a>
+- Line 14  :             <a href="#download">Download</a>
+- Line 15  :             <a href="#docs">Documentation</a>
+- Line 16  :         </nav>
+- Line 17  :     </header>
+- Line 18  :     <main>
+- Line 19  :         <section id="features">
+- Line 20  :             <h2>Features</h2>
+- Line 21  :             <ul>
+- Line 22  :                 <li>Vim-style keybindings</li>
+- Line 23  :                 <li>Syntax highlighting for 20+ languages</li>
+- Line 24  :                 <li>Theme support (light and dark)</li>
+- Line 25  :             </ul>
+- Line 26  :         </section>
+- Line 27  :         <section id="download">
+- Line 28  :             <h2>Download</h2>
+- Line 29  :             <p>Available from CPAN:</p>
+- Line 30  :             <code>cpanm Gtk3::SourceEditor</code>
+- Line 31  :         </section>
+- Line 32  :     </main>
+- Line 33  :     <footer>
+- Line 34  :         <p>&copy; 2024 Gtk3::SourceEditor</p>
+- Line 35  :     </footer>
+- Line 36  : </body>
+- Line 37  : </html>
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

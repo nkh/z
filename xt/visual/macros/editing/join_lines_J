@@ -1,20 +1,22 @@
 {
     desc => q{J joins current line with the next line},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/join_lines_J`
+# join_lines_J, J joins current line with the next line
 
-Tests that the **J** command joins the current line with the line below,
-adding a space between them and placing the cursor at the join point.
+Macro: `xt/visual/macros/editing/join_lines_J`
 
-**Keys:** `J`
+## initial.png
 
-**initial.png**
-- Buffer has 3 lines: "hello", "world", "foo"
-- Cursor on line 1 at column 0
+- Cursor: 1, 0
+- Line 1  : hello
+- Line 2  : world
+- Line 3  : foo
 
-**after_join.png**
-- Buffer has 2 lines: "hello world" and "foo"
-- Cursor on the space between "hello" and "world"
+## after_join.png
+
+- Keys    : J
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

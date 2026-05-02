@@ -1,25 +1,24 @@
 {
     desc => q{u undoes a character delete (x)},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/undo_char_delete`
+# undo_char_delete, u undoes a character delete (x)
 
-Tests that **u** undoes a single character deletion performed by **x**.
-This is a round-trip test: start and end states look the same.
+Macro: `xt/visual/macros/undo_redo/undo_char_delete`
 
-**Keys:** `x`, `u`
+## initial.png
 
-**initial.png**
-- Buffer contains "hello"
-- Cursor at column 0 on 'h'
+- Cursor: 1, 0
+- Line 1  : hello
 
-**after_delete.png**
-- Buffer contains "ello" (first char deleted)
-- Cursor at column 0 on 'e'
-- Intermediate snapshot showing the changed state
+## after_delete.png
 
-**after_undo.png**
-- Buffer restored to "hello" (identical to initial)
-- Cursor back at column 0
+- Keys    : x
+
+## after_undo.png
+
+- Keys    : u
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,19 +1,25 @@
 {
     desc => 'yy then p yanks a line and pastes it below',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/yank_paste_line`
+# yank_paste_line, yy then p yanks a line and pastes it below
 
-Tests `yy` to yank the current line, then `p` to paste it below.
+Macro: `xt/visual/macros/editing/yank_paste_line`
 
-**initial.png** — Two lines of text. Cursor at line 1 col 0.
+## initial.png
 
-Keys: `yy` then `p`
+- Cursor: 1, 0
+- Line 1  : first line
+- Line 2  : second line
 
-**after_yank_line.png** — Intermediate state: line 1 yanked into register.
-Cursor still at line 1.
+## after_yank_line.png
 
-**after_paste_line.png** — Line 1 (`first line`) is duplicated below itself.
-Buffer now has 3 lines: `first line`, `first line`, `second line`.
+- Keys    : yy
+
+## after_paste_line.png
+
+- Keys    : p
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

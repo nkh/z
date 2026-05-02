@@ -1,17 +1,32 @@
 {
     desc => q{Arrow key navigation},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/arrow_keys`
+# arrow_keys, Arrow key navigation
 
-Tests basic arrow key navigation: Down, Right, Up, Left.
+Macro: `xt/visual/macros/motions/arrow_keys`
 
-Keys: `Down` → `Down` → `Right` → `Right` → `Up` → `Left`
+## initial.png
 
-- **arrow_keys_initial.png**: Cursor at line 1, col 0 on `H` of "Hello"
-- **arrow_keys_after_down.png**: Cursor at line 2, col 0 on `f` of "foo" (moved down twice)
-- **arrow_keys_after_right.png**: Cursor at line 2, col 2 on first `o` of "foo" (moved right twice)
-- **arrow_keys_after_up.png**: Cursor at line 1, col 2 on first `l` of "Hello" (moved up)
-- **arrow_keys_after_left.png**: Cursor at line 1, col 1 on `e` of "Hello" (moved left)
+- Cursor: 1, 0
+- Line 1  : Hello world
+- Line 2  : foo bar baz
+- Line 3  : one two three
+- Line 4  : alpha beta
+- Line 5  : gamma delta
+
+## after_down.png
+
+
+## after_right.png
+
+
+## after_up.png
+
+
+## after_left.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

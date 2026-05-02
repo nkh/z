@@ -1,23 +1,23 @@
 {
     desc => q{2dd deletes 2 lines},
     description => <<'END_DESC',
-Action: `2dd` deletes the current line and the next line
+# count_delete_2dd, 2dd deletes 2 lines
 
-Macro: `xt/visual/macros/count_delete_2dd`
+Macro: `xt/visual/macros/editing/count_delete_2dd`
 
-**initial.png** (before):
-- Line 1: `alpha`
-- Line 2: `bravo`
-- Line 3: `charlie`
-- Line 4: `delta`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `2dd`
+- Cursor: 1, 0
+- Line 1  : alpha
+- Line 2  : bravo
+- Line 3  : charlie
+- Line 4  : delta
 
-**after_2dd.png** (after):
-- Line 1: `charlie`
-- Line 2: `delta`
-- Cursor at line 1, col 0
+## after_2dd.png
+
+- Keys    : 2dd
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

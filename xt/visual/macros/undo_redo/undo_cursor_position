@@ -1,26 +1,27 @@
 {
     desc => q{u restores cursor position after dd},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/undo_cursor_position`
+# undo_cursor_position, u restores cursor position after dd
 
-Tests that **u** not only restores the deleted line content but also
-restores the cursor to its original position (line and column).
+Macro: `xt/visual/macros/undo_redo/undo_cursor_position`
 
-**Keys:** `j`, `l`, `dd`, `u`
+## initial.png
 
-**initial.png**
-- Buffer has 4 lines: "line one", "line two", "line three", "line four"
-- Cursor on line 2, column 1 (on 'i' of "line two")
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
 
-**after_dd.png**
-- Buffer has 3 lines: "line one", "line three", "line four"
-- "line two" was deleted
-- Cursor moved to line 2 (now "line three")
-- Intermediate snapshot showing the deletion
+## after_dd.png
 
-**after_undo_cursor_restored.png**
-- Buffer restored to 4 lines (identical to initial)
-- Cursor back on line 2, column 1 (original position restored)
+- Keys    : dd
+
+## after_undo_cursor_restored.png
+
+- Keys    : u
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

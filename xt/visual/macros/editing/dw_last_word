@@ -1,16 +1,24 @@
 {
     desc => q{dw on last word of line},
     description => <<'END_DESC',
-Action: `dw` on the last word of a line deletes it without trailing whitespace
+# dw_last_word, dw on last word of line
 
-**initial.png** (before):
-- Line 1: `This is a longer line of text for testing.`
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/editing/dw_last_word`
 
-Keys: `wwdw`
+## initial.png
 
-**after_dw_last.png** (after):
-- `dw` deletes the word under the cursor
+- Cursor: 1, 0
+- Line 1  : This is a longer line of text for testing.
+- Line 2  : The quick brown fox jumps over the lazy dog.
+- Line 3  : Another line here to fill the buffer.
+- Line 4  : And yet another line for scrolling context.
+- Line 5  : Final line of the test buffer content.
+
+## after_dw_last.png
+
+- Keys    : wwdw
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,20 +1,20 @@
 {
     desc => q{* searches forward for the word under cursor},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_word_asterisk`
+# search_word_asterisk, * searches forward for the word under cursor
 
-**\*** searches forward for the whole word under the cursor. With cursor on "foo", it finds the next occurrence of "foo".
+Macro: `xt/visual/macros/search/search_word_asterisk`
 
-**Keys:** `*`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0 (on 'f' of first "foo")
-- Line: `foo bar foo baz foo`
+- Cursor: 1, 0
+- Line 1  : foo bar foo baz foo
 
-**after_star.png**
-- Cursor on second "foo" at col 8
-- All "foo" occurrences highlighted
-- Search pattern set to `\<foo\>` (word boundary search)
+## after_star.png
+
+- Keys    : *
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

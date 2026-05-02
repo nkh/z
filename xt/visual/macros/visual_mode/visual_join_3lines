@@ -1,16 +1,23 @@
 {
     desc => 'Visual join 3 lines merges multiple lines',
     description => <<'END_DESC',
-Action: V select 3 lines, J joins them all
+# visual_join_3lines, Visual join 3 lines merges multiple lines
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_join_3lines`
 
-Sub-commands: keys('VjjJ')
+## initial.png
 
--2_after.png (after action):
-- All 3 lines joined into one
-- Line: "line one line two line three"
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+
+## after.png
+
+- Keys    : VjjJ
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

@@ -1,14 +1,25 @@
 {
     desc => q{Count prefix 3j moves cursor down 3 lines},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/count_prefix_motion`
+# count_prefix_motion, Count prefix 3j moves cursor down 3 lines
 
-Tests that a numeric count prefix (`3j`) applied to a motion moves the cursor the specified number of lines down.
+Macro: `xt/visual/macros/count_prefix/count_prefix_motion`
 
-Keys: `3j`
+## initial.png
 
-- **count_prefix_motion_initial.png**: Cursor at line 1, col 0 on `a` of "alpha"
-- **count_prefix_motion_after_3j.png**: Cursor at line 4, col 0 on `d` of "delta" (3 lines down from line 1)
+- Cursor: 1, 0
+- Line 1  : alpha
+- Line 2  : beta
+- Line 3  : gamma
+- Line 4  : delta
+- Line 5  : epsilon
+- Line 6  : zeta
+
+## after_3j.png
+
+- Keys    : 3j
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

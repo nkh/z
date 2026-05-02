@@ -1,19 +1,19 @@
 {
     desc => 'di{ delete inner braces',
     description => <<'END_DESC',
-Action: di{ deletes text inside curly braces
+# text_object_di_brace, di{ delete inner braces
 
-Macro: xt/visual/macros/text_object_di_brace
+Macro: `xt/visual/macros/text_objects/text_object_di_brace`
 
-**initial.png** (before):
-- Line 1: func({ key => 'value' });
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: llllllldi{
+- Cursor: 1, 0
+- Line 1  : func({ key => 'value' });
 
-**after_delete.png** (after):
-- Line 1: func({ });
-- Content between braces deleted, braces preserved
+## after_delete.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

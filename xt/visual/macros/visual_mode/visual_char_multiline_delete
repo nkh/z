@@ -1,17 +1,21 @@
 {
     desc => q{Visual char multiline delete},
     description => <<'END_DESC',
-Action: v selects across multiple lines, d deletes
+# visual_char_multiline_delete, Visual char multiline delete
 
--1_initial.png (initial state):
-- Line 1: `hello world this is a test`
-- Cursor at line 1, col 5 (on ` `)
+Macro: `xt/visual/macros/visual_mode/visual_char_multiline_delete`
 
-Sub-commands: keys('5vj$ld')
+## initial.png
 
--2_after.png (after action):
-- Selected text spanning 2 lines deleted
-- Line 1 truncated, line 2 content changed
+- Cursor: 1, 0
+- Line 1  : hello world this is a test
+- Line 2  : second line of text here
+
+## after.png
+
+- Keys    : 5vj$ld
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

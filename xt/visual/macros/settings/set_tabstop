@@ -1,17 +1,26 @@
 {
     desc => q{:set tabstop=8 changes the visual tab width},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/settings/set_tabstop`
+# set_tabstop, :set tabstop=8 changes the visual tab width
 
-Tests that `:set tabstop=8` changes the visual display width of tab
-characters to 8 columns. The content starts with a small tabstop so the
-change is clearly visible.
+Macro: `xt/visual/macros/settings/set_tabstop`
 
-Ex: `:set tabstop=4` then `:set tabstop=8`
+## initial.png
 
-- **set_tabstop_initial.png**: Default tabstop; tab characters shown at default width.
-- **set_tabstop_tabstop_4.png**: After `:set tabstop=4`, tabs are narrower (4 columns).
-- **set_tabstop_tabstop_8.png**: After `:set tabstop=8`, tabs are wider (8 columns).
+- Cursor: 1, 0
+- Line 1  : 	indented line one
+- Line 2  : 	indented line two
+- Line 3  : 	normal line three
+
+## tabstop_4.png
+
+- Keys    : :set`Space` tabstop=4
+
+## tabstop_8.png
+
+- Keys    : :set`Space` tabstop=8
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

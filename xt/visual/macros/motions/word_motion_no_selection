@@ -1,16 +1,25 @@
 {
     desc => 'w/b/e word motions leave no visual selection in normal mode',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/word_motion_no_selection`
+# word_motion_no_selection, w/b/e word motions leave no visual selection in normal mode
 
-Tests that word motion commands (`w`, `b`, `e`) in normal mode move the
-cursor without entering visual mode or leaving a selection.
+Macro: `xt/visual/macros/motions/word_motion_no_selection`
 
-Keys: `w` then `b` then `b` then `e`
+## initial.png
 
-- **word_motion_no_selection_initial.png**: Cursor at line 1 col 0 on "one"; mode shows "-- NORMAL --", no selection.
-- **word_motion_no_selection_after_w.png**: After `w`, cursor moved to "two"; still normal mode, no selection.
-- **word_motion_no_selection_after_bbe.png**: After `b` `b` `e`, cursor on end of "one"; still normal mode, no selection.
+- Cursor: 1, 0
+- Line 1  : one two three four five
+- Line 2  : six seven eight nine ten
+
+## after_w.png
+
+- Keys    : w
+
+## after_bbe.png
+
+- Keys    : bbe
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

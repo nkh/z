@@ -1,20 +1,19 @@
 {
     desc => q{a appends text after cursor position},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/insert_append_a`
+# insert_append_a, a appends text after cursor position
 
-Tests that the **a** command enters insert mode with the cursor positioned
-after the current character, so typed text is appended after the cursor.
+Macro: `xt/visual/macros/editing/insert_append_a`
 
-**Keys:** `a`, type `XY`, `Escape`
+## initial.png
 
-**initial.png**
-- Buffer contains "Hello world"
-- Cursor at column 0 on 'H'
+- Cursor: 1, 0
+- Line 1  : Hello world
 
-**after_append.png**
-- Line reads "HXYello world" (XY inserted between H and e)
-- Cursor on 'e' (moved back one after Escape)
+## after_append.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

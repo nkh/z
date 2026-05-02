@@ -1,15 +1,21 @@
 {
     desc => 'Ctrl-G shows file info in the status bar',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/ctrl_g_file_info`
+# ctrl_g_file_info, Ctrl-G shows file info in the status bar
 
-Tests that `Ctrl-g` displays file information in the status/mode label,
-including the filename, total line count, and cursor position.
+Macro: `xt/visual/macros/modes/ctrl_g_file_info`
 
-Keys: `Ctrl-g`
+## initial.png
 
-- **ctrl_g_file_info_initial.png**: Normal mode, cursor at line 1 col 0.
-- **ctrl_g_file_info_after_ctrl_g.png**: Mode label shows file info (e.g. filename, line count, percentage through file).
+- Cursor: 1, 0
+- Line 1  : hello world
+- Line 2  : foo bar baz
+
+## after_ctrl_g.png
+
+- Keys    : Control-g
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

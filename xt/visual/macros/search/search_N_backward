@@ -1,22 +1,24 @@
 {
     desc => q{N repeats search in opposite direction (backward after forward)},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_N_backward`
+# search_N_backward, N repeats search in opposite direction (backward after forward)
 
-**N** repeats the last search in the opposite direction. After `/alpha` finds the first match, `N` goes backward to find the previous match (wrapping around).
+Macro: `xt/visual/macros/search/search_N_backward`
 
-**Keys:** `/alpha\n` then `N`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Three "alpha" occurrences on the line
+- Cursor: 1, 0
+- Line 1  : alpha beta alpha gamma alpha
 
-**after_forward_search.png**
-- Cursor on first "alpha" at col 0
+## after_forward_search.png
 
-**after_N.png**
-- Cursor wrapped backward to last "alpha" at col 23
-- `N` searched backward from the first match, wrapping to end of line
+- Keys    : /alpha `Enter`
+
+## after_N.png
+
+- Keys    : N
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

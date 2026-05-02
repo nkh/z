@@ -1,17 +1,20 @@
 {
     desc => 'ci" changes text inside double quotes',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_ci_doublequote`
+# text_object_ci_doublequote, ci" changes text inside double quotes
 
-Tests the `ci"` text object which deletes text inside double quotes,
-enters insert mode, then we type replacement text.
+Macro: `xt/visual/macros/text_objects/text_object_ci_doublequote`
 
-**initial.png** — Cursor on 'h' inside the double quotes at line 1 col 5.
+## initial.png
 
-Keys: `ci"` then type `replaced` then `<Escape>`
+- Cursor: 1, 0
+- Line 1  : say("hello world");
 
-**after_ci_doublequote.png** — Content between quotes changed to `replaced`.
-Line 1 now reads `say("replaced");`. Quotes are preserved.
+## after_ci_doublequote.png
+
+- Keys    : llll ci"
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

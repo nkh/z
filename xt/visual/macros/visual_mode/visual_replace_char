@@ -1,16 +1,23 @@
 {
     desc => q{Replace mode (r)},
     description => <<'END_DESC',
-Action: rx replaces character under cursor with 'x'
+# visual_replace_char, Replace mode (r)
 
--1_initial.png (initial state):
-- Default theme, cursor at line 1, col 0 (the '#' character)
+Macro: `xt/visual/macros/visual_mode/visual_replace_char`
 
-Sub-commands: keys('rx')
+## initial.png
 
--2_after.png (after action):
-- Line 1 starts with "x!/usr/bin/perl" (first char changed)
-- Cursor moved one position to the right
+- Cursor: 1, 0
+- Line 1  : #!/usr/bin/perl
+- Line 2  : use strict;
+- Line 3  : use warnings;
+- Line 4  : print "Hello, World!\n";
+
+## after.png
+
+- Keys    : rx
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->editor->set_language('perl');

@@ -1,30 +1,36 @@
 {
     desc => q{/^$ regex matches empty lines correctly},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_regex_empty_lines`
+# search_regex_empty_lines, /^$ regex matches empty lines correctly
 
-**/^$** searches for empty lines using regex. This is a regression test for the GTK `forward_to_line_end` bug on empty lines where `line_text()` returned next-line content for empty lines, causing `search_forward` to find matches beyond an empty line's actual length and creating an infinite loop.
+Macro: `xt/visual/macros/search/search_regex_empty_lines`
 
-**Keys:** `/^$\n` then `n` repeated 4 times
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Three text lines with empty lines between them
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : 
+- Line 3  : line two
+- Line 4  : 
+- Line 5  : line three
 
-**after_search_empty.png**
-- Cursor on first empty line (line 2, col 0)
-- Empty line highlighted
+## after_search_empty.png
 
-**after_first_n.png**
-- Cursor on second empty line (line 4, col 0)
-- Crossed over non-empty "line two" correctly
+- Keys    : /^$ `Enter`
 
-**after_second_n.png**
-- Cursor wrapped to first empty line (line 2, col 0)
-- Search wrapped around correctly, no infinite loop
+## after_first_n.png
 
-**after_fourth_n.png**
-- Cursor back on second empty line (line 4, col 0)
+- Keys    : n
+
+## after_second_n.png
+
+- Keys    : n
+
+## after_fourth_n.png
+
+- Keys    : nn
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -17,10 +17,33 @@
 {
     desc => 'Example macro (not a test)',
     description => <<'END_DESC',
-Demonstrates macro API features.
+# example, Example macro (not a test)
 
-This macro is for documentation purposes only and is not
-included in the visual test suite.
+Macro: `xt/visual/macros/example`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : sub hello {
+- Line 2  :     print "world\n";
+- Line 3  : }
+
+## after_dd.png
+
+- Keys    : dd
+
+## after_insert.png
+
+
+## after_undo.png
+
+- Keys    : u u
+
+## after_search.png
+
+- Keys    : /sub `Enter`
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

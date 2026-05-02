@@ -1,20 +1,22 @@
 {
     desc => q{2J joins 2 lines (current + next), reducing 3 lines to 2},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/join_3_lines_2J`
+# join_3_lines_2J, 2J joins 2 lines (current + next), reducing 3 lines to 2
 
-Tests that **2J** joins the current line with the next 2 lines, so
-3 lines become 1 joined line. In vim, `NJ` joins N lines (current + N-1 below).
+Macro: `xt/visual/macros/editing/join_3_lines_2J`
 
-**Keys:** `2J`
+## initial.png
 
-**initial.png**
-- Buffer has 3 lines: "one", "two", "three"
-- Cursor on line 1 at column 0
+- Cursor: 1, 0
+- Line 1  : one
+- Line 2  : two
+- Line 3  : three
 
-**after_2J_join.png**
-- Buffer has 1 line: "one two three"
-- All three lines joined with spaces
+## after_2J_join.png
+
+- Keys    : 2J
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

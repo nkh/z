@@ -1,16 +1,28 @@
 {
     desc => q{X deletes character before cursor},
     description => <<'END_DESC',
-Action: `X` deletes the character before (to the left of) the cursor
+# delete_before_X, X deletes character before cursor
 
-**initial.png** (before):
-- Line 1: `This is a longer line of text for testing deletion.`
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/editing/delete_before_X`
 
-Keys: `5lX`
+## initial.png
 
-**after_X.png** (after):
-- Character before cursor deleted
+- Cursor: 1, 0
+- Line 1  : This is a longer line of text for testing deletion.
+- Line 2  : The quick brown fox jumps over the lazy dog.
+- Line 3  : Another line here to fill the buffer.
+- Line 4  : And yet another line for scrolling context.
+- Line 5  : Final line of the test buffer content.
+
+## cursor_before_X.png
+
+- Keys    : 5l
+
+## after_X.png
+
+- Keys    : X
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

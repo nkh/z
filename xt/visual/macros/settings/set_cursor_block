@@ -1,14 +1,22 @@
 {
     desc => ':set cursor=block changes cursor shape to block',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_cursor_block`
+# set_cursor_block, :set cursor=block changes cursor shape to block
 
-Tests that `:set cursor=block` sets the cursor shape to a block cursor.
+Macro: `xt/visual/macros/settings/set_cursor_block`
 
-Ex: `:set cursor=block`
+## initial.png
 
-- **set_cursor_block_initial.png**: Normal mode, default cursor style.
-- **set_cursor_block_after_set.png**: Cursor shape changed to block. Mode label shows "-- NORMAL --".
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+
+## after_set.png
+
+- Keys    : :set`Space` cursor=block
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

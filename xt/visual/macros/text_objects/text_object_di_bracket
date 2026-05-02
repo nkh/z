@@ -1,17 +1,20 @@
 {
     desc => 'di[ deletes text inside square brackets',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_di_bracket`
+# text_object_di_bracket, di[ deletes text inside square brackets
 
-Tests the `di[` text object which deletes text inside square brackets
-while preserving the brackets themselves.
+Macro: `xt/visual/macros/text_objects/text_object_di_bracket`
 
-**initial.png** — Cursor on '1' inside the brackets at line 1 col 12.
+## initial.png
 
-Keys: `di[`
+- Cursor: 1, 0
+- Line 1  : my @arr = [1, 2, 3];
 
-**after_di_bracket.png** — Content between `[` and `]` is deleted.
-Line 1 now reads `my @arr = [];` with the brackets intact.
+## after_di_bracket.png
+
+- Keys    : llllllllllll di[
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

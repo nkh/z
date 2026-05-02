@@ -1,20 +1,20 @@
 {
     desc => q{2f{char} finds the second occurrence of character forward},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/find_count_2f`
+# find_count_2f, 2f{char
 
-**2f{char}** with a count prefix finds the nth occurrence of the character forward. `2fa` skips the first 'a' and lands on the second 'a'.
+Macro: `xt/visual/macros/find_char/find_count_2f`
 
-**Keys:** `2fa`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0 (on first 'a' of "abracadabra")
-- Text: `abracadabra`
+- Cursor: 1, 0
+- Line 1  : abracadabra
 
-**after_2fa.png**
-- Cursor on the second 'a' at col 3 (a**b**r**a**cadabra)
-- Skipped first 'a' at col 0, landed on second 'a' at col 3
-- Text unchanged
+## after_2fa.png
+
+- Keys    : 2fa
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

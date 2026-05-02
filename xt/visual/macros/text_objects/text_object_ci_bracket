@@ -1,17 +1,20 @@
 {
     desc => 'ci[ changes text inside square brackets',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_ci_bracket`
+# text_object_ci_bracket, ci[ changes text inside square brackets
 
-Tests the `ci[` text object which deletes text inside square brackets,
-enters insert mode, then we type replacement text.
+Macro: `xt/visual/macros/text_objects/text_object_ci_bracket`
 
-**initial.png** — Cursor on '1' inside the brackets at line 1 col 12.
+## initial.png
 
-Keys: `ci[` then type `a, b, c` then `<Escape>`
+- Cursor: 1, 0
+- Line 1  : my @arr = [1, 2, 3];
 
-**after_ci_bracket.png** — Content between brackets changed to `a, b, c`.
-Line 1 now reads `my @arr = [a, b, c];`. Brackets are preserved.
+## after_ci_bracket.png
+
+- Keys    : llllllllllll ci[
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

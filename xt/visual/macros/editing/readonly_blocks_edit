@@ -1,23 +1,27 @@
 {
     desc => 'read-only mode blocks editing',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/readonly_blocks_edit`
+# readonly_blocks_edit, read-only mode blocks editing
 
-Tests that setting the buffer to read-only prevents any text modification.
+Macro: `xt/visual/macros/editing/readonly_blocks_edit`
 
-**initial.png** — Normal mode. Buffer contains `do not modify me`.
-The text view has been set to non-editable.
+## initial.png
 
-Keys: `i` then type `NOPE` then `<Escape>`
+- Cursor: 1, 0
+- Line 1  : do not modify me
 
-**after_blocked_edit.png** — Buffer content is **unchanged**.
-The read-only flag prevented the insert. Still reads `do not modify me`.
+## after_blocked_edit.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;
         $ctx->buffer->set_text($CODE);
-        $ctx->delay(100);
-        $ctx->editor->get_textview->set_editable(0);
+        # Set readonly at the Vim bindings level so insert/replace mode
+        # transitions are blocked by the mode setter.
+        my $vim_ctx = $ctx->editor->get_vim_ctx;
+        $vim_ctx->{is_readonly} = 1;
         $ctx->delay(50);
         $ctx->snapshot('initial');
         $ctx->delay(100);

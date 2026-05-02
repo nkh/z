@@ -1,25 +1,30 @@
 {
     desc => q{Search wraps around the end of the buffer},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_wrap`
+# search_wrap, Search wraps around the end of the buffer
 
-Search wraps around the buffer when it reaches the end. After finding "alpha" on line 1, pressing `n` finds the next "alpha" on line 2, and another `n` wraps back to line 1.
+Macro: `xt/visual/macros/search/search_wrap`
 
-**Keys:** `/alpha\n` then `nn`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- "alpha" appears on lines 1 and 2
+- Cursor: 1, 0
+- Line 1  : alpha beta
+- Line 2  : gamma alpha
+- Line 3  : delta epsilon
 
-**after_first_search.png**
-- Cursor on first "alpha" on line 1, col 0
+## after_first_search.png
 
-**after_first_n.png**
-- Cursor on second "alpha" on line 2, col 6
+- Keys    : /alpha `Enter`
 
-**after_wrap_n.png**
-- Cursor wrapped back to "alpha" on line 1, col 0
-- Search wrapped from end of buffer back to top
+## after_first_n.png
+
+- Keys    : n
+
+## after_wrap_n.png
+
+- Keys    : n
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

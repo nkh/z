@@ -1,20 +1,19 @@
 {
     desc => q{A appends text at end of line},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/insert_append_A`
+# insert_append_A, A appends text at end of line
 
-Tests that the **A** command moves the cursor to the end of the current line
-and enters insert mode, so typed text is appended to the end of the line.
+Macro: `xt/visual/macros/editing/insert_append_A`
 
-**Keys:** `A`, type `!`, `Escape`
+## initial.png
 
-**initial.png**
-- Buffer contains "Hello world"
-- Cursor at column 0 on 'H'
+- Cursor: 1, 0
+- Line 1  : Hello world
 
-**after_append_to_eol.png**
-- Line reads "Hello world!" (exclamation appended at end)
-- Cursor on '!' (moved back one after Escape)
+## after_append_to_eol.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

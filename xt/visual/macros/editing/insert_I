@@ -1,20 +1,19 @@
 {
     desc => q{I inserts at first non-blank character},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/insert_I`
+# insert_I, I inserts at first non-blank character
 
-Tests that the **I** command enters insert mode with the cursor positioned
-at the first non-blank character of the line (column 4 in this indented line).
+Macro: `xt/visual/macros/editing/insert_I`
 
-**Keys:** `I`, type `hello `, `Escape`
+## initial.png
 
-**initial.png**
-- Buffer contains "    indented line" (4 leading spaces)
-- Cursor at column 0 (start of line)
+- Cursor: 1, 0
+- Line 1  :     indented line
 
-**after_insert_at_first_nonblank.png**
-- Line reads "    hello indented line" ("hello " inserted at column 4)
-- Cursor on the space after "hello"
+## after_insert_at_first_nonblank.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

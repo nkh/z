@@ -1,19 +1,20 @@
 {
     desc => q{f{char} moves cursor forward to next occurrence of character},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/find_char_f`
+# find_char_f, f{char
 
-**f{char}** moves the cursor forward to the next occurrence of the specified character on the current line.
+Macro: `xt/visual/macros/find_char/find_char_f`
 
-**Keys:** `fo`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0 (on 'h' of "hello")
-- Text: `hello world`
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_fo.png**
-- Cursor moved to first 'o' in "hello" at col 4
-- Text unchanged
+## after_fo.png
+
+- Keys    : fo
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

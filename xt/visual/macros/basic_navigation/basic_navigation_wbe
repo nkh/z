@@ -1,20 +1,20 @@
 {
     desc => q{Word motion w/b/e},
     description => <<'END_DESC',
-Action: `w` moves forward to start of next word
+# basic_navigation_wbe, Word motion w/b/e
 
-Macro: `xt/visual/macros/basic_navigation_wbe`
+Macro: `xt/visual/macros/basic_navigation/basic_navigation_wbe`
 
-**initial.png** (before):
-- Line 1: `one two three four`
-- Line 2: `five six seven`
-- Cursor at line 1, col 0 (on `o` in `one`)
+## initial.png
 
-Keys: `w`
+- Cursor: 1, 0
+- Line 1  : one two three four
+- Line 2  : five six seven
 
-**after_action.png** (after):
-- Cursor at line 1, col 4 (on `t` in `two`, start of second word)
-- No text change
+## after_action.png
+
+- Keys    : w
+
 
 END_DESC
     run => sub {

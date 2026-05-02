@@ -1,17 +1,20 @@
 {
     desc => 'diw deletes inner word without surrounding whitespace',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_diw`
+# text_object_diw, diw deletes inner word without surrounding whitespace
 
-Tests the `diw` text object which deletes the word under the cursor
-but preserves surrounding whitespace.
+Macro: `xt/visual/macros/text_objects/text_object_diw`
 
-**initial.png** — Cursor on 'h' of `hello` at line 1 col 0.
+## initial.png
 
-Keys: `diw`
+- Cursor: 1, 0
+- Line 1  : hello   world   this
 
-**after_diw.png** — The word `hello` is removed but the trailing spaces
-remain. Line 1 now reads `   world   this`. Cursor at col 0.
+## after_diw.png
+
+- Keys    : diw
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

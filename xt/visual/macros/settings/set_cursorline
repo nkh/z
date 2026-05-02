@@ -1,15 +1,24 @@
 {
     desc => ':set cursorline highlights the current line',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_cursorline`
+# set_cursorline, :set cursorline highlights the current line
 
-Tests that `:set cursorline` adds a background highlight to the current
-cursor line, making it visually distinct.
+Macro: `xt/visual/macros/settings/set_cursorline`
 
-Ex: `:set cursorline`
+## initial.png
 
-- **set_cursorline_initial.png**: No cursor line highlight; all lines have the same background.
-- **set_cursorline_after_set.png**: Line 1 highlighted with cursorline background color; cursor sits on the highlighted line.
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
+
+## after_set.png
+
+- Keys    : :set`Space` cursorline
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

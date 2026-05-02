@@ -1,17 +1,24 @@
 {
     desc => q{dw deletes word},
     description => <<'END_DESC',
-Action: `dw` deletes the word under the cursor (including trailing space)
+# delete_word_dw, dw deletes word
 
-**initial.png** (before):
-- Line 1: `This is a longer line of text for testing.`
-- Cursor at line 1, col 0 (start of `This`)
+Macro: `xt/visual/macros/editing/delete_word_dw`
 
-Keys: `dw`
+## initial.png
 
-**after_dw.png** (after):
-- Line 1: `is a longer line of text for testing.` (`This ` deleted)
-- Cursor at line 1, col 0 (start of `is`)
+- Cursor: 1, 0
+- Line 1  : This is a longer line of text for testing.
+- Line 2  : The quick brown fox jumps over the lazy dog.
+- Line 3  : Another line here to fill the buffer.
+- Line 4  : And yet another line for scrolling context.
+- Line 5  : Final line of the test buffer content.
+
+## after_dw.png
+
+- Keys    : dw
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

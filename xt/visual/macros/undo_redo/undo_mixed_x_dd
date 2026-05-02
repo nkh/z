@@ -1,31 +1,30 @@
 {
     desc => q{u undoes mixed operations (x and dd)},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/undo_mixed_x_dd`
+# undo_mixed_x_dd, u undoes mixed operations (x and dd)
 
-Tests that **u** correctly undoes a mix of different operation types
-(character delete with **x** and line delete with **dd**) in reverse order.
+Macro: `xt/visual/macros/undo_redo/undo_mixed_x_dd`
 
-**Keys:** `x`, `j`, `dd`, `u`, `u`
+## initial.png
 
-**initial.png**
-- Buffer has 3 lines: "alpha", "beta", "gamma"
-- Cursor on line 1
+- Cursor: 1, 0
+- Line 1  : alpha
+- Line 2  : beta
+- Line 3  : gamma
 
-**after_mixed_changes.png**
-- First 'a' deleted from "alpha" -> "lpha", then "beta" line deleted
-- Buffer: "lpha", "gamma"
-- Cursor on line 1
-- Intermediate snapshot after all changes
+## after_mixed_changes.png
 
-**after_undo_dd.png**
-- After first `u`: "beta" line restored
-- Buffer: "lpha", "beta", "gamma"
-- Intermediate snapshot showing partial restoration
+- Keys    : x jdd
 
-**after_undo_all.png**
-- After second `u`: 'a' restored to "lpha" -> "alpha"
-- Buffer restored to original (identical to initial)
+## after_undo_dd.png
+
+- Keys    : u
+
+## after_undo_all.png
+
+- Keys    : u
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

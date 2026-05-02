@@ -1,16 +1,22 @@
 {
     desc => '<< unindents current line left',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/unindent_left`
+# unindent_left, << unindents current line left
 
-Tests the `<<` operator which unindents the current line by one shift width.
+Macro: `xt/visual/macros/editing/unindent_left`
 
-**initial.png** — Three lines with 8-space indentation. Cursor at line 1.
+## initial.png
 
-Keys: `<<`
+- Cursor: 1, 0
+- Line 1  :         line one
+- Line 2  :         line two
+- Line 3  :         line three
 
-**after_unindent.png** — Line 1 indentation reduced by one shift width.
-Lines 2 and 3 remain unchanged.
+## after_unindent.png
+
+- Keys    : <<
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

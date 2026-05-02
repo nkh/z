@@ -1,27 +1,36 @@
 {
     desc => q{Setting a mark overwrites the previous value at that mark},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/mark_overwrite`
+# mark_overwrite, Setting a mark overwrites the previous value at that mark
 
-Setting the same mark twice replaces the old position with the new one. **ma** on line 1, then **ma** on line 4 — jumping back with `` `a `` goes to line 4.
+Macro: `xt/visual/macros/marks/mark_overwrite`
 
-**Keys:** `ma` then `jjj` then `ma` then `` `a ``
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
 
-**after_first_mark.png**
-- Mark 'a' set at line 1, col 0
+## after_first_mark.png
 
-**after_move_down.png**
-- Cursor at line 4, col 0
+- Keys    : ma
 
-**after_overwrite_mark.png**
-- Mark 'a' overwritten at line 4, col 0
+## after_move_down.png
 
-**after_jump_overwritten.png**
-- Cursor at line 4, col 0 (the overwritten position, not line 1)
-- Old mark position (line 1) discarded
+- Keys    : jjj
+
+## after_overwrite_mark.png
+
+- Keys    : ma
+
+## after_jump_overwritten.png
+
+- Keys    : `a
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

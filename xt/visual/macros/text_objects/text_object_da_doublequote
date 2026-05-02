@@ -1,17 +1,20 @@
 {
     desc => q{da" deletes text including surrounding double quotes},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_da_doublequote`
+# text_object_da_doublequote, da" deletes text including surrounding double quotes
 
-Tests the `da"` text object which deletes text **including** the
-double quote delimiters themselves.
+Macro: `xt/visual/macros/text_objects/text_object_da_doublequote`
 
-**initial.png** — Cursor on 'h' inside the double quotes at line 1 col 5.
+## initial.png
 
-Keys: `da"`
+- Cursor: 1, 0
+- Line 1  : say("hello world");
 
-**after_da_doublequote.png** — The entire `"hello world"` including both
-double quotes is removed. Line 1 now reads `say();`.
+## after_da_doublequote.png
+
+- Keys    : llll da"
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

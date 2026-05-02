@@ -1,30 +1,29 @@
 {
     desc => q{Bracket match nested},
     description => <<'END_DESC',
-Action: `%` jumps between matching brackets across nested types
+# bracket_match_nested, Bracket match nested
 
-Macro: `xt/visual/macros/bracket_match_nested`
+Macro: `xt/visual/macros/bracket_match/bracket_match_nested`
 
-**initial.png** (before):
-- Line 1: `if ($x && foo($y)) {`
-- Line 3: `}`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `3l` (move to `(`)
+- Cursor: 1, 0
+- Line 1  : if ($x && foo($y)) {
+- Line 2  :     bar();
+- Line 3  : }
 
-**on_paren.png** (cursor on `(`):
-- Cursor at line 1, col 3 (on `(`)
+## on_paren.png
 
-Keys: `%`
+- Keys    : 3l
 
-**mid_close_paren.png** (after first `%`):
-- Cursor at line 1, col 17 (on `)` matching `(` at col 3)
+## mid_close_paren.png
 
-Keys: `%`
+- Keys    : %
 
-**after_action.png** (after second `%`):
-- Cursor at line 1, col 3 (back on `(` toggling between the pair)
-- No text change
+## after_action.png
+
+- Keys    : %
+
 
 END_DESC
     run => sub {

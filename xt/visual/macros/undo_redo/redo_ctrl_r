@@ -1,31 +1,30 @@
 {
     desc => q{Ctrl-r redoes the last undone change},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/redo_ctrl_r`
+# redo_ctrl_r, Ctrl-r redoes the last undone change
 
-Tests that **Ctrl-r** redoes the most recently undone change.
-The flow is: delete a line, undo it, then redo it.
+Macro: `xt/visual/macros/undo_redo/redo_ctrl_r`
 
-**Keys:** `dd`, `u`, `Control-r`
+## initial.png
 
-**initial.png**
-- Buffer has 3 lines: "one", "two", "three"
-- Cursor on line 1
+- Cursor: 1, 0
+- Line 1  : one
+- Line 2  : two
+- Line 3  : three
 
-**after_dd.png**
-- Buffer has 2 lines: "two", "three"
-- "one" deleted
-- Intermediate snapshot after deletion
+## after_dd.png
 
-**after_undo.png**
-- Buffer restored to 3 lines (identical to initial)
-- "one" restored by undo
-- Intermediate snapshot after undo
+- Keys    : dd
 
-**after_redo.png**
-- Buffer back to 2 lines: "two", "three"
-- "one" deleted again by redo
-- Same state as after_dd
+## after_undo.png
+
+- Keys    : u
+
+## after_redo.png
+
+- Keys    : Control-r
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

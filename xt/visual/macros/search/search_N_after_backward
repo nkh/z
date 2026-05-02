@@ -1,25 +1,28 @@
 {
     desc => q{N after backward search goes forward},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_N_after_backward`
+# search_N_after_backward, N after backward search goes forward
 
-After a **?pattern** backward search, **N** repeats in the opposite direction (forward). `?alpha` from the end finds the last "alpha", then `N` goes forward to the next one.
+Macro: `xt/visual/macros/search/search_N_after_backward`
 
-**Keys:** `$` then `?alpha\n` then `N`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Three "alpha" occurrences on the line
+- Cursor: 1, 0
+- Line 1  : alpha beta alpha gamma alpha
 
-**after_move_to_end.png**
-- Cursor at end of line, col 30
+## after_move_to_end.png
 
-**after_backward_search.png**
-- Cursor on last "alpha" at col 23 (searched backward from end)
+- Keys    : $
 
-**after_N_forward.png**
-- Cursor on the "alpha" at col 12 (moved forward from last match)
-- `N` reversed the backward search direction
+## after_backward_search.png
+
+- Keys    : ?alpha `Enter`
+
+## after_N_forward.png
+
+- Keys    : N
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

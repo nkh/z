@@ -1,20 +1,19 @@
 {
     desc => q{i enters insert mode and typing inserts text before cursor},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/insert_typing`
+# insert_typing, i enters insert mode and typing inserts text before cursor
 
-Tests basic insert mode: **i** enters insert mode before the cursor,
-typed text is inserted, and **Escape** returns to normal mode.
+Macro: `xt/visual/macros/editing/insert_typing`
 
-**Keys:** `i`, type `Hello `, `Escape`
+## initial.png
 
-**initial.png**
-- Buffer contains "world"
-- Cursor at column 0 on 'w'
+- Cursor: 1, 0
+- Line 1  : world
 
-**after_typing.png**
-- Line reads "Hello world" ("Hello " inserted before 'w')
-- Cursor on 'w' (moved back one after Escape)
+## after_typing.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

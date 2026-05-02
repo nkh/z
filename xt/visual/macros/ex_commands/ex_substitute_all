@@ -1,17 +1,20 @@
 {
     desc => ':s/pat/repl/g substitutes all occurrences on current line',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/ex_substitute_all`
+# ex_substitute_all, :s/pat/repl/g substitutes all occurrences on current line
 
-Tests the `:s/old/new/g` ex command which replaces **all** occurrences
-of a pattern on the current line (the `g` flag).
+Macro: `xt/visual/macros/ex_commands/ex_substitute_all`
 
-**initial.png** — Buffer shows 1 line with "hello" appearing twice.
+## initial.png
 
-Keys: `:s/hello/HI/g<Enter>`
+- Cursor: 1, 0
+- Line 1  : hello world hello again
 
-**after_substitute_all.png** — Both "hello" instances replaced with "HI".
-Line 1 reads `HI world HI again`.
+## after_substitute_all.png
+
+- Keys    : :s/hello/HI/g
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

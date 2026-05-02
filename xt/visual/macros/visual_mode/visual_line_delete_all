@@ -1,16 +1,22 @@
 {
     desc => q{Visual line delete all lines},
     description => <<'END_DESC',
-Action: V selects all lines, d deletes them
+# visual_line_delete_all, Visual line delete all lines
 
--1_initial.png (initial state):
-- 3 lines of text, cursor at line 1
+Macro: `xt/visual/macros/visual_mode/visual_line_delete_all`
 
-Sub-commands: keys('VGd')
+## initial.png
 
--2_after.png (after action):
-- All lines deleted
-- Buffer is empty (single blank line)
+- Cursor: 1, 0
+- Line 1  : first line
+- Line 2  : second line
+- Line 3  : third line
+
+## after.png
+
+- Keys    : VGd
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

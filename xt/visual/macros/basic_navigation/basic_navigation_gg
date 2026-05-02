@@ -1,25 +1,32 @@
 {
     desc => q{Go to top gg},
     description => <<'END_DESC',
-Action: `G` goes to bottom of file, `gg` returns to top
+# basic_navigation_gg, Go to top gg
 
-Macro: `xt/visual/macros/basic_navigation_gg`
+Macro: `xt/visual/macros/basic_navigation/basic_navigation_gg`
 
-**initial.png** (before):
-- 10 lines of text (`line one` through `line ten`)
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `G`
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
+- Line 6  : line six
+- Line 7  : line seven
+- Line 8  : line eight
+- Line 9  : line nine
+- Line 10  : line ten
 
-**mid_bottom.png** (after `G`):
-- Cursor at line 10, col 0 (last line)
-- Viewport scrolled to show bottom of buffer
+## mid_bottom.png
 
-Keys: `gg`
+- Keys    : G
 
-**after_action.png** (after `gg`):
-- Cursor at line 1, col 0 (back at top)
-- Viewport scrolled back to top of buffer
+## after_action.png
+
+- Keys    : gg
+
 
 END_DESC
     run => sub {

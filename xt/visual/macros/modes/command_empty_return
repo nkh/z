@@ -1,17 +1,20 @@
 {
     desc => ': then Return (empty command) returns to normal mode',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/command_empty_return`
+# command_empty_return, : then Return (empty command) returns to normal mode
 
-Tests that pressing `:` followed by `<Enter>` (empty command) silently
-returns to normal mode with no changes.
+Macro: `xt/visual/macros/modes/command_empty_return`
 
-**initial.png** — Normal mode, cursor at line 1 col 0.
+## initial.png
 
-Keys: `:<Enter>`
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_empty_return.png** — Normal mode restored. Buffer content is
-unchanged. The empty ex command is a no-op.
+## after_empty_return.png
+
+- Keys    : : `Enter`
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

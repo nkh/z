@@ -1,17 +1,20 @@
 {
     desc => 'ci( changes text inside parentheses',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_ci_paren`
+# text_object_ci_paren, ci( changes text inside parentheses
 
-Tests the `ci(` text object which deletes text inside parentheses,
-enters insert mode, then we type replacement text.
+Macro: `xt/visual/macros/text_objects/text_object_ci_paren`
 
-**initial.png** — Cursor on 'h' inside the parentheses at line 1 col 5.
+## initial.png
 
-Keys: `ci(` then type `x, y` then `<Escape>`
+- Cursor: 1, 0
+- Line 1  : func(hello world);
 
-**after_ci_paren.png** — Content between parentheses changed to `x, y`.
-Line 1 now reads `func(x, y);`. Parentheses are preserved.
+## after_ci_paren.png
+
+- Keys    : llll ci(
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

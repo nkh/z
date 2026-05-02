@@ -1,24 +1,26 @@
 {
     desc => q{u undoes a 2dd (counted line delete)},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/undo_2dd`
+# undo_2dd, u undoes a 2dd (counted line delete)
 
-Tests that **u** restores two lines deleted by **2dd** as a single undo unit.
+Macro: `xt/visual/macros/undo_redo/undo_2dd`
 
-**Keys:** `2dd`, `u`
+## initial.png
 
-**initial.png**
-- Buffer has 3 lines: "line one", "line two", "line three"
-- Cursor on line 1
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
 
-**after_2dd.png**
-- Buffer has 1 line: "line three"
-- First two lines deleted by 2dd
-- Intermediate snapshot showing the changed state
+## after_2dd.png
 
-**after_undo.png**
-- Buffer restored to 3 lines (identical to initial)
-- Both deleted lines restored in one undo step
+- Keys    : 2dd
+
+## after_undo.png
+
+- Keys    : u
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

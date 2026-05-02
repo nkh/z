@@ -1,17 +1,20 @@
 {
     desc => ': then Escape returns to normal mode',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/command_to_normal`
+# command_to_normal, : then Escape returns to normal mode
 
-Tests that pressing `:` then `<Escape>` cancels command mode and returns
-to normal mode with no side effects.
+Macro: `xt/visual/macros/modes/command_to_normal`
 
-**initial.png** — Normal mode, cursor at line 1 col 0.
+## initial.png
 
-Keys: `:<Escape>`
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_escape.png** — Back in normal mode. Buffer content unchanged.
-No command was executed.
+## after_escape.png
+
+- Keys    : :\e
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

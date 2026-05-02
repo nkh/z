@@ -1,16 +1,24 @@
 {
     desc => ':N jumps to line number N',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/ex_goto_line`
+# ex_goto_line, :N jumps to line number N
 
-Tests the `:N` ex command which moves the cursor to line number N.
+Macro: `xt/visual/macros/ex_commands/ex_goto_line`
 
-**initial.png** — Cursor at line 1 (`line one`).
+## initial.png
 
-Keys: `:3<Enter>`
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
 
-**after_goto_line3.png** — Cursor moved to line 3 (`line three`).
-The viewport scrolls if needed to show the target line.
+## after_goto_line3.png
+
+- Keys    : :3
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

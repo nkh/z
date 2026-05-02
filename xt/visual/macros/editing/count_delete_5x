@@ -1,17 +1,24 @@
 {
     desc => q{5x deletes 5 characters},
     description => <<'END_DESC',
-Action: `5x` deletes 5 characters starting from under the cursor
+# count_delete_5x, 5x deletes 5 characters
 
-**initial.png** (before):
-- Line 1: `This is a longer line of text for testing.`
-- Cursor at line 1, col 0 (on `T`)
+Macro: `xt/visual/macros/editing/count_delete_5x`
 
-Keys: `5x`
+## initial.png
 
-**after_5x.png** (after):
-- Line 1: `is a longer line of text for testing.` (`This ` deleted)
-- Cursor at line 1, col 0 (on `i`)
+- Cursor: 1, 0
+- Line 1  : This is a longer line of text for testing.
+- Line 2  : The quick brown fox jumps over the lazy dog.
+- Line 3  : Another line here to fill the buffer.
+- Line 4  : And yet another line for scrolling context.
+- Line 5  : Final line of the test buffer content.
+
+## after_5x.png
+
+- Keys    : 5x
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

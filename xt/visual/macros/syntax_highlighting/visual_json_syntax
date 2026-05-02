@@ -1,13 +1,47 @@
 {
     desc => q{JSON syntax},
     description => <<'END_DESC',
-Syntax highlighting: JSON
+# visual_json_syntax, JSON syntax
 
-Visual checks:
-- Keys (in double quotes before colon) colored distinctly from values
-- String values have string color
-- Numbers have number color
-- Braces and brackets may have distinct coloring
+Macro: `xt/visual/macros/syntax_highlighting/visual_json_syntax`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : {
+- Line 2  :     "name": "Gtk3::SourceEditor",
+- Line 3  :     "version": "0.01",
+- Line 4  :     "description": "A Vim-style source code editor widget",
+- Line 5  :     "license": "Artistic_2_0",
+- Line 6  :     "author": {
+- Line 7  :         "name": "Author Name",
+- Line 8  :         "email": "author@example.com"
+- Line 9  :     },
+- Line 10  :     "dependencies": {
+- Line 11  :         "perl": "5.020",
+- Line 12  :         "Gtk3": "0.043",
+- Line 13  :         "Gtk3::SourceView": "0.004"
+- Line 14  :     },
+- Line 15  :     "keywords": [
+- Line 16  :         "gtk",
+- Line 17  :         "vim",
+- Line 18  :         "editor",
+- Line 19  :         "source-view",
+- Line 20  :         "syntax-highlighting"
+- Line 21  :     ],
+- Line 22  :     "features": {
+- Line 23  :         "vim_mode": true,
+- Line 24  :         "syntax_highlighting": true,
+- Line 25  :         "line_numbers": true,
+- Line 26  :         "themes": true,
+- Line 27  :         "undo_redo": true
+- Line 28  :     },
+- Line 29  :     "download_count": 15234,
+- Line 30  :     "rating": 4.7,
+- Line 31  :     "supported_languages": 24
+- Line 32  : }
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,16 +1,22 @@
 {
     desc => q{Visual unindent left <<},
     description => <<'END_DESC',
-Action: V selects lines, << unindents them
+# visual_unindent_left, Visual unindent left <<
 
--1_initial.png (initial state):
-- Lines 1-2 indented, cursor at line 1
+Macro: `xt/visual/macros/visual_mode/visual_unindent_left`
 
-Sub-commands: keys('Vj<<')
+## initial.png
 
--2_after.png (after action):
-- First 2 lines unindented
-- Line 3 unchanged
+- Cursor: 1, 0
+- Line 1  :     indented line one
+- Line 2  :     indented line two
+- Line 3  : not indented line three
+
+## after.png
+
+- Keys    : Vj<<
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);

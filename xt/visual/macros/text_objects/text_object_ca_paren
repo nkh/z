@@ -1,19 +1,23 @@
 {
     desc => q{ca( changes text including parentheses},
     description => <<'END_DESC',
-Action: `ca( changes text including parentheses`
+# text_object_ca_paren, ca( changes text including parentheses
 
-Macro: `xt/visual/macros/text_object_ca_paren`
+Macro: `xt/visual/macros/text_objects/text_object_ca_paren`
 
-**initial.png** (before):
-- Line 1: `func(hello world);`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `llllca(`
+- Cursor: 1, 0
+- Line 1  : func(hello world);
 
-**after_change.png** (after):
-- Line 1: `func(REPLACED);`
-- Cursor position after text object operation
+## in_insert_mode.png
+
+- Keys    : llllca(
+
+## after_change.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

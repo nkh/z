@@ -1,17 +1,20 @@
 {
     desc => 'daw deletes a word with surrounding whitespace',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/text_object_daw`
+# text_object_daw, daw deletes a word with surrounding whitespace
 
-Tests the `daw` text object which deletes the word under the cursor
-including trailing whitespace.
+Macro: `xt/visual/macros/text_objects/text_object_daw`
 
-**initial.png** — Cursor on 'h' of `hello` at line 1 col 0.
+## initial.png
 
-Keys: `daw`
+- Cursor: 1, 0
+- Line 1  : hello   world   this
 
-**after_daw.png** — The word `hello` plus trailing spaces are removed.
-Line 1 now reads `world   this`. Cursor at col 0.
+## after_daw.png
+
+- Keys    : daw
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

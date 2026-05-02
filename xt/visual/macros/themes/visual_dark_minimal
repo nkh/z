@@ -1,12 +1,42 @@
 {
     desc => q{Dark, minimal chrome},
     description => <<'END_DESC',
-Theme: dark, options: no line numbers, no cursor line highlight
+# visual_dark_minimal, Dark, minimal chrome
 
-Visual checks:
-- Dark theme
-- No gutter, no line highlighting
-- Cleanest possible editor display
+Macro: `xt/visual/macros/themes/visual_dark_minimal`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : #!/usr/bin/perl
+- Line 2  : use strict;
+- Line 3  : use warnings;
+- Line 4  : 
+- Line 5  : package My::Module;
+- Line 6  : 
+- Line 7  : sub new {
+- Line 8  :     my ($class, %opts) = @_;
+- Line 9  :     return bless \%opts, $class;
+- Line 10  : }
+- Line 11  : 
+- Line 12  : sub process {
+- Line 13  :     my ($self, $data) = @_;
+- Line 14  :     die "No data provided" unless $data;
+- Line 15  :     my @results;
+- Line 16  :     for my $item (@$data) {
+- Line 17  :         push @results, $self->_transform($item);
+- Line 18  :     }
+- Line 19  :     return \@results;
+- Line 20  : }
+- Line 21  : 
+- Line 22  : sub _transform {
+- Line 23  :     my ($self, $item) = @_;
+- Line 24  :     return uc($item);
+- Line 25  : }
+- Line 26  : 
+- Line 27  : 1;
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

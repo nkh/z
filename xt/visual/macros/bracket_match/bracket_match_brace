@@ -1,25 +1,26 @@
 {
     desc => q{Bracket match % curly braces},
     description => <<'END_DESC',
-Action: `%` jumps between matching curly braces
+# bracket_match_brace, Bracket match % curly braces
 
-Macro: `xt/visual/macros/bracket_match_brace`
+Macro: `xt/visual/macros/bracket_match/bracket_match_brace`
 
-**initial.png** (before):
-- Line 1: `sub foo {`
-- Line 4: `}`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `8l` (move to `{`)
+- Cursor: 1, 0
+- Line 1  : sub foo {
+- Line 2  :     my $x = 1;
+- Line 3  :     return $x;
+- Line 4  : }
 
-**on_brace.png** (cursor on `{`):
-- Cursor at line 1, col 8 (on `{`)
+## on_brace.png
 
-Keys: `%`
+- Keys    : 8l
 
-**after_action.png** (after `%`):
-- Cursor at line 4, col 0 (on matching `}`)
-- No text change
+## after_action.png
+
+- Keys    : %
+
 
 END_DESC
     run => sub {

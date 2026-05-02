@@ -1,15 +1,28 @@
 {
     desc => ':set nonumber hides line numbers',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_nonumber`
+# set_nonumber, :set nonumber hides line numbers
 
-Tests that `:set nonumber` hides the line number gutter that was previously
-shown with `:set number`.
+Macro: `xt/visual/macros/settings/set_nonumber`
 
-Ex: `:set number` then `:set nonumber`
+## initial.png
 
-- **set_nonumber_with_numbers.png**: Line numbers visible in the left gutter (1-5).
-- **set_nonumber_after_nonumber.png**: Line numbers hidden; gutter area collapsed.
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
+
+## with_numbers.png
+
+- Keys    : :set`Space` number
+
+## after_nonumber.png
+
+- Keys    : :set`Space` nonumber
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

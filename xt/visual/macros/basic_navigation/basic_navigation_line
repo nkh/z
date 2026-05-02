@@ -1,15 +1,25 @@
 {
     desc => q{Line start/end motions $ and 0},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/basic_navigation_line`
+# basic_navigation_line, Line start/end motions $ and 0
 
-Tests `$` (move to end of line) and `0` (move to start of line) motions.
+Macro: `xt/visual/macros/basic_navigation/basic_navigation_line`
 
-Keys: `$` → `0`
+## initial.png
 
-- **basic_navigation_line_initial.png**: Cursor at line 1, col 0 on `t` of "the"
-- **basic_navigation_line_after_dollar.png**: Cursor at line 1, col 24 on `s` of "jumps" (end of line)
-- **basic_navigation_line_after_zero.png**: Cursor at line 1, col 0 on `t` of "the" (back to start)
+- Cursor: 1, 0
+- Line 1  : the quick brown fox jumps
+- Line 2  : short
+- Line 3  : another line with more text
+
+## after_dollar.png
+
+- Keys    : $
+
+## after_zero.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,24 +1,23 @@
 {
     desc => q{Bracket match % square brackets},
     description => <<'END_DESC',
-Action: `%` jumps between matching square brackets
+# bracket_match_square, Bracket match % square brackets
 
-Macro: `xt/visual/macros/bracket_match_square`
+Macro: `xt/visual/macros/bracket_match/bracket_match_square`
 
-**initial.png** (before):
-- Line 1: `my @items = [1, 2, 3];`
-- Cursor at line 1, col 0
+## initial.png
 
-Keys: `12l` (move to `[`)
+- Cursor: 1, 0
+- Line 1  : my @items = [1, 2, 3];
 
-**on_bracket.png** (cursor on `[`):
-- Cursor at line 1, col 12 (on `[`)
+## on_bracket.png
 
-Keys: `%`
+- Keys    : 12l
 
-**after_action.png** (after `%`):
-- Cursor at line 1, col 20 (on `]` matching `[` at col 12)
-- No text change
+## after_action.png
+
+- Keys    : %
+
 
 END_DESC
     run => sub {

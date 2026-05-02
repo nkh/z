@@ -1,15 +1,28 @@
 {
     desc => ':set nonu is abbreviation for :set nonumber',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_nonumber_abbrev`
+# set_nonumber_abbrev, :set nonu is abbreviation for :set nonumber
 
-Tests that `:set nonu` is accepted as an abbreviation for `:set nonumber`
-and hides the line number gutter.
+Macro: `xt/visual/macros/settings/set_nonumber_abbrev`
 
-Ex: `:set number` then `:set nonu`
+## initial.png
 
-- **set_nonumber_abbrev_with_numbers.png**: Line numbers visible in the left gutter.
-- **set_nonumber_abbrev_after_nonu.png**: Line numbers hidden; gutter area collapsed.
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
+
+## with_numbers.png
+
+- Keys    : :set`Space` number
+
+## after_nonu.png
+
+- Keys    : :set`Space` nonu
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

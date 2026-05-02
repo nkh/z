@@ -1,19 +1,22 @@
 {
     desc => q{Search is case sensitive by default},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/search_case_sensitive`
+# search_case_sensitive, Search is case sensitive by default
 
-**/Hello** is case sensitive and will not match "hello". Only the exact case "Hello" on line 2 is matched.
+Macro: `xt/visual/macros/search/search_case_sensitive`
 
-**Keys:** `/Hello\n`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0
-- Three lines: "hello", "Hello", "hello"
+- Cursor: 1, 0
+- Line 1  : hello world
+- Line 2  : Hello world
+- Line 3  : hello again
 
-**after_case_search.png**
-- Cursor on "Hello" (capital H) on line 2, col 0
-- Only line 2 is highlighted — "hello" (lowercase) on lines 1 and 3 is not matched
+## after_case_search.png
+
+- Keys    : /Hello `Enter`
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

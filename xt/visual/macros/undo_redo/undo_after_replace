@@ -1,24 +1,24 @@
 {
     desc => q{u undoes replace mode changes},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/undo_after_replace`
+# undo_after_replace, u undoes replace mode changes
 
-Tests that **u** restores text that was overwritten in replace mode (**R**).
-The entire insert session in replace mode is treated as one undo unit.
+Macro: `xt/visual/macros/undo_redo/undo_after_replace`
 
-**Keys:** `R`, type `XXXX`, `Escape`, `u`
+## initial.png
 
-**initial.png**
-- Buffer contains "hello world"
-- Cursor at column 0 on 'h'
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_replace.png**
-- Buffer contains "XXXXo world" (first 4 chars replaced with X)
-- Intermediate snapshot showing the replacement
+## after_replace.png
 
-**after_undo.png**
-- Buffer restored to "hello world" (identical to initial)
-- Entire replace session undone as one unit
+- Keys    : RXXXX
+
+## after_undo.png
+
+- Keys    : u
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

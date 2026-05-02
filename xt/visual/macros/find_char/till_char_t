@@ -1,19 +1,20 @@
 {
     desc => q{t{char} moves cursor to column before target character},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/till_char_t`
+# till_char_t, t{char
 
-**t{char}** moves the cursor forward to the column just before the target character. Unlike `f{char}`, the cursor stops one character short.
+Macro: `xt/visual/macros/find_char/till_char_t`
 
-**Keys:** `tw`
+## initial.png
 
-**initial.png**
-- Cursor at line 1, col 0 (on 'h' of "hello world")
+- Cursor: 1, 0
+- Line 1  : hello world
 
-**after_tw.png**
-- Cursor at col 5 (space before 'w' in "world")
-- `t` stopped one character before 'w', landing on the space
-- Text unchanged
+## after_tw.png
+
+- Keys    : tw
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

@@ -1,20 +1,20 @@
 {
     desc => q{o opens a new line below and enters insert mode},
     description => <<'END_DESC',
-## Macro: `xt/visual/macros/insert_open_o`
+# insert_open_o, o opens a new line below and enters insert mode
 
-Tests that the **o** command opens a new blank line below the current line
-and enters insert mode with the cursor on the new line.
+Macro: `xt/visual/macros/editing/insert_open_o`
 
-**Keys:** `o`, type `inserted line`, `Escape`
+## initial.png
 
-**initial.png**
-- Buffer has 2 lines: "line one" and "line two"
-- Cursor on line 1 at column 0
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
 
-**after_open_below.png**
-- Buffer has 3 lines: "line one", "inserted line", "line two"
-- Cursor on line 2 (the new line)
+## after_open_below.png
+
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

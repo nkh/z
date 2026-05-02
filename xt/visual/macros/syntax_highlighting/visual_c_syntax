@@ -1,14 +1,61 @@
 {
     desc => q{C syntax},
     description => <<'END_DESC',
-Syntax highlighting: C
+# visual_c_syntax, C syntax
 
-Visual checks:
-- Preprocessor directives (#include, #define) colored distinctly
-- Type keywords (int, char, double, void) colored
-- Control flow (if, while, for, return) colored
-- String literals have string color
-- Comments (// and /* */) have comment color
+Macro: `xt/visual/macros/syntax_highlighting/visual_c_syntax`
+
+## initial.png
+
+- Cursor: 1, 0
+- Line 1  : #include <stdio.h>
+- Line 2  : #include <stdlib.h>
+- Line 3  : 
+- Line 4  : #define MAX_SIZE 100
+- Line 5  : 
+- Line 6  : /* Global configuration */
+- Line 7  : int verbose = 1;
+- Line 8  : double threshold = 0.5;
+- Line 9  : 
+- Line 10  : // Structure definition
+- Line 11  : typedef struct {
+- Line 12  :     int id;
+- Line 13  :     char name[64];
+- Line 14  :     double value;
+- Line 15  : } Record;
+- Line 16  : 
+- Line 17  : // Function declarations
+- Line 18  : int process_record(Record *r);
+- Line 19  : void print_summary(Record *records, int count);
+- Line 20  : int validate(const char *input);
+- Line 21  : 
+- Line 22  : int main(int argc, char *argv[]) {
+- Line 23  :     printf("Starting program...\n");
+- Line 24  :     if (argc < 2) {
+- Line 25  :         fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
+- Line 26  :         return 1;
+- Line 27  :     }
+- Line 28  :     for (int i = 0; i < argc; i++) {
+- Line 29  :         printf("  arg[%d] = %s\n", i, argv[i]);
+- Line 30  :     }
+- Line 31  :     return 0;
+- Line 32  : }
+- Line 33  : 
+- Line 34  : int process_record(Record *r) {
+- Line 35  :     if (r == NULL) return -1;
+- Line 36  :     r->value *= threshold;
+- Line 37  :     return 0;
+- Line 38  : }
+- Line 39  : 
+- Line 40  : void print_summary(Record *records, int count) {
+- Line 41  :     int total = 0;
+- Line 42  :     for (int i = 0; i < count && i < MAX_SIZE; i++) {
+- Line 43  :         total += (int)records[i].value;
+- Line 44  :     }
+- Line 45  :     printf("Total: %d (from %d records)\n", total, count);
+- Line 46  : }
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

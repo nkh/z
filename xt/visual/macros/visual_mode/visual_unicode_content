@@ -1,21 +1,25 @@
 {
     desc => q{Unicode content},
     description => <<'END_DESC',
-Edge case: Unicode characters rendered in the editor
+# visual_unicode_content, Unicode content
 
-The test loads a Perl source file containing actual UTF-8 characters
-(accented Latin, Greek, box drawing, currency, math symbols, Scandinavian).
+Macro: `xt/visual/macros/visual_mode/visual_unicode_content`
 
-Characters included:
-- Latin-1 Supplement: e-acute, u-umlaut
-- Greek: alpha through epsilon
-- Box drawing: corner and line chars
-- Currency: euro sign
-- Math: plus-minus, multiply, divide
-- Quotation marks: guillemets, smart quotes
-- Scandinavian: a-ring, o-slash, ae ligature
+## initial.png
 
-Glyph coverage depends on the configured font.
+- Cursor: 1, 0
+- Line 1  : # -*- coding: utf-8 -*-
+- Line 2  : use utf8;
+- Line 3  : my $accent = "\xe9\xe8\xea\xeb";      # Latin-1: e-acute, e-grave, e-circ, e-diaeresis
+- Line 4  : my $umlaut = "\xfc\xf6\xe4";            # Latin-1: u-umlaut, o-umlaut, a-umlaut
+- Line 5  : my $greek  = "\x{03b1}\x{03b2}\x{03b3}\x{03b4}\x{03b5}";  # alpha beta gamma delta epsilon
+- Line 6  : my $box    = "\x{250c}\x{2500}\x{2510}\x{2502}\x{2514}\x{2518}";  # box drawing
+- Line 7  : my $euro   = "\x{20ac}";               # euro sign
+- Line 8  : my $math   = "\x{00b1}\x{00d7}\x{00f7}";  # plus-minus, multiply, divide
+- Line 9  : my $quotes = "\x{00ab} \x{00bb}";      # guillemets
+- Line 10  : my $scandi = "\x{00e5}\x{00f8}\x{00e6}";  # a-ring, o-slash, ae ligature
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

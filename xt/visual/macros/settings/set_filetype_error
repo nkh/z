@@ -1,15 +1,20 @@
 {
     desc => ':set ft=invalid shows error for unknown filetype',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_filetype_error`
+# set_filetype_error, :set ft=invalid shows error for unknown filetype
 
-Tests that `:set filetype=` with an unknown language displays an error
-message in the status bar.
+Macro: `xt/visual/macros/settings/set_filetype_error`
 
-Ex: `:set filetype=nonexistent_lang`
+## initial.png
 
-- **set_filetype_error_initial.png**: Normal mode, plain text.
-- **set_filetype_error_after_set.png**: Error message displayed for unknown filetype.
+- Cursor: 1, 0
+- Line 1  : hello world
+
+## after_set.png
+
+- Keys    : :set`Space` filetype=nonexistent_lang
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

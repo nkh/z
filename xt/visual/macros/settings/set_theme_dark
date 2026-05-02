@@ -1,20 +1,26 @@
 {
     desc => ':set theme=dark switches from default to dark theme',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_theme_dark`
+# set_theme_dark, :set theme=dark switches from default to dark theme
 
-Tests that `:set theme=dark` applies the dark color scheme at runtime,
-changing the editor background to a dark tone (#1E1E1E) and adjusting
-all foreground and syntax colors accordingly.
+Macro: `xt/visual/macros/settings/set_theme_dark`
 
-Starts from the default (light) theme so the transition is visible.
+## initial.png
 
-Ex: `:set theme=dark`
+- Cursor: 1, 0
+- Line 1  : # Theme switch test
+- Line 2  : Hello, World!
+- Line 3  : my $x = 42;
+- Line 4  : print "dark mode\n";
 
-- **set_theme_dark_light_initial.png**: Default light theme with white
-  background, dark text, and standard syntax colors.
-- **set_theme_dark_applied.png**: Dark theme active with dark background,
-  light text, and dark-appropriate syntax highlighting colors.
+## light_initial.png
+
+
+## applied.png
+
+- Keys    : :set`Space` theme=dark
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

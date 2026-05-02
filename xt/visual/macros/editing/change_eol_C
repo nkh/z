@@ -1,16 +1,24 @@
 {
     desc => q{C changes to end of line},
     description => <<'END_DESC',
-Action: `C` deletes from cursor to end of line and enters insert mode
+# change_eol_C, C changes to end of line
 
-**initial.png** (before):
-- Line 1: `This is a first line of text in the buffer.`
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/editing/change_eol_C`
 
-Keys: `6lC`, type `DONE`, `Escape`
+## initial.png
 
-**after_C.png** (after):
-- Line 1: `This DONE` (from col 6 onward replaced with `DONE`)
+- Cursor: 1, 0
+- Line 1  : This is a first line of text in the buffer.
+- Line 2  : Here is a second line with more content.
+- Line 3  : Third line with some additional words here.
+- Line 4  : Fourth line to provide scrolling context.
+- Line 5  : Fifth line at the bottom of the buffer.
+
+## after_C.png
+
+- Keys    : 6lC
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

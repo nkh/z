@@ -1,14 +1,34 @@
 {
     desc => q{Count prefix 10j moves cursor down 10 lines},
     description => <<'END_DESC',
-Macro: `xt/visual/macros/count_prefix_10j`
+# count_prefix_10j, Count prefix 10j moves cursor down 10 lines
 
-Tests that a numeric count prefix (`10j`) moves the cursor down exactly 10 lines from the starting position.
+Macro: `xt/visual/macros/count_prefix/count_prefix_10j`
 
-Keys: `10j`
+## initial.png
 
-- **count_prefix_10j_initial.png**: Cursor at line 1, col 0 on `l` of "line 01"
-- **count_prefix_10j_after_10j.png**: Cursor at line 11, col 0 on `l` of "line 11" (moved down 10 lines)
+- Cursor: 1, 0
+- Line 1  : line 01
+- Line 2  : line 02
+- Line 3  : line 03
+- Line 4  : line 04
+- Line 5  : line 05
+- Line 6  : line 06
+- Line 7  : line 07
+- Line 8  : line 08
+- Line 9  : line 09
+- Line 10  : line 10
+- Line 11  : line 11
+- Line 12  : line 12
+- Line 13  : line 13
+- Line 14  : line 14
+- Line 15  : line 15
+
+## after_10j.png
+
+- Keys    : 10j
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

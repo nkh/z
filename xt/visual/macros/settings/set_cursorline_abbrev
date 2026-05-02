@@ -1,15 +1,24 @@
 {
     desc => ':set cursorl is abbreviation for :set cursorline',
     description => <<'END_DESC',
-Macro: `xt/visual/macros/set_cursorline_abbrev`
+# set_cursorline_abbrev, :set cursorl is abbreviation for :set cursorline
 
-Tests that `:set cursorl` is accepted as an abbreviation for
-`:set cursorline` and enables the cursor line highlight.
+Macro: `xt/visual/macros/settings/set_cursorline_abbrev`
 
-Ex: `:set cursorl`
+## initial.png
 
-- **set_cursorline_abbrev_initial.png**: No cursor line highlight.
-- **set_cursorline_abbrev_after_set.png**: Current line highlighted with cursorline background color.
+- Cursor: 1, 0
+- Line 1  : line one
+- Line 2  : line two
+- Line 3  : line three
+- Line 4  : line four
+- Line 5  : line five
+
+## after_set.png
+
+- Keys    : :set`Space` cursorl
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;

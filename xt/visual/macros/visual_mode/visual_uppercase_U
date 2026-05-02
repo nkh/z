@@ -1,16 +1,22 @@
 {
     desc => q{Visual uppercase U},
     description => <<'END_DESC',
-Action: v selects chars, U uppercases selection
+# visual_uppercase_U, Visual uppercase U
 
--1_initial.png (initial state):
-- Cursor at line 1, col 0
+Macro: `xt/visual/macros/visual_mode/visual_uppercase_U`
 
-Sub-commands: keys('veeU')
+## initial.png
 
--2_after.png (after action):
-- First 2 words uppercased: `HELLO WORLD this is a test`
-- Line 1: `HELLO WORLD this is a test`
+- Cursor: 1, 0
+- Line 1  : hello world this is a test
+- Line 2  : second line of text here
+- Line 3  : third line for more context
+
+## after.png
+
+- Keys    : veeU
+
+
 END_DESC
     run => sub {
         my ($ctx) = @_;        $ctx->buffer->set_text($CODE);
