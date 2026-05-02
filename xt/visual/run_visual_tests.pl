@@ -77,6 +77,7 @@
 #   --threshold N        Max diff ratio 0.0-1.0 (default: 0)
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings + comparison diagnostics
+#   --force-diff         Generate diff images even for passing tests
 #   --debug              Pass --debug to source-editor
 #   --size WxH           Window size (default: let window manager decide)
 #
@@ -100,6 +101,7 @@ use File::Path qw(make_path);
 use File::Copy qw(copy);
 use File::Spec ();
 use Digest::MD5 qw(md5_hex);
+use Cairo;
 use Gtk3 '-init';
 use Gtk3::SourceEditor::Macro;
 
@@ -109,6 +111,7 @@ my $target        = '';
 my $threshold     = 0;
 my $delay         = 500;
 my $verbose       = 0;
+my $force_diff    = 0;
 my $debug         = 0;
 my $size          = undef;
 my $child_pid;    # set by run_child, used by SIGINT handler
@@ -123,6 +126,7 @@ GetOptions(
     'threshold=f'     => \$threshold,
     'snapshot-delay=i'=> \$delay,
     'verbose|v'       => \$verbose,
+    'force-diff'      => \$force_diff,
     'debug'           => \$debug,
     'size=s'          => \$size,
 ) or die "Usage: $0 [options] <dir_or_file> [dir_or_file ...]\n";
@@ -226,7 +230,7 @@ sub _macro_subdir {
 }
 
 # ==========================================================================
-# Image comparison (pure Perl/GdkPixbuf)
+# Image comparison and diff generation (Cairo/GdkPixbuf)
 # ==========================================================================
 
 sub generate_diff_image {
@@ -239,46 +243,53 @@ sub generate_diff_image {
     my $h = $pix_a->get_height;
     return if $w != $pix_b->get_width || $h != $pix_b->get_height;
 
-    my $rowstride_a = $pix_a->get_rowstride;
-    my $rowstride_b = $pix_b->get_rowstride;
-    my $n_channels  = $pix_a->get_n_channels;
-    my $pixels_a    = $pix_a->get_pixels;
-    my $pixels_b    = $pix_b->get_pixels;
+    # Compute per-pixel absolute difference using Cairo OPERATOR_DIFFERENCE
+    # (C-level, orders of magnitude faster than Perl pixel loops).
+    my $diff_surface = Cairo::ImageSurface->create('argb32', $w, $h);
+    my $cr = Cairo::Context->create($diff_surface);
+    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pix_a, 0, 0);
+    $cr->paint;
+    $cr->set_operator('difference');
+    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pix_b, 0, 0);
+    $cr->paint;
+    undef $cr;
 
-    my $pixels_out = $pixels_a;
+    # Read the diff data from the Cairo surface
+    my $diff_data   = $diff_surface->get_data;
+    my $diff_stride = $diff_surface->get_stride;
+
+    # Build output: copy golden pixbuf, then blend magenta where diffs exist
+    my $out_pixbuf  = $pix_a->copy;
+    my $out_data    = $out_pixbuf->get_pixels;
+    my $out_stride  = $out_pixbuf->get_rowstride;
+    my $n_ch        = $out_pixbuf->get_n_channels;
+
+    my $blend = 0.6;
+    my $inv   = 1 - $blend;
+    my $mr    = int(255 * $blend);
 
     for my $y (0 .. $h - 1) {
+        my $d_row = $y * $diff_stride;
+        my $o_row = $y * $out_stride;
         for my $x (0 .. $w - 1) {
-            my $off_a = $y * $rowstride_a + $x * $n_channels;
-            my $off_b = $y * $rowstride_b + $x * $n_channels;
-            my $d = 0;
-            for my $c (0 .. $n_channels - 1) {
-                $d += abs(ord(substr($pixels_a, $off_a + $c, 1))
-                        - ord(substr($pixels_b, $off_b + $c, 1)));
-            }
-            if ($d > 0) {
-                my $bg_r = ord(substr($pixels_out, $off_a + 0, 1));
-                my $bg_g = ord(substr($pixels_out, $off_a + 1, 1));
-                my $bg_b = ord(substr($pixels_out, $off_a + 2, 1));
-                my $blend = 0.6;
-                my $r = int($bg_r * (1 - $blend) + 255 * $blend);
-                my $g = int($bg_g * (1 - $blend));
-                my $b = int($bg_b * (1 - $blend) + 255 * $blend);
-                substr($pixels_out, $off_a + 0, 1) = chr($r);
-                substr($pixels_out, $off_a + 1, 1) = chr($g);
-                substr($pixels_out, $off_a + 2, 1) = chr($b);
-            }
+            my $d_off = $d_row + $x * 4;
+            # Cairo ARGB32 bytes 0-2 are the 3 color channels (order depends
+            # on endianness but we only care if ANY channel is non-zero)
+            next unless ord(substr($$diff_data, $d_off,     1))
+                      || ord(substr($$diff_data, $d_off + 1, 1))
+                      || ord(substr($$diff_data, $d_off + 2, 1));
+
+            my $o = $o_row + $x * $n_ch;
+            my $r = ord(substr($$out_data, $o,     1));
+            my $g = ord(substr($$out_data, $o + 1, 1));
+            my $b = ord(substr($$out_data, $o + 2, 1));
+            substr($$out_data, $o,     1) = chr(int($r * $inv + $mr));
+            substr($$out_data, $o + 1, 1) = chr(int($g * $inv));
+            substr($$out_data, $o + 2, 1) = chr(int($b * $inv + $mr));
         }
     }
 
-    my $has_alpha  = $pix_a->get_has_alpha;
-    my $colorspace = $pix_a->get_colorspace;
-    my $bps        = $pix_a->get_bits_per_sample;
-    my $diff = Gtk3::Gdk::Pixbuf->new_from_data(
-        $pixels_out, $colorspace, $has_alpha, $bps,
-        $w, $h, $rowstride_a
-    );
-    $diff->savev($diff_path, 'png', [], []) if $diff;
+    $out_pixbuf->savev($diff_path, 'png', [], []);
 }
 
 sub _file_md5 {
@@ -299,7 +310,8 @@ sub compare_images {
         return { match => 1, diff_pct => 0, md5_a => $md5_a, md5_b => $md5_b };
     }
 
-    # MD5 mismatch: load as pixbuf for pixel comparison
+    # MD5 mismatch: compute per-pixel difference using Cairo
+    # OPERATOR_DIFFERENCE (C-level, much faster than Perl pixel loops)
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
     my $pix_b = Gtk3::Gdk::Pixbuf->new_from_file($file_b);
     unless ($pix_a && $pix_b) {
@@ -314,34 +326,33 @@ sub compare_images {
                  md5_a => $md5_a, md5_b => $md5_b };
     }
 
-    my $total = $w * $h;
+    my $diff_surface = Cairo::ImageSurface->create('argb32', $w, $h);
+    my $cr = Cairo::Context->create($diff_surface);
+    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pix_a, 0, 0);
+    $cr->paint;
+    $cr->set_operator('difference');
+    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pix_b, 0, 0);
+    $cr->paint;
+    undef $cr;
+
+    # Count differing pixels from the Cairo surface raw data.
+    # A zero-diff pixel has all three color channels as 0.
+    # unpack the row (C-level) then short-circuit || check each pixel.
+    my $data   = $diff_surface->get_data;
+    my $stride = $diff_surface->get_stride;
+    my $row_bytes = $w * 4;
     my $diff_pixels = 0;
-    my $max_diff = 0;
-    my $rowstride_a = $pix_a->get_rowstride;
-    my $rowstride_b = $pix_b->get_rowstride;
-    my $n_channels = $pix_a->get_n_channels;
-    my $pixels_a = $pix_a->get_pixels;
-    my $pixels_b = $pix_b->get_pixels;
 
     for my $y (0 .. $h - 1) {
-        for my $x (0 .. $w - 1) {
-            my $off_a = $y * $rowstride_a + $x * $n_channels;
-            my $off_b = $y * $rowstride_b + $x * $n_channels;
-            my $d = 0;
-            for my $c (0 .. $n_channels - 1) {
-                $d += abs(ord(substr($pixels_a, $off_a + $c, 1))
-                        - ord(substr($pixels_b, $off_b + $c, 1)));
-            }
-            if ($d > 0) {
-                $diff_pixels++;
-                $max_diff = $d if $d > $max_diff;
-            }
+        my @ch = unpack('C*', substr($$data, $y * $stride, $row_bytes));
+        for (my $i = 0; $i < @ch; $i += 4) {
+            $diff_pixels++ if $ch[$i] || $ch[$i+1] || $ch[$i+2];
         }
     }
 
-    my $diff_pct = $total > 0 ? $diff_pixels / $total : 0;
+    my $diff_pct = ($w * $h) > 0 ? $diff_pixels / ($w * $h) : 0;
     return { match => $diff_pct <= $threshold, diff_pct => $diff_pct,
-             pixels_diff => $diff_pixels, max_diff => $max_diff,
+             pixels_diff => $diff_pixels,
              md5_a => $md5_a, md5_b => $md5_b };
 }
 
@@ -712,7 +723,22 @@ for my $name (@test_names) {
             my $detail = join(', ', map {
                 sprintf("%s: %.2f%%", $_->{label}, ($_->{diff_pct} // 0) * 100)
             } @results);
-            print "OK ($detail)\n";
+            print "OK ($detail)";
+            if ($force_diff) {
+                for my $snap (@$out_labels) {
+                    my $file = $snap->{file};
+                    my $out_f = "$out_base/$file";
+                    my $gld_f = "$gld_base/$file";
+                    next unless -f $out_f && -s $out_f && -f $gld_f && -s $gld_f;
+                    _ensure_dir($dif_base);
+                    my $dp = "$dif_base/$file";
+                    $dp =~ s/\.png$/_diff.png/;
+                    generate_diff_image($gld_f, $out_f, $dp);
+                }
+                my $rel = $subdir ? "$subdir/" : '';
+                print "  diffs -> xt/visual/diffs/${rel}";
+            }
+            print "\n";
             $passed++;
         }
     } else {
@@ -752,7 +778,15 @@ for my $name (@test_names) {
             push @failures, { name => $name, diff_pct => $r->{diff_pct} };
         } else {
             my $d = sprintf("%.2f%%", ($r->{diff_pct} // 0) * 100);
-            print "OK ($d)\n";
+            print "OK ($d)";
+            if ($force_diff) {
+                _ensure_dir($dif_base);
+                my $df = $out_file; $df =~ s/\.png$/_diff.png/;
+                generate_diff_image($gld, $out, "$dif_base/$df");
+                my $rel = $subdir ? "$subdir/" : '';
+                print "  diff -> xt/visual/diffs/${rel}${df}";
+            }
+            print "\n";
             $passed++;
         }
     }
