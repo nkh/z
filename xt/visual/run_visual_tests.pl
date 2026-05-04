@@ -374,7 +374,7 @@ sub _generate_diff_ffmpeg {
 #
 # Pipeline (three commands):
 #   1. convert -compose difference  ->  |golden - current| (black=identical)
-#   2. convert -transparent black -fill magenta + tint  ->  magenta mask
+#   2. convert -threshold -1 -opaque magenta -transparent black  ->  magenta mask
 #   3. composite -compose over       ->  overlay onto current image
 
 sub _generate_diff_imagemagick {
@@ -394,11 +394,16 @@ sub _generate_diff_imagemagick {
         return;
     }
 
-    # Step 2: make black (identical) transparent, colorize rest to magenta
+    # Step 2: binarize diff, colorize non-black to solid magenta,
+    #         make black (identical) transparent.
+    #   -threshold -1:  any non-zero pixel -> white, zero stays black
+    #   -fill magenta -opaque black:  white -> magenta, black stays black
+    #   -transparent black:  black -> transparent
     my $mag_tmp = "$diff_path.tmp_mag.png";
     my @cmd2 = _im_cmd('convert', $diff_tmp,
+                        '-threshold', '-1',
+                        '-fill', 'magenta', '-opaque', 'black',
                         '-transparent', 'black',
-                        '-fill', 'magenta', '-tint', '100',
                         $mag_tmp);
     my $rc2 = system(@cmd2);
     if ($rc2 != 0) {
