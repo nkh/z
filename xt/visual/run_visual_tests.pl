@@ -373,19 +373,42 @@ sub _generate_diff_ffmpeg {
 # --- ImageMagick backend ---
 #
 # Pipeline (three commands):
-#   1. convert -compose difference  ->  |golden - current| (black=identical)
-#   2. convert -threshold -1 -opaque magenta -transparent black  ->  magenta mask
-#   3. composite -compose over       ->  overlay onto current image
+#   1. convert -compose difference -alpha off  ->  |golden - current|, opaque
+#   2. convert -colorspace Gray -threshold 0 -opaque white -transparent black
+#                                                ->  magenta mask
+#   3. composite -compose over  ->  overlay onto current image
+#
+# Pixel state trace after each step (for a differing pixel vs identical):
+#
+#   Step 1 output:  differing=(dR,dG,dB,255)  identical=(0,0,0,255)
+#     (-alpha off sets alpha to 255, making the image opaque)
+#
+#   Step 2 -colorspace Gray:
+#     differing=gray(~dR*0.299+dG*0.587+dB*0.114)>0  identical=gray(0)
+#
+#   Step 2 -threshold 0 (value > 0 becomes white, 0 stays black):
+#     differing=white(255)  identical=black(0)
+#
+#   Step 2 -fill magenta -opaque white:
+#     differing=magenta(255,0,255)  identical=black(0,0,0)
+#
+#   Step 2 -transparent black:
+#     differing=magenta(255,0,255,255)  identical=transparent(0,0,0,0)
 
 sub _generate_diff_imagemagick {
     my ($golden, $current, $diff_path) = @_;
 
     _ensure_dir(dirname($diff_path));
 
-    # Step 1: absolute difference |golden - current| per channel
+    # Step 1: absolute difference |golden - current| per channel.
+    # -alpha off: the difference composite sets alpha=0 everywhere
+    #   (|255-255|=0), which would make the entire image transparent.
+    #   -alpha off removes the alpha channel, treating all pixels as opaque.
     my $diff_tmp = "$diff_path.tmp_diff.png";
     my @cmd1 = _im_cmd('convert', $golden, $current,
-                        '-compose', 'difference', '-composite', $diff_tmp);
+                        '-compose', 'difference', '-composite',
+                        '-alpha', 'off',
+                        $diff_tmp);
     my $rc1 = system(@cmd1);
     if ($rc1 != 0) {
         warn "generate_diff_image (imagemagick): difference failed (exit "
@@ -394,14 +417,11 @@ sub _generate_diff_imagemagick {
         return;
     }
 
-    # Step 2: binarize diff, colorize non-black to solid magenta,
-    #         make black (identical) transparent.
-    #   -threshold -1:  any non-zero pixel -> white, zero stays black
-    #   -fill magenta -opaque white:  white (different) -> magenta, black stays black
-    #   -transparent black:  black (identical) -> transparent
+    # Step 2: binarize, colorize differing pixels to magenta, transparent elsewhere.
     my $mag_tmp = "$diff_path.tmp_mag.png";
     my @cmd2 = _im_cmd('convert', $diff_tmp,
-                        '-threshold', '-1',
+                        '-colorspace', 'Gray',
+                        '-threshold', '0',
                         '-fill', 'magenta', '-opaque', 'white',
                         '-transparent', 'black',
                         $mag_tmp);
