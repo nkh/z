@@ -277,11 +277,15 @@ sub _macro_subdir {
 # ==========================================================================
 # Image comparison and diff generation (Cairo/GdkPixbuf)
 #
-# The diff image shows the output image with the difference mask overlaid:
+# The diff image shows the current run output with differences highlighted:
 #   1. Compute |golden - output| via Cairo OPERATOR_DIFFERENCE (C-level).
 #      Identical pixels produce black (0,0,0), differing pixels non-zero.
-#   2. Set alpha=255 on non-black pixels so OVER treats black as transparent.
-#   3. Paint output image, then OVER the masked diff on top.
+#   2. Read both the diff surface and the current run pixbuf pixel data.
+#   3. Build output pixels: identical → current run pixel; differing →
+#      current run pixel + 2x diff color (amplified for visibility).
+#   4. Write as PPM temp file, load via GdkPixbuf, save as PNG.
+#      (PPM/PNG round-trip avoids create_for_data which is broken on this
+#       Cairo binding.)
 # ==========================================================================
 
 sub _pixbuf_to_surface {
@@ -310,7 +314,8 @@ sub generate_diff_image {
     my $surf_a = _pixbuf_to_surface($pix_a, $w, $h);
     my $surf_b = _pixbuf_to_surface($pix_b, $w, $h);
 
-    # Step 1: compute |golden - output| at C level.
+    # Step 1: compute |golden - output| at C level via Cairo difference.
+    # Identical pixels produce (0,0,0,0); differing pixels have non-zero RGB.
     my $diff = Cairo::ImageSurface->create('argb32', $w, $h);
     my $cr1  = Cairo::Context->create($diff);
     $cr1->set_operator('source');
@@ -320,37 +325,72 @@ sub generate_diff_image {
     $cr1->set_source_surface($surf_b, 0, 0);
     $cr1->paint;
 
-    # Step 2: make black pixels transparent in the diff mask.
-    # Cairo's difference sets A=0 for all pixels (|255-255|=0).
-    # Set A=255 where RGB is non-zero so OVER compositing shows only
-    # the differing pixels, with the output visible underneath elsewhere.
-    my $raw    = $diff->get_data;
-    my $rawstr = ref($raw) ? $$raw : $raw;
-    my $stride = $diff->get_stride;
-    my $row_bytes = $w * 4;
+    # Step 2: read pixel data from both surfaces (read-only -- works reliably).
+    # Cairo ARGB32 on little-endian: bytes B,G,R,A per pixel.
+    my $d_raw = $diff->get_data;
+    $d_raw = $$d_raw if ref($d_raw);
+    my $d_stride = $diff->get_stride;
+
+    my $c_raw    = $pix_b->get_pixels;
+    my $c_stride = $pix_b->get_rowstride;
+    my $c_nch    = $pix_b->get_n_channels;
+
+    # Step 3: build output image as PPM (binary P6), then convert to PNG.
+    # For each pixel: if the diff is black (identical), keep the current run
+    # pixel; if non-black (differs), amplify the diff color and blend with
+    # the current pixel so the difference is clearly visible.
+    my $ppm = "P6\n$w $h\n255\n";
 
     for my $y (0 .. $h - 1) {
-        my $row = substr($rawstr, $y * $stride, $row_bytes);
-        my @px  = unpack('V*', $row);
-        for (@px) { $_ |= 0xFF000000 if $_ & 0x00FFFFFF }
-        substr($rawstr, $y * $stride, $row_bytes) = pack('V*', @px);
+        my $d_row = substr($d_raw, $y * $d_stride, $w * 4);
+        my $c_row = substr($c_raw, $y * $c_stride, $w * $c_nch);
+
+        # Fast path: entire diff row is zeros -- no differences, copy as-is
+        if ($d_row eq "\0" x ($w * 4)) {
+            for my $x (0 .. $w - 1) {
+                my $ci = $x * $c_nch;
+                $ppm .= substr($c_row, $ci, 3);
+            }
+            next;
+        }
+
+        # Slow path: per-pixel diff check
+        for my $x (0 .. $w - 1) {
+            my $di = $x * 4;      # diff pixel offset (BGRA)
+            my $ci = $x * $c_nch; # current run pixel offset
+
+            my $dR = ord(substr($d_row, $di + 2, 1));
+            my $dg = ord(substr($d_row, $di + 1, 1));
+            my $db = ord(substr($d_row, $di,     1));
+
+            my $cR = ord(substr($c_row, $ci,     1));
+            my $cg = ord(substr($c_row, $ci + 1, 1));
+            my $cb = ord(substr($c_row, $ci + 2, 1));
+
+            if ($dR | $dg | $db) {
+                # Pixel differs: amplify diff color and overlay on current.
+                my $r = $cR + $dR * 2;  $r = 255 if $r > 255;
+                my $g = $cg + $dg * 2;  $g = 255 if $g > 255;
+                my $b = $cb + $db * 2;  $b = 255 if $b > 255;
+                $ppm .= pack('CCC', $r, $g, $b);
+            } else {
+                $ppm .= pack('CCC', $cR, $cg, $cb);
+            }
+        }
     }
 
-    my $mask = Cairo::ImageSurface->create_for_data(
-        \$rawstr, 'argb32', $w, $h, $stride
-    );
+    # Step 4: write PPM temp file, load as pixbuf, save as PNG.
+    my $tmp = "$diff_path.tmp.ppm";
+    open my $fh, '>:raw', $tmp or do { warn "Cannot write $tmp: $!"; return };
+    print $fh $ppm;
+    close $fh;
 
-    # Step 3: paint output image, then overlay the masked diff.
-    my $out = Cairo::ImageSurface->create('argb32', $w, $h);
-    my $cr2 = Cairo::Context->create($out);
-    $cr2->set_operator('source');
-    $cr2->set_source_surface($surf_b, 0, 0);
-    $cr2->paint;
-    $cr2->set_operator('over');
-    $cr2->set_source_surface($mask, 0, 0);
-    $cr2->paint;
+    my $out_pb = Gtk3::Gdk::Pixbuf->new_from_file($tmp);
+    unlink $tmp;
 
-    $out->write_to_png($diff_path);
+    if ($out_pb) {
+        $out_pb->save($diff_path, 'png');
+    }
 }
 
 sub _file_md5 {
