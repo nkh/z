@@ -276,14 +276,23 @@ sub _macro_subdir {
 
 # ==========================================================================
 # Image comparison and diff generation (Cairo/GdkPixbuf)
+#
+# All pixel operations use Cairo compositing operators (difference, add,
+# multiply, screen) which run at C speed.  No Perl pixel loops.
 # ==========================================================================
 
-sub _raw_data {
-    # Cairo::ImageSurface->get_data may return a scalar ref or a plain
-    # string depending on the binding version.  This helper returns
-    # something we can read from via substr()/ord()/unpack().
-    my $d = shift;
-    return ref($d) ? $$d : $d;
+sub _pixbuf_to_surface {
+    # Convert a GdkPixbuf to a Cairo ARGB32 surface.
+    # Uses the proven Gtk3::Gdk::cairo_set_source_pixbuf helper.
+    my ($pb, $W, $H) = @_;
+    my $surf = Cairo::ImageSurface->create('argb32', $W, $H);
+    my $cr   = Cairo::Context->create($surf);
+    $cr->set_operator('source');
+    $cr->set_source_rgb(0, 0, 0);
+    $cr->paint;
+    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pb, 0, 0);
+    $cr->paint;
+    return $surf;
 }
 
 sub generate_diff_image {
@@ -296,57 +305,39 @@ sub generate_diff_image {
     my $h = $pix_a->get_height;
     return if $w != $pix_b->get_width || $h != $pix_b->get_height;
 
-    # Read pixel data from both images (get_pixels returns a string,
-    # fine for reading).
-    my $data_a = $pix_a->get_pixels;
-    my $data_b = $pix_b->get_pixels;
-    my $stride = $pix_a->get_rowstride;
-    my $n_ch   = $pix_a->get_n_channels;
+    # Convert both images to Cairo surfaces
+    my $surf_a = _pixbuf_to_surface($pix_a, $w, $h);
+    my $surf_b = _pixbuf_to_surface($pix_b, $w, $h);
 
-    # Build output pixel data in a plain Perl string.
-    # We cannot rely on get_data returning a writable reference to the
-    # surface buffer (some binding versions return a copy).  Instead we
-    # construct the buffer ourselves and create the surface from it.
-    my $out_stride = $w * 4;    # ARGB32, tightly packed
-    my $buf = "\0" x ($out_stride * $h);
+    # Build diff entirely using Cairo compositing operators (C-level).
+    my $out = Cairo::ImageSurface->create('argb32', $w, $h);
+    my $cr  = Cairo::Context->create($out);
 
-    my $blend = 0.6;
-    my $inv   = 1 - $blend;
-    my $mr    = int(255 * $blend);
+    # Base: paint golden image
+    $cr->set_operator('source');
+    $cr->set_source_surface($surf_a, 0, 0);
+    $cr->paint;
 
-    for my $y (0 .. $h - 1) {
-        for my $x (0 .. $w - 1) {
-            my $a_off = $y * $stride + $x * $n_ch;
-            my $o_off = $y * $out_stride + $x * 4;
+    # Pixel-by-pixel absolute difference (C-level)
+    $cr->set_operator('difference');
+    $cr->set_source_surface($surf_b, 0, 0);
+    $cr->paint;
 
-            my $r_a = ord(substr($data_a, $a_off));
-            my $g_a = ord(substr($data_a, $a_off + 1));
-            my $b_a = ord(substr($data_a, $a_off + 2));
-            my $r_b = ord(substr($data_b, $a_off));
-            my $g_b = ord(substr($data_b, $a_off + 1));
-            my $b_b = ord(substr($data_b, $a_off + 2));
+    # Amplify small differences so they become visible
+    $cr->set_operator('add');
+    for (1 .. 3) { $cr->paint_with_alpha(0.7) }
 
-            if (abs($r_a - $r_b) || abs($g_a - $g_b) || abs($b_a - $b_b)) {
-                # Pixel differs: blend golden with magenta
-                substr($buf, $o_off)     = chr(int($r_a * $inv + $mr));
-                substr($buf, $o_off + 1) = chr(int($g_a * $inv));
-                substr($buf, $o_off + 2) = chr(int($b_a * $inv + $mr));
-                substr($buf, $o_off + 3) = chr(255);
-            } else {
-                # Identical: copy golden pixel
-                substr($buf, $o_off)     = chr($r_a);
-                substr($buf, $o_off + 1) = chr($g_a);
-                substr($buf, $o_off + 2) = chr($b_a);
-                substr($buf, $o_off + 3) = chr(255);
-            }
-        }
-    }
+    # Colorize differences as magenta
+    $cr->set_operator('multiply');
+    $cr->set_source_rgba(1, 0, 1, 1);
+    $cr->paint;
 
-    # Create surface from our pre-built pixel buffer and save
-    my $surf = Cairo::ImageSurface->create_for_data(
-        \$buf, 'argb32', $w, $h, $out_stride
-    );
-    $surf->write_to_png($diff_path);
+    # Boost contrast for better visibility
+    $cr->set_operator('screen');
+    $cr->set_source_rgba(1, 1, 1, 0.3);
+    $cr->paint;
+
+    $out->write_to_png($diff_path);
 }
 
 sub _file_md5 {
@@ -375,7 +366,8 @@ sub compare_images {
         return { match => 0, md5_a => $md5_a, md5_b => $md5_b };
     }
 
-    # Non-zero threshold: compute exact diff percentage via Cairo + pixel scan.
+    # Non-zero threshold: use Cairo difference operator (C-level),
+    # then scan the result for non-zero pixels.
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
     my $pix_b = Gtk3::Gdk::Pixbuf->new_from_file($file_b);
     unless ($pix_a && $pix_b) {
@@ -390,25 +382,40 @@ sub compare_images {
                  md5_a => $md5_a, md5_b => $md5_b };
     }
 
+    # Convert to Cairo surfaces and compute difference at C level
+    my $surf_a = _pixbuf_to_surface($pix_a, $w, $h);
+    my $surf_b = _pixbuf_to_surface($pix_b, $w, $h);
+
     my $diff_surface = Cairo::ImageSurface->create('argb32', $w, $h);
     my $cr = Cairo::Context->create($diff_surface);
-    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pix_a, 0, 0);
+    $cr->set_operator('source');
+    $cr->set_source_surface($surf_a, 0, 0);
     $cr->paint;
     $cr->set_operator('difference');
-    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pix_b, 0, 0);
+    $cr->set_source_surface($surf_b, 0, 0);
     $cr->paint;
     undef $cr;
 
-    my $data   = _raw_data($diff_surface->get_data);
-    my $stride = $diff_surface->get_stride;
+    # Quick reject: if the diff surface is all zeros, images are identical
+    # (can happen when MD5s differ due to PNG metadata but pixels match).
+    # Check with a single memcmp-like approach: read the raw data and
+    # search for any non-zero byte.
+    my $data = $diff_surface->get_data;
+    my $raw  = ref($data) ? $$data : $data;
+    if ($raw eq "\0" x length($raw)) {
+        return { match => 1, diff_pct => 0,
+                 md5_a => $md5_a, md5_b => $md5_b };
+    }
+
+    # Count differing pixels via unpack (still Perl but only reached
+    # when --threshold is explicitly set to a non-zero value).
+    my $stride    = $diff_surface->get_stride;
     my $row_bytes = $w * 4;
     my $diff_pixels = 0;
 
     for my $y (0 .. $h - 1) {
-        my @ch = unpack('C*', substr($data, $y * $stride, $row_bytes));
-        for (my $i = 0; $i < @ch; $i += 4) {
-            $diff_pixels++ if $ch[$i] || $ch[$i+1] || $ch[$i+2];
-        }
+        my $row = substr($raw, $y * $stride, $row_bytes);
+        $diff_pixels += ($row =~ tr/\0//c) / 4;
     }
 
     my $diff_pct = ($w * $h) > 0 ? $diff_pixels / ($w * $h) : 0;
