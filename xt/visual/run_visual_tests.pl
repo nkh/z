@@ -78,7 +78,7 @@
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings + comparison diagnostics
 #   --force-diff         Generate diff images even for passing tests
-#   --diff-engine TOOL   Diff image engine: ffmpeg (default) or imagemagick
+#   --diff-engine TOOL   Diff image engine: ffmpeg (default), imagemagick, or cairo
 #   --debug              Pass --debug to source-editor
 #   --size WxH           Window size (default: let window manager decide)
 #
@@ -127,7 +127,7 @@ OPTIONS:
     --snapshot-delay MS  Delay before macro runs (default: 500)
     --verbose, -v        Show GTK warnings and comparison diagnostics
     --force-diff         Generate diff images even for passing tests
-    --diff-engine TOOL   Diff image engine: ffmpeg (default) or imagemagick
+    --diff-engine TOOL   Diff image engine: ffmpeg (default), imagemagick, or cairo
     --debug              Pass --debug to source-editor
     --size WxH           Window size (default: let window manager decide)
     --help, -h           Show this help message
@@ -182,8 +182,8 @@ GetOptions(
     'diff-engine=s'   => \$diff_engine,
 ) or die "Run '$0 --help' for usage information.\n";
 
-unless ($diff_engine =~ /^ffmpeg|imagemagick$/) {
-    die "--diff-engine must be 'ffmpeg' or 'imagemagick', got '$diff_engine'\n";
+unless ($diff_engine =~ /^ffmpeg|imagemagick|cairo$/) {
+    die "--diff-engine must be 'ffmpeg', 'imagemagick', or 'cairo', got '$diff_engine'\n";
 }
 
 if ($diff_engine eq 'imagemagick') {
@@ -294,12 +294,13 @@ sub _macro_subdir {
 # Diff image generation
 #
 # Produces a diff image showing the current run output with differences
-# highlighted in magenta.  Two backends are available:
+# highlighted in magenta.  Three backends are available:
 #
 #   ffmpeg (default):  single command with filter_complex
 #   imagemagick:       convert + composite (auto-detects IM6 vs IM7 CLI)
+#   cairo:             pure-Perl + Cairo C-level compositing (no external tools)
 #
-# Selected via --diff-engine ffmpeg|imagemagick.
+# Selected via --diff-engine ffmpeg|imagemagick|cairo.
 # ==========================================================================
 
 # Auto-detect ImageMagick command prefix.
@@ -329,6 +330,9 @@ sub generate_diff_image {
 
     if ($diff_engine eq 'imagemagick') {
         _generate_diff_imagemagick($golden, $current, $diff_path);
+    }
+    elsif ($diff_engine eq 'cairo') {
+        _generate_diff_cairo($golden, $current, $diff_path);
     }
     else {
         _generate_diff_ffmpeg($golden, $current, $diff_path);
@@ -445,6 +449,158 @@ sub _generate_diff_imagemagick {
 
     unlink $diff_tmp;
     unlink $mag_tmp;
+}
+
+# --- Cairo backend ---
+#
+# Pure-Perl + Cairo C-level compositing.  No external tools required.
+#
+# Pipeline:
+#   1. Load both PNGs via GdkPixbuf -> Cairo ARGB32 surface
+#      (_pixbuf_to_surface handles format conversion and premultiplication)
+#   2. Compute per-pixel absolute difference at C level using Cairo's
+#      'difference' compositing operator.  For two fully-opaque surfaces:
+#        output_alpha = 1.0 + 1.0 - 1.0*1.0 = 1.0  (still opaque)
+#        output_RGB   = |golden_RGB - current_RGB|   (absolute difference)
+#        identical pixels -> (0, 0, 0, 255)
+#        different pixels -> (dB, dG, dR, 255) with at least one non-zero
+#   3. Read raw pixel data from both the diff surface and the current surface.
+#      Cairo ARGB32 on little-endian: bytes are B, G, R, A per pixel.
+#      Values are premultiplied by alpha, but since both surfaces are fully
+#      opaque (alpha=255), premultiplication is a no-op: stored_R == true_R.
+#   4. Build a PPM (P6 binary) image in memory:
+#        diff pixels  -> magenta (255, 0, 255) in PPM's RGB order
+#        same pixels  -> copy RGB from the current image
+#      PPM is chosen because it is a trivial format with no alpha complexity,
+#      and the PPM -> GdkPixbuf -> PNG pipeline is proven reliable.
+#   5. Write PPM to a temp file, load via GdkPixbuf, save as PNG.
+#
+# Pixel format reference (Cairo ARGB32, little-endian, premultiplied):
+#   Byte offset 0: Blue   (B * A / 255)
+#   Byte offset 1: Green  (G * A / 255)
+#   Byte offset 2: Red    (R * A / 255)
+#   Byte offset 3: Alpha  (A)
+#   Stride (bytes per row) >= width * 4; may include padding for alignment.
+
+sub _generate_diff_cairo {
+    my ($golden_path, $current_path, $diff_path) = @_;
+
+    _ensure_dir(dirname($diff_path));
+
+    # --- Step 1: Load both PNGs as Cairo surfaces ---
+    # _pixbuf_to_surface creates a consistent ARGB32 surface regardless
+    # of the source Pixbuf's format (RGB/RGBA).  This guarantees both
+    # surfaces have the same pixel layout for the difference operator.
+    my $pix_golden  = Gtk3::Gdk::Pixbuf->new_from_file($golden_path);
+    my $pix_current = Gtk3::Gdk::Pixbuf->new_from_file($current_path);
+    unless ($pix_golden && $pix_current) {
+        warn "generate_diff_image (cairo): cannot load images\n";
+        return;
+    }
+
+    my $wg = $pix_golden->get_width;
+    my $hg = $pix_golden->get_height;
+    my $wc = $pix_current->get_width;
+    my $hc = $pix_current->get_height;
+
+    if ($wg != $wc || $hg != $hc) {
+        warn "generate_diff_image (cairo): size mismatch "
+           . "(${wg}x${hg} vs ${wc}x${hc}), skipping\n";
+        return;
+    }
+
+    my $w = $wg;
+    my $h = $hg;
+
+    my $surf_golden  = _pixbuf_to_surface($pix_golden,  $w, $h);
+    my $surf_current = _pixbuf_to_surface($pix_current, $w, $h);
+
+    # --- Step 2: Compute absolute difference at C level ---
+    my $surf_diff = Cairo::ImageSurface->create('argb32', $w, $h);
+    my $cr = Cairo::Context->create($surf_diff);
+    $cr->set_operator('source');
+    $cr->set_source_surface($surf_golden, 0, 0);
+    $cr->paint;
+    $cr->set_operator('difference');
+    $cr->set_source_surface($surf_current, 0, 0);
+    $cr->paint;
+    undef $cr;    # destroy context -> implicit flush, ensuring pixel data is ready
+
+    # --- Step 3: Read raw pixel data ---
+    # get_data() may return a plain scalar (copy) or a scalar ref (direct
+    # pointer to Cairo's buffer), depending on binding version.  Handle both.
+    my $diff_ref = $surf_diff->get_data;
+    my $diff_raw = ref($diff_ref) ? $$diff_ref : $diff_ref;
+    my $diff_stride = $surf_diff->get_stride;
+
+    my $cur_ref = $surf_current->get_data;
+    my $cur_raw = ref($cur_ref) ? $$cur_ref : $cur_ref;
+    my $cur_stride = $surf_current->get_stride;
+
+    # --- Step 4: Build PPM pixel data in memory ---
+    # For each pixel in the diff surface:
+    #   - Check bytes 0..2 (B, G, R) for any non-zero value.
+    #     Since both inputs are fully opaque, the difference operator
+    #     produces fully opaque output (alpha=255), and the premultiplied
+    #     RGB values equal the true absolute difference.
+    #   - If any of B, G, R > 0: pixel differs -> output magenta (255,0,255)
+    #   - If all of B, G, R == 0: pixel identical -> copy from current image
+    #
+    # We unpack each row into arrays of bytes for fast indexed access,
+    # then build the PPM row using pack.  PPM P6 stores RGB triplets
+    # (no alpha), matching our opaque output perfectly.
+    #
+    # Performance note: for a 960x1080 image this loop processes ~1M pixels.
+    # The unpack-per-row approach avoids repeated substr() calls and keeps
+    # the inner loop tight.  Visual tests are not latency-critical.
+
+    my $row_bytes = $w * 4;
+    my $ppm_pixels = '';
+
+    for my $y (0 .. $h - 1) {
+        my $d_off = $y * $diff_stride;
+        my $c_off = $y * $cur_stride;
+        my @d = unpack('C*', substr($diff_raw, $d_off, $row_bytes));
+        my @c = unpack('C*', substr($cur_raw,  $c_off, $row_bytes));
+
+        my $row_buf = '';
+        for my $x (0 .. $w - 1) {
+            my $i = $x << 2;    # $x * 4, bit-shift for clarity
+            # Bytes: [0]=B, [1]=G, [2]=R, [3]=A
+            if ($d[$i] || $d[$i + 1] || $d[$i + 2]) {
+                # Pixel differs: magenta in PPM RGB order (R=255, G=0, B=255)
+                $row_buf .= "\xFF\x00\xFF";
+            }
+            else {
+                # Pixel identical: copy R, G, B from current image
+                # Current bytes: [0]=B, [1]=G, [2]=R -> PPM order: R, G, B
+                $row_buf .= pack('C3',
+                    $c[$i + 2],   # R
+                    $c[$i + 1],   # G
+                    $c[$i],       # B
+                );
+            }
+        }
+        $ppm_pixels .= $row_buf;
+    }
+
+    # --- Step 5: Write PPM, convert to PNG via GdkPixbuf ---
+    my $tmp_ppm = "$diff_path._tmp.ppm";
+    open my $fh, '>:raw', $tmp_ppm or do {
+        warn "generate_diff_image (cairo): cannot write $tmp_ppm: $!\n";
+        return;
+    };
+    print $fh "P6\n${w} ${h}\n255\n", $ppm_pixels;
+    close $fh;
+
+    my $pix_out = Gtk3::Gdk::Pixbuf->new_from_file($tmp_ppm);
+    unlink $tmp_ppm;
+    unless ($pix_out) {
+        warn "generate_diff_image (cairo): PPM -> Pixbuf conversion failed\n";
+        return;
+    }
+
+    $pix_out->save($diff_path, 'png');
 }
 
 sub _file_md5 {
