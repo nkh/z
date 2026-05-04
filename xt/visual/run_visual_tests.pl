@@ -105,6 +105,51 @@ use Cairo;
 use Gtk3 '-init';
 use Gtk3::SourceEditor::Macro;
 
+# --- Help / usage ---
+sub usage {
+    print <<'USAGE';
+run_visual_tests.pl - Visual regression test runner for Gtk3::SourceEditor
+
+USAGE:
+    perl xt/visual/run_visual_tests.pl [options] <dir_or_file> [dir_or_file ...]
+
+MODES:
+    --init               Create (or overwrite) all golden images
+    --init-missing       Create golden images only for tests missing them
+    --accept             Alias for --init
+    --test               Compare against golden (default)
+    --list               List test names (no paths required)
+
+OPTIONS:
+    --target NAME        Run only the named test
+    --threshold N        Max diff ratio 0.0-1.0 (default: 0)
+    --snapshot-delay MS  Delay before macro runs (default: 500)
+    --verbose, -v        Show GTK warnings and comparison diagnostics
+    --force-diff         Generate diff images even for passing tests
+    --debug              Pass --debug to source-editor
+    --size WxH           Window size (default: let window manager decide)
+    --help, -h           Show this help message
+
+ARGUMENTS:
+    One or more paths.  Each path is either a directory (all macro files
+    in it and its subdirectories are loaded recursively) or a single macro
+    file.  At least one path is required unless --list is used.
+
+EXAMPLES:
+    perl xt/visual/run_visual_tests.pl --init xt/visual/macros
+    perl xt/visual/run_visual_tests.pl --target visual_dark_theme xt/visual/macros
+    perl xt/visual/run_visual_tests.pl --init xt/visual/macros/themes/visual_dark_theme
+    perl xt/visual/run_visual_tests.pl --list xt/visual/macros
+    perl xt/visual/run_visual_tests.pl --verbose --force-diff xt/visual/macros
+
+EXIT CODE:
+    0  all tests passed
+    1  one or more tests failed
+    2  interrupted by SIGINT
+USAGE
+    exit 0;
+}
+
 # --- Parse options ---
 my $mode          = 'test';
 my $target        = '';
@@ -117,6 +162,7 @@ my $size          = undef;
 my $child_pid;    # set by run_child, used by SIGINT handler
 
 GetOptions(
+    'help|h'         => sub { usage() },
     'init'            => sub { $mode = 'init' },
     'init-missing'    => sub { $mode = 'init-missing' },
     'accept'          => sub { $mode = 'init' },
@@ -129,14 +175,13 @@ GetOptions(
     'force-diff'      => \$force_diff,
     'debug'           => \$debug,
     'size=s'          => \$size,
-) or die "Usage: $0 [options] <dir_or_file> [dir_or_file ...]\n";
+) or die "Run '$0 --help' for usage information.\n";
 
 # --- Remaining arguments: macro directories and/or individual files ---
 my @paths = @ARGV;
 
 unless (@paths) {
-    die "Usage: $0 [options] <dir_or_file> [dir_or_file ...]\n"
-      . "  Provide at least one directory or macro file to load.\n";
+    die "Run '$0 --help' for usage information.\n";
 }
 
 # --- Directories ---
