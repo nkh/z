@@ -78,7 +78,7 @@
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings + comparison diagnostics
 #   --force-diff         Generate diff images even for passing tests
-#   --diff-engine TOOL   Diff image engine: ffmpeg (default), imagemagick, or cairo
+#   --diff-engine TOOL   Diff image engine: cairo (default), ffmpeg, or imagemagick
 #   --debug              Pass --debug to source-editor
 #   --size WxH           Window size (default: let window manager decide)
 #
@@ -127,7 +127,7 @@ OPTIONS:
     --snapshot-delay MS  Delay before macro runs (default: 500)
     --verbose, -v        Show GTK warnings and comparison diagnostics
     --force-diff         Generate diff images even for passing tests
-    --diff-engine TOOL   Diff image engine: ffmpeg (default), imagemagick, or cairo
+    --diff-engine TOOL   Diff image engine: cairo (default), ffmpeg, or imagemagick
     --debug              Pass --debug to source-editor
     --size WxH           Window size (default: let window manager decide)
     --help, -h           Show this help message
@@ -161,7 +161,7 @@ my $verbose       = 0;
 my $force_diff    = 0;
 my $debug         = 0;
 my $size          = undef;
-my $diff_engine   = 'ffmpeg';
+my $diff_engine   = 'cairo';
 my $_im_prefix    = '';   # ImageMagick command prefix (auto-detected)
 my $child_pid;    # set by run_child, used by SIGINT handler
 
@@ -186,6 +186,11 @@ unless ($diff_engine =~ /^ffmpeg|imagemagick|cairo$/) {
     die "--diff-engine must be 'ffmpeg', 'imagemagick', or 'cairo', got '$diff_engine'\n";
 }
 
+if ($diff_engine eq 'ffmpeg') {
+    _detect_ffmpeg()
+        or die "--diff-engine ffmpeg: ffmpeg not found on PATH\n";
+    print "diff engine: ffmpeg\n";
+}
 if ($diff_engine eq 'imagemagick') {
     _detect_imagemagick()
         or die "--diff-engine imagemagick: ImageMagick not found "
@@ -296,9 +301,9 @@ sub _macro_subdir {
 # Produces a diff image showing the current run output with differences
 # highlighted in magenta.  Three backends are available:
 #
-#   ffmpeg (default):  single command with filter_complex
+#   cairo (default):    pure-Perl + Cairo C-level compositing (no external tools)
+#   ffmpeg:             single command with filter_complex
 #   imagemagick:       convert + composite (auto-detects IM6 vs IM7 CLI)
-#   cairo:             pure-Perl + Cairo C-level compositing (no external tools)
 #
 # Selected via --diff-engine ffmpeg|imagemagick|cairo.
 # ==========================================================================
@@ -309,6 +314,10 @@ sub _macro_subdir {
 # $_im_prefix is declared in the option-parsing section above.
 
 sub _im_cmd { $_im_prefix ? ($_im_prefix, @_) : @_ }
+
+sub _detect_ffmpeg {
+    return system('ffmpeg', '-version') == 0;
+}
 
 sub _detect_imagemagick {
     return 1 if $_im_prefix ne '';    # already detected
