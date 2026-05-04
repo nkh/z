@@ -9,7 +9,7 @@ Macro: `xt/visual/macros/visual_mode/visual_empty_buffer`
 END_DESC
     run => sub {
         my ($ctx) = @_;
-        $ctx->buffer->set_text($CODE);
+        $ctx->buffer->set_text(q{});
         $ctx->delay(100);
         $ctx->snapshot();
     },
