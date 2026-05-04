@@ -277,13 +277,11 @@ sub _macro_subdir {
 # ==========================================================================
 # Image comparison and diff generation (Cairo/GdkPixbuf)
 #
-# The diff image shows the golden image with differences highlighted:
+# The diff image shows the output image with the difference mask overlaid:
 #   1. Compute |golden - output| via Cairo OPERATOR_DIFFERENCE (C-level).
-#      Identical pixels produce black (0,0,0).
-#   2. Screen the difference map onto the golden image.
-#      screen(black, X) = X  -- so identical pixels show the golden
-#      screen(golden, diff) > golden  -- differing pixels are brightened.
-# All pixel operations at C level.  No Perl pixel loops.
+#      Identical pixels produce black (0,0,0), differing pixels non-zero.
+#   2. Set alpha=255 on non-black pixels so OVER treats black as transparent.
+#   3. Paint output image, then OVER the masked diff on top.
 # ==========================================================================
 
 sub _pixbuf_to_surface {
@@ -312,8 +310,7 @@ sub generate_diff_image {
     my $surf_a = _pixbuf_to_surface($pix_a, $w, $h);
     my $surf_b = _pixbuf_to_surface($pix_b, $w, $h);
 
-    # Step 1: compute |golden - output| (C-level).
-    # Identical pixels → black, differing pixels → non-zero RGB.
+    # Step 1: compute |golden - output| at C level.
     my $diff = Cairo::ImageSurface->create('argb32', $w, $h);
     my $cr1  = Cairo::Context->create($diff);
     $cr1->set_operator('source');
@@ -323,17 +320,34 @@ sub generate_diff_image {
     $cr1->set_source_surface($surf_b, 0, 0);
     $cr1->paint;
 
-    # Step 2: paint output image, then screen the diff on top.
-    # screen(dst, src) = 1 - (1-dst)(1-src)
-    # screen(black, X) = X           → identical pixels show the output
-    # screen(output, D) > output     → differing pixels are brightened
+    # Step 2: make black pixels transparent in the diff mask.
+    # Cairo's difference sets A=0 for all pixels (|255-255|=0).
+    # Set A=255 where RGB is non-zero so OVER compositing shows only
+    # the differing pixels, with the output visible underneath elsewhere.
+    my $raw    = $diff->get_data;
+    my $rawstr = ref($raw) ? $$raw : $raw;
+    my $stride = $diff->get_stride;
+    my $row_bytes = $w * 4;
+
+    for my $y (0 .. $h - 1) {
+        my $row = substr($rawstr, $y * $stride, $row_bytes);
+        my @px  = unpack('V*', $row);
+        for (@px) { $_ |= 0xFF000000 if $_ & 0x00FFFFFF }
+        substr($rawstr, $y * $stride, $row_bytes) = pack('V*', @px);
+    }
+
+    my $mask = Cairo::ImageSurface->create_for_data(
+        \$rawstr, 'argb32', $w, $h, $stride
+    );
+
+    # Step 3: paint output image, then overlay the masked diff.
     my $out = Cairo::ImageSurface->create('argb32', $w, $h);
     my $cr2 = Cairo::Context->create($out);
     $cr2->set_operator('source');
     $cr2->set_source_surface($surf_b, 0, 0);
     $cr2->paint;
-    $cr2->set_operator('screen');
-    $cr2->set_source_surface($diff, 0, 0);
+    $cr2->set_operator('over');
+    $cr2->set_source_surface($mask, 0, 0);
     $cr2->paint;
 
     $out->write_to_png($diff_path);
