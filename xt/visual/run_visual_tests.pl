@@ -286,16 +286,6 @@ sub _raw_data {
     return ref($d) ? $$d : $d;
 }
 
-sub _writable_data {
-    # Cairo::ImageSurface->get_data returns a reference to the actual
-    # pixel buffer (or a plain string that IS the buffer).  Unlike
-    # GdkPixbuf->get_pixels (which returns a copy), modifying this data
-    # affects the surface.  Returns a scalar ref so callers can do
-    # substr($$ref, ...) to write in-place.
-    my $d = shift;
-    return ref($d) ? $d : \$d;
-}
-
 sub generate_diff_image {
     my ($file_a, $file_b, $diff_path) = @_;
     my $pix_a = Gtk3::Gdk::Pixbuf->new_from_file($file_a);
@@ -306,18 +296,19 @@ sub generate_diff_image {
     my $h = $pix_a->get_height;
     return if $w != $pix_b->get_width || $h != $pix_b->get_height;
 
-    # Read pixel data from both images (get_pixels is safe for reading)
-    my $data_a   = $pix_a->get_pixels;
-    my $data_b   = $pix_b->get_pixels;
-    my $stride_a = $pix_a->get_rowstride;
-    my $stride_b = $pix_b->get_rowstride;
-    my $n_ch     = $pix_a->get_n_channels;
+    # Read pixel data from both images (get_pixels returns a string,
+    # fine for reading).
+    my $data_a = $pix_a->get_pixels;
+    my $data_b = $pix_b->get_pixels;
+    my $stride = $pix_a->get_rowstride;
+    my $n_ch   = $pix_a->get_n_channels;
 
-    # Write output to a Cairo surface (get_data returns the actual buffer,
-    # unlike GdkPixbuf->get_pixels which returns a copy).
-    my $out      = Cairo::ImageSurface->create('argb32', $w, $h);
-    my $out_ref  = _writable_data($out->get_data);
-    my $out_stride = $out->get_stride;
+    # Build output pixel data in a plain Perl string.
+    # We cannot rely on get_data returning a writable reference to the
+    # surface buffer (some binding versions return a copy).  Instead we
+    # construct the buffer ourselves and create the surface from it.
+    my $out_stride = $w * 4;    # ARGB32, tightly packed
+    my $buf = "\0" x ($out_stride * $h);
 
     my $blend = 0.6;
     my $inv   = 1 - $blend;
@@ -325,35 +316,37 @@ sub generate_diff_image {
 
     for my $y (0 .. $h - 1) {
         for my $x (0 .. $w - 1) {
-            my $a_off = $y * $stride_a + $x * $n_ch;
-            my $b_off = $y * $stride_b + $x * $n_ch;
+            my $a_off = $y * $stride + $x * $n_ch;
             my $o_off = $y * $out_stride + $x * 4;
 
-            my $r_a = ord(substr($data_a, $a_off,     1));
-            my $g_a = ord(substr($data_a, $a_off + 1, 1));
-            my $b_a = ord(substr($data_a, $a_off + 2, 1));
-            my $r_b = ord(substr($data_b, $b_off,     1));
-            my $g_b = ord(substr($data_b, $b_off + 1, 1));
-            my $b_b = ord(substr($data_b, $b_off + 2, 1));
+            my $r_a = ord(substr($data_a, $a_off));
+            my $g_a = ord(substr($data_a, $a_off + 1));
+            my $b_a = ord(substr($data_a, $a_off + 2));
+            my $r_b = ord(substr($data_b, $a_off));
+            my $g_b = ord(substr($data_b, $a_off + 1));
+            my $b_b = ord(substr($data_b, $a_off + 2));
 
             if (abs($r_a - $r_b) || abs($g_a - $g_b) || abs($b_a - $b_b)) {
                 # Pixel differs: blend golden with magenta
-                substr($$out_ref, $o_off,     1) = chr(int($r_a * $inv + $mr));
-                substr($$out_ref, $o_off + 1, 1) = chr(int($g_a * $inv));
-                substr($$out_ref, $o_off + 2, 1) = chr(int($b_a * $inv + $mr));
-                substr($$out_ref, $o_off + 3, 1) = chr(255);
+                substr($buf, $o_off)     = chr(int($r_a * $inv + $mr));
+                substr($buf, $o_off + 1) = chr(int($g_a * $inv));
+                substr($buf, $o_off + 2) = chr(int($b_a * $inv + $mr));
+                substr($buf, $o_off + 3) = chr(255);
             } else {
                 # Identical: copy golden pixel
-                substr($$out_ref, $o_off,     1) = chr($r_a);
-                substr($$out_ref, $o_off + 1, 1) = chr($g_a);
-                substr($$out_ref, $o_off + 2, 1) = chr($b_a);
-                substr($$out_ref, $o_off + 3, 1) = chr(255);
+                substr($buf, $o_off)     = chr($r_a);
+                substr($buf, $o_off + 1) = chr($g_a);
+                substr($buf, $o_off + 2) = chr($b_a);
+                substr($buf, $o_off + 3) = chr(255);
             }
         }
     }
 
-    $out->mark_dirty();
-    $out->write_to_png($diff_path);
+    # Create surface from our pre-built pixel buffer and save
+    my $surf = Cairo::ImageSurface->create_for_data(
+        \$buf, 'argb32', $w, $h, $out_stride
+    );
+    $surf->write_to_png($diff_path);
 }
 
 sub _file_md5 {
