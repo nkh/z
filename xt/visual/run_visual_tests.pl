@@ -397,12 +397,12 @@ sub _generate_diff_imagemagick {
     # Step 2: binarize diff, colorize non-black to solid magenta,
     #         make black (identical) transparent.
     #   -threshold -1:  any non-zero pixel -> white, zero stays black
-    #   -fill magenta -opaque black:  white -> magenta, black stays black
-    #   -transparent black:  black -> transparent
+    #   -fill magenta -opaque white:  white (different) -> magenta, black stays black
+    #   -transparent black:  black (identical) -> transparent
     my $mag_tmp = "$diff_path.tmp_mag.png";
     my @cmd2 = _im_cmd('convert', $diff_tmp,
                         '-threshold', '-1',
-                        '-fill', 'magenta', '-opaque', 'black',
+                        '-fill', 'magenta', '-opaque', 'white',
                         '-transparent', 'black',
                         $mag_tmp);
     my $rc2 = system(@cmd2);
