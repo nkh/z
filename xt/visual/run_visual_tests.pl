@@ -280,11 +280,20 @@ sub _macro_subdir {
 
 sub _raw_data {
     # Cairo::ImageSurface->get_data may return a scalar ref or a plain
-    # string depending on the binding version.  GdkPixbuf->get_pixels
-    # always returns a plain string.  This helper normalises both to a
-    # plain string suitable for substr() / ord() / unpack().
+    # string depending on the binding version.  This helper returns
+    # something we can read from via substr()/ord()/unpack().
     my $d = shift;
     return ref($d) ? $$d : $d;
+}
+
+sub _writable_data {
+    # Cairo::ImageSurface->get_data returns a reference to the actual
+    # pixel buffer (or a plain string that IS the buffer).  Unlike
+    # GdkPixbuf->get_pixels (which returns a copy), modifying this data
+    # affects the surface.  Returns a scalar ref so callers can do
+    # substr($$ref, ...) to write in-place.
+    my $d = shift;
+    return ref($d) ? $d : \$d;
 }
 
 sub generate_diff_image {
@@ -297,53 +306,54 @@ sub generate_diff_image {
     my $h = $pix_a->get_height;
     return if $w != $pix_b->get_width || $h != $pix_b->get_height;
 
-    # Compute per-pixel absolute difference using Cairo OPERATOR_DIFFERENCE
-    # (C-level, orders of magnitude faster than Perl pixel loops).
-    my $diff_surface = Cairo::ImageSurface->create('argb32', $w, $h);
-    my $cr = Cairo::Context->create($diff_surface);
-    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pix_a, 0, 0);
-    $cr->paint;
-    $cr->set_operator('difference');
-    Gtk3::Gdk::cairo_set_source_pixbuf($cr, $pix_b, 0, 0);
-    $cr->paint;
-    undef $cr;
+    # Read pixel data from both images (get_pixels is safe for reading)
+    my $data_a   = $pix_a->get_pixels;
+    my $data_b   = $pix_b->get_pixels;
+    my $stride_a = $pix_a->get_rowstride;
+    my $stride_b = $pix_b->get_rowstride;
+    my $n_ch     = $pix_a->get_n_channels;
 
-    # Read the diff data from the Cairo surface
-    my $diff_data   = _raw_data($diff_surface->get_data);
-    my $diff_stride = $diff_surface->get_stride;
-
-    # Build output: copy golden pixbuf, then blend magenta where diffs exist
-    my $out_pixbuf  = $pix_a->copy;
-    my $out_data    = $out_pixbuf->get_pixels;
-    my $out_stride  = $out_pixbuf->get_rowstride;
-    my $n_ch        = $out_pixbuf->get_n_channels;
+    # Write output to a Cairo surface (get_data returns the actual buffer,
+    # unlike GdkPixbuf->get_pixels which returns a copy).
+    my $out      = Cairo::ImageSurface->create('argb32', $w, $h);
+    my $out_ref  = _writable_data($out->get_data);
+    my $out_stride = $out->get_stride;
 
     my $blend = 0.6;
     my $inv   = 1 - $blend;
     my $mr    = int(255 * $blend);
 
     for my $y (0 .. $h - 1) {
-        my $d_row = $y * $diff_stride;
-        my $o_row = $y * $out_stride;
         for my $x (0 .. $w - 1) {
-            my $d_off = $d_row + $x * 4;
-            # Cairo ARGB32 bytes 0-2 are the 3 color channels (order depends
-            # on endianness but we only care if ANY channel is non-zero)
-            next unless ord(substr($diff_data, $d_off,     1))
-                      || ord(substr($diff_data, $d_off + 1, 1))
-                      || ord(substr($diff_data, $d_off + 2, 1));
+            my $a_off = $y * $stride_a + $x * $n_ch;
+            my $b_off = $y * $stride_b + $x * $n_ch;
+            my $o_off = $y * $out_stride + $x * 4;
 
-            my $o = $o_row + $x * $n_ch;
-            my $r = ord(substr($out_data, $o,     1));
-            my $g = ord(substr($out_data, $o + 1, 1));
-            my $b = ord(substr($out_data, $o + 2, 1));
-            substr($out_data, $o,     1) = chr(int($r * $inv + $mr));
-            substr($out_data, $o + 1, 1) = chr(int($g * $inv));
-            substr($out_data, $o + 2, 1) = chr(int($b * $inv + $mr));
+            my $r_a = ord(substr($data_a, $a_off,     1));
+            my $g_a = ord(substr($data_a, $a_off + 1, 1));
+            my $b_a = ord(substr($data_a, $a_off + 2, 1));
+            my $r_b = ord(substr($data_b, $b_off,     1));
+            my $g_b = ord(substr($data_b, $b_off + 1, 1));
+            my $b_b = ord(substr($data_b, $b_off + 2, 1));
+
+            if (abs($r_a - $r_b) || abs($g_a - $g_b) || abs($b_a - $b_b)) {
+                # Pixel differs: blend golden with magenta
+                substr($$out_ref, $o_off,     1) = chr(int($r_a * $inv + $mr));
+                substr($$out_ref, $o_off + 1, 1) = chr(int($g_a * $inv));
+                substr($$out_ref, $o_off + 2, 1) = chr(int($b_a * $inv + $mr));
+                substr($$out_ref, $o_off + 3, 1) = chr(255);
+            } else {
+                # Identical: copy golden pixel
+                substr($$out_ref, $o_off,     1) = chr($r_a);
+                substr($$out_ref, $o_off + 1, 1) = chr($g_a);
+                substr($$out_ref, $o_off + 2, 1) = chr($b_a);
+                substr($$out_ref, $o_off + 3, 1) = chr(255);
+            }
         }
     }
 
-    $out_pixbuf->savev($diff_path, 'png', [], []);
+    $out->mark_dirty();
+    $out->write_to_png($diff_path);
 }
 
 sub _file_md5 {
@@ -760,11 +770,7 @@ for my $name (@test_names) {
             push @failures, { name => $name, error => 'no comparisons' };
         }
         elsif (!$all_match) {
-            my $detail = join(', ', map {
-                defined $_->{diff_pct}
-                    ? sprintf("%s: %.2f%%", $_->{label}, $_->{diff_pct} * 100)
-                    : $_->{label}
-            } @diffs);
+            my $detail = join(', ', map { $_->{label} } @diffs);
             print "FAIL ($detail)";
             for my $d (@diffs) {
                 my $rel = $subdir ? "$subdir/" : '';
@@ -774,15 +780,11 @@ for my $name (@test_names) {
             print "\n";
             $failed++;
             push @failures, {
-                name      => $name,
-                diff_pct  => $diffs[0]{diff_pct},
-                diff_pct2 => $diffs[1] ? $diffs[1]{diff_pct} : undef,
+                name  => $name,
+                error => $detail,
             };
         } else {
-            # Show actual diff_pct from comparison, not hardcoded 0
-            my $detail = join(', ', map {
-                sprintf("%s: %.2f%%", $_->{label}, ($_->{diff_pct} // 0) * 100)
-            } @results);
+            my $detail = join(', ', map { $_->{label} } @results);
             print "OK ($detail)";
             if ($force_diff) {
                 for my $snap (@$out_labels) {
@@ -825,11 +827,7 @@ for my $name (@test_names) {
         }
 
         if (!$r->{match}) {
-            if (defined $r->{diff_pct}) {
-                printf "FAIL (%.2f%%)", $r->{diff_pct} * 100;
-            } else {
-                print "FAIL";
-            }
+            print "FAIL";
             _ensure_dir($dif_base);
             my $df = $out_file; $df =~ s/\.png$/_diff.png/;
             my $dp = "$dif_base/$df";
@@ -838,13 +836,9 @@ for my $name (@test_names) {
             print "\n    diff: xt/visual/diffs/${rel}${df}";
             print "\n";
             $failed++;
-            push @failures, { name => $name, diff_pct => $r->{diff_pct} };
+            push @failures, { name => $name, error => 'md5 mismatch' };
         } else {
-            if (defined $r->{diff_pct}) {
-                printf "OK (%.2f%%)", $r->{diff_pct} * 100;
-            } else {
-                print "OK (0.00%)";
-            }
+            print "OK";
             if ($force_diff) {
                 _ensure_dir($dif_base);
                 my $df = $out_file; $df =~ s/\.png$/_diff.png/;
@@ -872,10 +866,7 @@ print "\n";
 
 if (@failures) {
     for my $f (@failures) {
-        my $d1 = defined $f->{diff_pct}
-            ? sprintf("%.2f%%", $f->{diff_pct} * 100) : 'md5';
-        my $d2 = defined $f->{diff_pct2} ? sprintf(", _2: %.2f%%", $f->{diff_pct2} * 100) : '';
-        printf "  FAIL: %-50s %s%s\n", $f->{name}, $d1, $d2;
+        printf "  FAIL: %-50s %s\n", $f->{name}, $f->{error} // '';
     }
 }
 
