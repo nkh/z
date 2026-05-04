@@ -78,6 +78,7 @@
 #   --snapshot-delay MS  Delay before macro runs (default: 500)
 #   --verbose            Show GTK warnings + comparison diagnostics
 #   --force-diff         Generate diff images even for passing tests
+#   --diff-engine TOOL   Diff image engine: ffmpeg (default) or imagemagick
 #   --debug              Pass --debug to source-editor
 #   --size WxH           Window size (default: let window manager decide)
 #
@@ -126,6 +127,7 @@ OPTIONS:
     --snapshot-delay MS  Delay before macro runs (default: 500)
     --verbose, -v        Show GTK warnings and comparison diagnostics
     --force-diff         Generate diff images even for passing tests
+    --diff-engine TOOL   Diff image engine: ffmpeg (default) or imagemagick
     --debug              Pass --debug to source-editor
     --size WxH           Window size (default: let window manager decide)
     --help, -h           Show this help message
@@ -159,6 +161,7 @@ my $verbose       = 0;
 my $force_diff    = 0;
 my $debug         = 0;
 my $size          = undef;
+my $diff_engine   = 'ffmpeg';
 my $child_pid;    # set by run_child, used by SIGINT handler
 
 GetOptions(
@@ -175,7 +178,12 @@ GetOptions(
     'force-diff'      => \$force_diff,
     'debug'           => \$debug,
     'size=s'          => \$size,
+    'diff-engine=s'   => \$diff_engine,
 ) or die "Run '$0 --help' for usage information.\n";
+
+unless ($diff_engine =~ /^ffmpeg|imagemagick$/) {
+    die "--diff-engine must be 'ffmpeg' or 'imagemagick', got '$diff_engine'\n";
+}
 
 # --- Remaining arguments: macro directories and/or individual files ---
 my @paths = @ARGV;
@@ -275,23 +283,37 @@ sub _macro_subdir {
 }
 
 # ==========================================================================
-# Diff generation using ffmpeg
+# Diff image generation
 #
-# The diff image shows the current run output with differences highlighted
-# in magenta.  Uses ffmpeg filters (single command, no Cairo issues):
+# Produces a diff image showing the current run output with differences
+# highlighted in magenta.  Two backends are available:
 #
-#   1. blend=all_mode=difference computes |golden - current| per channel.
-#      Identical pixels are black; differing pixels are bright.
-#   2. colorchannelmixer with ar/ag/ab drives the alpha channel from the
-#      RGB luma: black pixels become fully transparent, bright pixels
-#      become fully opaque.
-#   3. alphamerge applies that alpha to a magenta color source (sized
-#      via scale2ref to match the current image dimensions).
-#   4. overlay composites the magenta-highlighted mask onto the current
-#      run image, so differing regions appear as bright magenta.
+#   ffmpeg (default):  single command with filter_complex
+#   imagemagick:       compare + convert + composite
+#
+# Selected via --diff-engine ffmpeg|imagemagick.
 # ==========================================================================
 
 sub generate_diff_image {
+    my ($golden, $current, $diff_path) = @_;
+
+    if ($diff_engine eq 'imagemagick') {
+        _generate_diff_imagemagick($golden, $current, $diff_path);
+    }
+    else {
+        _generate_diff_ffmpeg($golden, $current, $diff_path);
+    }
+}
+
+# --- ffmpeg backend ---
+#
+# Pipeline (single command):
+#   1. blend=all_mode=difference  ->  |golden - current| per channel
+#   2. colorchannelmixer ar/ag/ab ->  derive alpha from RGB luma
+#   3. alphamerge with magenta     ->  magenta where different, transparent elsewhere
+#   4. overlay                    ->  composite onto current image
+
+sub _generate_diff_ffmpeg {
     my ($golden, $current, $diff_path) = @_;
 
     _ensure_dir(dirname($diff_path));
@@ -312,7 +334,43 @@ sub generate_diff_image {
            '-map', '[out]',
            '-frames:v', '1', '-update', '1',
            $diff_path,
-    ) == 0 or warn "generate_diff_image: ffmpeg failed for $diff_path\n";
+    ) == 0 or warn "generate_diff_image (ffmpeg): failed for $diff_path\n";
+}
+
+# --- ImageMagick backend ---
+#
+# Pipeline (three commands):
+#   1. convert -compose difference  ->  |golden - current| (black=identical)
+#   2. convert -transparent black -fill magenta + tint  ->  magenta mask
+#   3. composite -compose over       ->  overlay onto current image
+
+sub _generate_diff_imagemagick {
+    my ($golden, $current, $diff_path) = @_;
+
+    _ensure_dir(dirname($diff_path));
+
+    # Step 1: absolute difference |golden - current| per channel
+    my $diff_tmp = "$diff_path.tmp_diff.png";
+    system('convert', $golden, $current,
+           '-compose', 'difference', '-composite', $diff_tmp) == 0
+        or do { warn "generate_diff_image (imagemagick): difference failed\n";
+               unlink $diff_tmp; return };
+
+    # Step 2: make black (identical) transparent, colorize rest to magenta
+    my $mag_tmp = "$diff_path.tmp_mag.png";
+    system('convert', $diff_tmp,
+           '-transparent', 'black',
+           '-fill', 'magenta', '-tint', '100',
+           $mag_tmp) == 0
+        or do { warn "generate_diff_image (imagemagick): colorize failed\n";
+               unlink $diff_tmp; unlink $mag_tmp; return };
+
+    # Step 3: overlay magenta diff onto current image
+    system('composite', '-compose', 'over', $mag_tmp, $current, $diff_path) == 0
+        or warn "generate_diff_image (imagemagick): composite failed\n";
+
+    unlink $diff_tmp;
+    unlink $mag_tmp;
 }
 
 sub _file_md5 {
