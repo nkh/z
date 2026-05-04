@@ -323,14 +323,14 @@ sub generate_diff_image {
     $cr1->set_source_surface($surf_b, 0, 0);
     $cr1->paint;
 
-    # Step 2: paint golden, then screen the diff on top.
+    # Step 2: paint output image, then screen the diff on top.
     # screen(dst, src) = 1 - (1-dst)(1-src)
-    # screen(X, 0) = X           → identical pixels keep the golden
-    # screen(X, D) > X           → differing pixels are brightened
+    # screen(black, X) = X           → identical pixels show the output
+    # screen(output, D) > output     → differing pixels are brightened
     my $out = Cairo::ImageSurface->create('argb32', $w, $h);
     my $cr2 = Cairo::Context->create($out);
     $cr2->set_operator('source');
-    $cr2->set_source_surface($surf_a, 0, 0);
+    $cr2->set_source_surface($surf_b, 0, 0);
     $cr2->paint;
     $cr2->set_operator('screen');
     $cr2->set_source_surface($diff, 0, 0);
