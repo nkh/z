@@ -282,12 +282,13 @@ sub _macro_subdir {
 #
 #   1. blend=all_mode=difference computes |golden - current| per channel.
 #      Identical pixels are black; differing pixels are bright.
-#   2. colorchannelmixer=aa=1.0 copies luma to alpha, making identical
-#      pixels transparent and differing pixels opaque.
-#   3. alphaextract pulls the alpha channel as a grayscale mask.
-#   4. alphamerge applies that mask as the alpha of a magenta color source.
-#   5. overlay composites the magenta mask onto the current run image,
-#      so differing regions appear as bright magenta highlights.
+#   2. colorchannelmixer with ar/ag/ab drives the alpha channel from the
+#      RGB luma: black pixels become fully transparent, bright pixels
+#      become fully opaque.
+#   3. alphamerge applies that alpha to a magenta color source (sized
+#      via scale2ref to match the current image dimensions).
+#   4. overlay composites the magenta-highlighted mask onto the current
+#      run image, so differing regions appear as bright magenta.
 # ==========================================================================
 
 sub generate_diff_image {
@@ -297,13 +298,12 @@ sub generate_diff_image {
 
     my $filter =
         '[0][1]blend=all_mode=difference[diff];'
-      . '[diff]format=rgba,colorchannelmixer=aa=1.0[mask];'
-      . '[mask]alphaextract[alpha];'
-      . '[1]split[base][ref];'
+      . '[diff]format=rgba,'
+      .   'colorchannelmixer=ar=0.34:ag=0.34:ab=0.34:aa=0[alpha_diff];'
       . 'color=c=magenta[mag];'
-      . '[mag][ref]scale2ref[mag_s][ignored];'
-      . '[mag_s][alpha]alphamerge[mm];'
-      . '[base][mm]overlay[out];'
+      . '[mag][1]scale2ref[mag_s][ignored];'
+      . '[mag_s][alpha_diff]alphamerge[mm];'
+      . '[1][mm]overlay[out];'
       . '[ignored]null';
 
     system('ffmpeg', '-y', '-loglevel', 'error',
