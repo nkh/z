@@ -279,14 +279,13 @@ sub _macro_subdir {
 # Diff generation using ImageMagick
 #
 # The diff image shows the current run output with differences highlighted.
-# Uses ImageMagick's `compare` and `convert` commands (external, fast,
-# no Cairo pixel-mangling issues):
+# Uses `convert` and `composite` (external, fast, no Cairo issues):
 #
-#   1. `compare -compose src` produces a diff mask: identical pixels are
-#      black, differing pixels show the output image colors.
-#   2. `convert -transparent black` makes black pixels transparent.
-#   3. `composite -compose over` overlays the transparent diff mask onto
-#      the current run image, so only differing regions are highlighted.
+#   1. `convert -compose difference -composite` computes |golden - current|
+#      per channel.  Identical pixels are black; differing pixels are bright.
+#   2. `convert -transparent black` makes identical (black) pixels transparent.
+#   3. `composite -compose over` overlays the colored diff onto the current
+#      run image, so only differing regions glow through.
 # ==========================================================================
 
 sub generate_diff_image {
@@ -294,16 +293,17 @@ sub generate_diff_image {
 
     _ensure_dir(dirname($diff_path));
 
-    # Step 1: diff mask -- identical=black, differing=output colors
-    my ($mask_fh, $mask_tmp) = tempfile(SUFFIX => '.png', UNLINK => 1);
-    close $mask_fh;
-    _run_quiet('compare', '-compose', 'src', $golden, $current, $mask_tmp)
+    # Step 1: absolute difference |golden - current| (per channel)
+    my ($diff_fh, $diff_tmp) = tempfile(SUFFIX => '.png', UNLINK => 1);
+    close $diff_fh;
+    _run_quiet('convert', $golden, $current,
+               '-compose', 'difference', '-composite', $diff_tmp)
         or return;
 
     # Step 2: make black (identical) pixels transparent
     my ($trans_fh, $trans_tmp) = tempfile(SUFFIX => '.png', UNLINK => 1);
     close $trans_fh;
-    _run_quiet('convert', $mask_tmp, '-transparent', 'black', $trans_tmp)
+    _run_quiet('convert', $diff_tmp, '-transparent', 'black', $trans_tmp)
         or return;
 
     # Step 3: overlay transparent diff mask on top of current run image
