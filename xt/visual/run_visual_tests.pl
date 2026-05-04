@@ -162,6 +162,7 @@ my $force_diff    = 0;
 my $debug         = 0;
 my $size          = undef;
 my $diff_engine   = 'ffmpeg';
+my $_im_prefix    = '';   # ImageMagick command prefix (auto-detected)
 my $child_pid;    # set by run_child, used by SIGINT handler
 
 GetOptions(
@@ -183,6 +184,13 @@ GetOptions(
 
 unless ($diff_engine =~ /^ffmpeg|imagemagick$/) {
     die "--diff-engine must be 'ffmpeg' or 'imagemagick', got '$diff_engine'\n";
+}
+
+if ($diff_engine eq 'imagemagick') {
+    _detect_imagemagick()
+        or die "--diff-engine imagemagick: ImageMagick not found "
+             . "(tried 'magick' and 'convert')\n";
+    print "diff engine: imagemagick ($_im_prefix convert)\n";
 }
 
 # --- Remaining arguments: macro directories and/or individual files ---
@@ -289,10 +297,32 @@ sub _macro_subdir {
 # highlighted in magenta.  Two backends are available:
 #
 #   ffmpeg (default):  single command with filter_complex
-#   imagemagick:       compare + convert + composite
+#   imagemagick:       convert + composite (auto-detects IM6 vs IM7 CLI)
 #
 # Selected via --diff-engine ffmpeg|imagemagick.
 # ==========================================================================
+
+# Auto-detect ImageMagick command prefix.
+# IM7 uses 'magick convert' / 'magick composite' etc.
+# IM6 uses standalone 'convert' / 'composite' etc.
+# $_im_prefix is declared in the option-parsing section above.
+
+sub _im_cmd { $_im_prefix ? ($_im_prefix, @_) : @_ }
+
+sub _detect_imagemagick {
+    return 1 if $_im_prefix ne '';    # already detected
+    # IM7: unified 'magick' command
+    if (system('magick', '-version') == 0) {
+        $_im_prefix = 'magick';
+        return 1;
+    }
+    # IM6: standalone commands
+    if (system('convert', '-version') == 0) {
+        $_im_prefix = '';
+        return 1;
+    }
+    return 0;
+}
 
 sub generate_diff_image {
     my ($golden, $current, $diff_path) = @_;
@@ -328,13 +358,16 @@ sub _generate_diff_ffmpeg {
       . '[1][mm]overlay[out];'
       . '[ignored]null';
 
-    system('ffmpeg', '-y', '-loglevel', 'error',
-           '-i', $golden, '-i', $current,
-           '-filter_complex', $filter,
-           '-map', '[out]',
-           '-frames:v', '1', '-update', '1',
-           $diff_path,
-    ) == 0 or warn "generate_diff_image (ffmpeg): failed for $diff_path\n";
+    my $rc = system('ffmpeg', '-y', '-loglevel', 'error',
+                    '-i', $golden, '-i', $current,
+                    '-filter_complex', $filter,
+                    '-map', '[out]',
+                    '-frames:v', '1', '-update', '1',
+                    $diff_path);
+    if ($rc != 0) {
+        my $exit = $rc >> 8;
+        warn "generate_diff_image (ffmpeg): exit $exit for $diff_path\n";
+    }
 }
 
 # --- ImageMagick backend ---
@@ -351,23 +384,39 @@ sub _generate_diff_imagemagick {
 
     # Step 1: absolute difference |golden - current| per channel
     my $diff_tmp = "$diff_path.tmp_diff.png";
-    system('convert', $golden, $current,
-           '-compose', 'difference', '-composite', $diff_tmp) == 0
-        or do { warn "generate_diff_image (imagemagick): difference failed\n";
-               unlink $diff_tmp; return };
+    my @cmd1 = _im_cmd('convert', $golden, $current,
+                        '-compose', 'difference', '-composite', $diff_tmp);
+    my $rc1 = system(@cmd1);
+    if ($rc1 != 0) {
+        warn "generate_diff_image (imagemagick): difference failed (exit "
+           . ($rc1 >> 8) . ")\n";
+        unlink $diff_tmp;
+        return;
+    }
 
     # Step 2: make black (identical) transparent, colorize rest to magenta
     my $mag_tmp = "$diff_path.tmp_mag.png";
-    system('convert', $diff_tmp,
-           '-transparent', 'black',
-           '-fill', 'magenta', '-tint', '100',
-           $mag_tmp) == 0
-        or do { warn "generate_diff_image (imagemagick): colorize failed\n";
-               unlink $diff_tmp; unlink $mag_tmp; return };
+    my @cmd2 = _im_cmd('convert', $diff_tmp,
+                        '-transparent', 'black',
+                        '-fill', 'magenta', '-tint', '100',
+                        $mag_tmp);
+    my $rc2 = system(@cmd2);
+    if ($rc2 != 0) {
+        warn "generate_diff_image (imagemagick): colorize failed (exit "
+           . ($rc2 >> 8) . ")\n";
+        unlink $diff_tmp;
+        unlink $mag_tmp;
+        return;
+    }
 
     # Step 3: overlay magenta diff onto current image
-    system('composite', '-compose', 'over', $mag_tmp, $current, $diff_path) == 0
-        or warn "generate_diff_image (imagemagick): composite failed\n";
+    my @cmd3 = _im_cmd('composite', '-compose', 'over',
+                        $mag_tmp, $current, $diff_path);
+    my $rc3 = system(@cmd3);
+    if ($rc3 != 0) {
+        warn "generate_diff_image (imagemagick): composite failed (exit "
+           . ($rc3 >> 8) . ")\n";
+    }
 
     unlink $diff_tmp;
     unlink $mag_tmp;
