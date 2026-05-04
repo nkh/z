@@ -277,15 +277,17 @@ sub _macro_subdir {
 # ==========================================================================
 # Diff generation using ffmpeg
 #
-# The diff image shows the current run output with differences highlighted.
-# Uses ffmpeg filters (available on the system, no Cairo issues):
+# The diff image shows the current run output with differences highlighted
+# in magenta.  Uses ffmpeg filters (single command, no Cairo issues):
 #
 #   1. blend=all_mode=difference computes |golden - current| per channel.
 #      Identical pixels are black; differing pixels are bright.
-#   2. colorchannelmixer=aa=1.0 copies luma to alpha channel, making
-#      black (identical) pixels transparent and bright pixels opaque.
-#   3. overlay composites the transparent diff onto the current image,
-#      so only differing regions glow through.
+#   2. colorchannelmixer=aa=1.0 copies luma to alpha, making identical
+#      pixels transparent and differing pixels opaque.
+#   3. alphaextract pulls the alpha channel as a grayscale mask.
+#   4. alphamerge applies that mask as the alpha of a magenta color source.
+#   5. overlay composites the magenta mask onto the current run image,
+#      so differing regions appear as bright magenta highlights.
 # ==========================================================================
 
 sub generate_diff_image {
@@ -293,17 +295,22 @@ sub generate_diff_image {
 
     _ensure_dir(dirname($diff_path));
 
-    my $filter = sprintf(
+    my $filter =
         '[0][1]blend=all_mode=difference[diff];'
-      . '[diff]format=rgba,colorchannelmixer=aa=1.0[alpha];'
-      . '[0][alpha]overlay',
-    );
+      . '[diff]format=rgba,colorchannelmixer=aa=1.0[mask];'
+      . '[mask]alphaextract[alpha];'
+      . '[1]split[base][ref];'
+      . 'color=c=magenta[mag];'
+      . '[mag][ref]scale2ref[mag_s][ignored];'
+      . '[mag_s][alpha]alphamerge[mm];'
+      . '[base][mm]overlay[out];'
+      . '[ignored]null';
 
-    system('ffmpeg', '-y',
-           '-i', $golden,
-           '-i', $current,
+    system('ffmpeg', '-y', '-loglevel', 'error',
+           '-i', $golden, '-i', $current,
            '-filter_complex', $filter,
-           '-frames:v', '1',
+           '-map', '[out]',
+           '-frames:v', '1', '-update', '1',
            $diff_path,
     ) == 0 or warn "generate_diff_image: ffmpeg failed for $diff_path\n";
 }
