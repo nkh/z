@@ -100,7 +100,6 @@ use File::Basename qw(dirname basename);
 use File::Path qw(make_path);
 use File::Copy qw(copy);
 use File::Spec ();
-use File::Temp qw(tempfile);
 use Digest::MD5 qw(md5_hex);
 use Cairo;
 use Gtk3 '-init';
@@ -276,16 +275,17 @@ sub _macro_subdir {
 }
 
 # ==========================================================================
-# Diff generation using ImageMagick
+# Diff generation using ffmpeg
 #
 # The diff image shows the current run output with differences highlighted.
-# Uses `convert` and `composite` (external, fast, no Cairo issues):
+# Uses ffmpeg filters (available on the system, no Cairo issues):
 #
-#   1. `convert -compose difference -composite` computes |golden - current|
-#      per channel.  Identical pixels are black; differing pixels are bright.
-#   2. `convert -transparent black` makes identical (black) pixels transparent.
-#   3. `composite -compose over` overlays the colored diff onto the current
-#      run image, so only differing regions glow through.
+#   1. blend=all_mode=difference computes |golden - current| per channel.
+#      Identical pixels are black; differing pixels are bright.
+#   2. colorchannelmixer=aa=1.0 copies luma to alpha channel, making
+#      black (identical) pixels transparent and bright pixels opaque.
+#   3. overlay composites the transparent diff onto the current image,
+#      so only differing regions glow through.
 # ==========================================================================
 
 sub generate_diff_image {
@@ -293,26 +293,19 @@ sub generate_diff_image {
 
     _ensure_dir(dirname($diff_path));
 
-    # Step 1: absolute difference |golden - current| (per channel)
-    my ($diff_fh, $diff_tmp) = tempfile(SUFFIX => '.png', UNLINK => 1);
-    close $diff_fh;
-    _run_quiet('convert', $golden, $current,
-               '-compose', 'difference', '-composite', $diff_tmp)
-        or return;
+    my $filter = sprintf(
+        '[0][1]blend=all_mode=difference[diff];'
+      . '[diff]format=rgba,colorchannelmixer=aa=1.0[alpha];'
+      . '[0][alpha]overlay',
+    );
 
-    # Step 2: make black (identical) pixels transparent
-    my ($trans_fh, $trans_tmp) = tempfile(SUFFIX => '.png', UNLINK => 1);
-    close $trans_fh;
-    _run_quiet('convert', $diff_tmp, '-transparent', 'black', $trans_tmp)
-        or return;
-
-    # Step 3: overlay transparent diff mask on top of current run image
-    _run_quiet('composite', '-compose', 'over', $trans_tmp, $current, $diff_path);
-}
-
-sub _run_quiet {
-    my @cmd = @_;
-    system(@cmd) == 0;
+    system('ffmpeg', '-y',
+           '-i', $golden,
+           '-i', $current,
+           '-filter_complex', $filter,
+           '-frames:v', '1',
+           $diff_path,
+    ) == 0 or warn "generate_diff_image: ffmpeg failed for $diff_path\n";
 }
 
 sub _file_md5 {
