@@ -277,13 +277,14 @@ sub _macro_subdir {
 # ==========================================================================
 # Image comparison and diff generation (Cairo/GdkPixbuf)
 #
-# All pixel operations use Cairo compositing operators (difference, add,
-# multiply, screen) which run at C speed.  No Perl pixel loops.
+# The diff image shows the absolute pixel difference between golden and
+# output, computed entirely at C level via Cairo OPERATOR_DIFFERENCE.
+# Identical pixels are black; differing pixels show the magnitude and
+# channel of the difference.  No Perl pixel loops.
 # ==========================================================================
 
 sub _pixbuf_to_surface {
     # Convert a GdkPixbuf to a Cairo ARGB32 surface.
-    # Uses the proven Gtk3::Gdk::cairo_set_source_pixbuf helper.
     my ($pb, $W, $H) = @_;
     my $surf = Cairo::ImageSurface->create('argb32', $W, $H);
     my $cr   = Cairo::Context->create($surf);
@@ -305,36 +306,19 @@ sub generate_diff_image {
     my $h = $pix_a->get_height;
     return if $w != $pix_b->get_width || $h != $pix_b->get_height;
 
-    # Convert both images to Cairo surfaces
+    # Convert both images to Cairo surfaces (same format, same size)
     my $surf_a = _pixbuf_to_surface($pix_a, $w, $h);
     my $surf_b = _pixbuf_to_surface($pix_b, $w, $h);
 
-    # Build diff entirely using Cairo compositing operators (C-level).
+    # Compute |golden - output| at C level.
+    # Result: black where pixels are identical, colored where they differ.
     my $out = Cairo::ImageSurface->create('argb32', $w, $h);
     my $cr  = Cairo::Context->create($out);
-
-    # Base: paint golden image
     $cr->set_operator('source');
     $cr->set_source_surface($surf_a, 0, 0);
     $cr->paint;
-
-    # Pixel-by-pixel absolute difference (C-level)
     $cr->set_operator('difference');
     $cr->set_source_surface($surf_b, 0, 0);
-    $cr->paint;
-
-    # Amplify small differences so they become visible
-    $cr->set_operator('add');
-    for (1 .. 3) { $cr->paint_with_alpha(0.7) }
-
-    # Colorize differences as magenta
-    $cr->set_operator('multiply');
-    $cr->set_source_rgba(1, 0, 1, 1);
-    $cr->paint;
-
-    # Boost contrast for better visibility
-    $cr->set_operator('screen');
-    $cr->set_source_rgba(1, 1, 1, 0.3);
     $cr->paint;
 
     $out->write_to_png($diff_path);
