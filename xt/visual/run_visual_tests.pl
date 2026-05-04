@@ -277,10 +277,13 @@ sub _macro_subdir {
 # ==========================================================================
 # Image comparison and diff generation (Cairo/GdkPixbuf)
 #
-# The diff image shows the absolute pixel difference between golden and
-# output, computed entirely at C level via Cairo OPERATOR_DIFFERENCE.
-# Identical pixels are black; differing pixels show the magnitude and
-# channel of the difference.  No Perl pixel loops.
+# The diff image shows the golden image with differences highlighted:
+#   1. Compute |golden - output| via Cairo OPERATOR_DIFFERENCE (C-level).
+#      Identical pixels produce black (0,0,0).
+#   2. Screen the difference map onto the golden image.
+#      screen(black, X) = X  -- so identical pixels show the golden
+#      screen(golden, diff) > golden  -- differing pixels are brightened.
+# All pixel operations at C level.  No Perl pixel loops.
 # ==========================================================================
 
 sub _pixbuf_to_surface {
@@ -306,20 +309,32 @@ sub generate_diff_image {
     my $h = $pix_a->get_height;
     return if $w != $pix_b->get_width || $h != $pix_b->get_height;
 
-    # Convert both images to Cairo surfaces (same format, same size)
     my $surf_a = _pixbuf_to_surface($pix_a, $w, $h);
     my $surf_b = _pixbuf_to_surface($pix_b, $w, $h);
 
-    # Compute |golden - output| at C level.
-    # Result: black where pixels are identical, colored where they differ.
+    # Step 1: compute |golden - output| (C-level).
+    # Identical pixels → black, differing pixels → non-zero RGB.
+    my $diff = Cairo::ImageSurface->create('argb32', $w, $h);
+    my $cr1  = Cairo::Context->create($diff);
+    $cr1->set_operator('source');
+    $cr1->set_source_surface($surf_a, 0, 0);
+    $cr1->paint;
+    $cr1->set_operator('difference');
+    $cr1->set_source_surface($surf_b, 0, 0);
+    $cr1->paint;
+
+    # Step 2: paint golden, then screen the diff on top.
+    # screen(dst, src) = 1 - (1-dst)(1-src)
+    # screen(X, 0) = X           → identical pixels keep the golden
+    # screen(X, D) > X           → differing pixels are brightened
     my $out = Cairo::ImageSurface->create('argb32', $w, $h);
-    my $cr  = Cairo::Context->create($out);
-    $cr->set_operator('source');
-    $cr->set_source_surface($surf_a, 0, 0);
-    $cr->paint;
-    $cr->set_operator('difference');
-    $cr->set_source_surface($surf_b, 0, 0);
-    $cr->paint;
+    my $cr2 = Cairo::Context->create($out);
+    $cr2->set_operator('source');
+    $cr2->set_source_surface($surf_a, 0, 0);
+    $cr2->paint;
+    $cr2->set_operator('screen');
+    $cr2->set_source_surface($diff, 0, 0);
+    $cr2->paint;
 
     $out->write_to_png($diff_path);
 }
